@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 My Game Collection</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --neon-pink: #ff2d75;
+            --neon-cyan: #00e5ff;
+            --neon-purple: #b347ea;
+            --neon-yellow: #ffd740;
+            --neon-green: #39ff14;
+            --text: #e0e0e0;
+            --text-muted: #8888a0;
+            --card-bg: #161625;
+            --border: #252535;
+            --glow-pink: 0 0 20px rgba(255, 45, 117, 0.5);
+            --glow-cyan: 0 0 20px rgba(0, 229, 255, 0.5);
+            --glow-purple: 0 0 20px rgba(179, 71, 234, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+            overflow-x: hidden;
+            line-height: 1.6;
+            cursor: default;
+            position: relative;
+            min-height: 100vh;
+        }
+
+        /* ── Particle Canvas ── */
+        #particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Scanline overlay ── */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 999;
+            background: repeating-linear-gradient(0deg,
+                    transparent,
+                    transparent 3px,
+                    rgba(0, 0, 0, 0.03) 3px,
+                    rgba(0, 0, 0, 0.03) 4px);
+        }
+
+        /* ── Main container ── */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* ── Navigation ── */
+        nav {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 0;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .nav-logo {
+            font-size: 1.8rem;
+            font-weight: 900;
+            letter-spacing: -1px;
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: none;
+            filter: drop-shadow(0 0 12px rgba(179, 71, 234, 0.6));
+            animation: logoGlow 3s ease-in-out infinite;
+        }
+        @keyframes logoGlow {
+            0%,
+            100% {
+                filter: drop-shadow(0 0 12px rgba(179, 71, 234, 0.6));
+            }
+            50% {
+                filter: drop-shadow(0 0 24px rgba(0, 229, 255, 0.8));
+            }
+        }
+        .nav-links {
+            display: flex;
+            gap: 28px;
+            list-style: none;
+            flex-wrap: wrap;
+        }
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.95rem;
+            letter-spacing: 0.5px;
+            transition: all 0.3s;
+            position: relative;
+            padding: 4px 0;
+        }
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--neon-cyan);
+            border-radius: 2px;
+            transition: width 0.3s;
+            box-shadow: var(--glow-cyan);
+        }
+        .nav-links a:hover {
+            color: #fff;
+        }
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        /* ── Hero ── */
+        .hero {
+            text-align: center;
+            padding: 80px 20px 60px;
+            position: relative;
+        }
+        .hero-badge {
+            display: inline-block;
+            background: rgba(255, 45, 117, 0.12);
+            border: 1px solid rgba(255, 45, 117, 0.35);
+            color: var(--neon-pink);
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 24px;
+            animation: pulseBadge 2s ease-in-out infinite;
+        }
+        @keyframes pulseBadge {
+            0%,
+            100% {
+                box-shadow: 0 0 0px rgba(255, 45, 117, 0);
+            }
+            50% {
+                box-shadow: 0 0 25px rgba(255, 45, 117, 0.4);
+            }
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 5rem);
+            font-weight: 900;
+            letter-spacing: -2px;
+            line-height: 1.1;
+            margin-bottom: 16px;
+            background: linear-gradient(180deg, #ffffff 0%, #b0b0c8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero h1 .accent {
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: accentShift 4s ease-in-out infinite;
+        }
+        @keyframes accentShift {
+            0%,
+            100% {
+                filter: hue-rotate(0deg);
+            }
+            50% {
+                filter: hue-rotate(25deg);
+            }
+        }
+        .hero p {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            max-width: 550px;
+            margin: 0 auto 32px;
+            line-height: 1.7;
+        }
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 0.5px;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: all 0.35s;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--neon-pink), #c42d5e);
+            color: #fff;
+            box-shadow: 0 8px 30px rgba(255, 45, 117, 0.35);
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 14px 40px rgba(255, 45, 117, 0.55);
+        }
+        .btn-secondary {
+            background: transparent;
+            color: #fff;
+            border: 2px solid var(--border);
+        }
+        .btn-secondary:hover {
+            border-color: var(--neon-cyan);
+            box-shadow: var(--glow-cyan);
+            transform: translateY(-3px);
+        }
+
+        /* ── Section Titles ── */
+        .section-title {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        .section-title h2 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+        }
+        .section-title .line {
+            display: block;
+            width: 60px;
+            height: 4px;
+            border-radius: 4px;
+            background: var(--neon-cyan);
+            margin: 12px auto 0;
+            box-shadow: var(--glow-cyan);
+        }
+
+        /* ── Games Grid ── */
+        .games-section {
+            padding: 40px 0 80px;
+        }
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 28px;
+        }
+        .game-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1.2);
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+        }
+        .game-card:hover {
+            transform: translateY(-10px);
+            border-color: rgba(255, 255, 255, 0.25);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(179, 71, 234, 0.3);
+        }
+        .game-card:hover .card-glow {
+            opacity: 1;
+        }
+        .card-glow {
+            position: absolute;
+            inset: -2px;
+            border-radius: 22px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s;
+            z-index: -1;
+            background: linear-gradient(135deg, var(--neon-purple), var(--neon-cyan), var(--neon-pink));
+            filter: blur(20px);
+        }
+        .game-thumb {
+            width: 100%;
+            height: 200px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .game-thumb .thumb-bg {
+            position: absolute;
+            inset: 0;
+            opacity: 0.25;
+            background-size: cover;
+            background-position: center;
+            transition: transform 0.5s, opacity 0.5s;
+        }
+        .game-card:hover .thumb-bg {
+            transform: scale(1.08);
+            opacity: 0.4;
+        }
+        .game-thumb .emoji-icon {
+            position: relative;
+            z-index: 1;
+            filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.5));
+            transition: transform 0.4s;
+        }
+        .game-card:hover .emoji-icon {
+            transform: scale(1.15) rotate(-5deg);
+        }
+        .game-info {
+            padding: 22px 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .game-info h3 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #fff;
+        }
+        .game-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .tag {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 4px 12px;
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text-muted);
+        }
+        .tag.highlight {
+            background: rgba(0, 229, 255, 0.1);
+            border-color: rgba(0, 229, 255, 0.3);
+            color: var(--neon-cyan);
+        }
+        .game-info p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+            flex: 1;
+        }
+        .game-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+        .game-rating {
+            color: var(--neon-yellow);
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+        .play-btn {
+            padding: 9px 20px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            border: none;
+            background: linear-gradient(135deg, var(--neon-purple), #7b2fc4);
+            color: #fff;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .play-btn:hover {
+            box-shadow: var(--glow-purple);
+            transform: scale(1.05);
+        }
+
+        /* ── About Section ── */
+        .about-section {
+            padding: 60px 0 80px;
+            text-align: center;
+            border-top: 1px solid var(--border);
+        }
+        .about-section p {
+            max-width: 650px;
+            margin: 0 auto;
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            line-height: 1.8;
+        }
+        .about-section .highlight-text {
+            color: var(--neon-cyan);
+            font-weight: 600;
+        }
+
+        /* ── Footer ── */
+        footer {
+            text-align: center;
+            padding: 32px 0 40px;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        footer .heart {
+            color: var(--neon-pink);
+            display: inline-block;
+            animation: heartbeat 1.2s ease-in-out infinite;
+        }
+        @keyframes heartbeat {
+            0%,
+            100% {
+                transform: scale(1);
+            }
+            15% {
+                transform: scale(1.25);
+            }
+            30% {
+                transform: scale(1);
+            }
+            45% {
+                transform: scale(1.2);
+            }
+            60% {
+                transform: scale(1);
+            }
+        }
+        .social-links {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        .social-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+            font-size: 0.9rem;
+        }
+        .social-links a:hover {
+            color: var(--neon-cyan);
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .hero {
+                padding: 50px 16px 40px;
+            }
+            .games-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            .nav-links {
+                gap: 16px;
+            }
+            .nav-logo {
+                font-size: 1.4rem;
+            }
+            .game-thumb {
+                height: 160px;
+                font-size: 3.5rem;
+            }
+        }
+        @media (max-width: 400px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+            .btn {
+                padding: 12px 20px;
+                font-size: 0.85rem;
+            }
+            .game-card {
+                border-radius: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Particle canvas -->
+    <canvas id="particles"></canvas>
+
+    <!-- Subtle scanlines -->
+    <div class="scanlines"></div>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Navigation -->
+        <nav>
+            <div class="nav-logo">🎮 GameVault</div>
+            <ul class="nav-links">
+                <li><a href="#games">Games</a></li>
+                <li><a href="#about">About</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+        </nav>
+
+        <!-- Hero -->
+        <section class="hero">
+            <div class="hero-badge">🚀 Indie Game Developer</div>
+            <h1>My <span class="accent">Game</span> Collection</h1>
+            <p>
+                A curated showcase of games I've built with passion, pixels, and code.
+                Each one is a little world waiting to be explored. Scroll down to play!
+            </p>
+            <div class="hero-buttons">
+                <a href="#games" class="btn btn-primary">🎯 Browse Games</a>
+                <a href="#about" class="btn btn-secondary">👋 About Me</a>
+            </div>
+        </section>
+
+        <!-- Games Section -->
+        <section class="games-section" id="games">
+            <div class="section-title">
+                <h2>🕹️ My Games</h2>
+                <span class="line"></span>
+            </div>
+            <div class="games-grid" id="gamesGrid">
+                <!-- Game cards injected by JS -->
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section class="about-section" id="about">
+            <div class="section-title">
+                <h2>👾 About the Creator</h2>
+                <span class="line"></span>
+            </div>
+            <p>
+                Hey! I'm a <span class="highlight-text">passionate game developer</span> who loves building
+                fun, immersive experiences. From pixel-art platformers to mind-bending puzzles,
+                I pour creativity into every project. This site is my digital arcade —
+                <span class="highlight-text">no quarters needed, just click and play!</span>
+            </p>
+        </section>
+
+        <!-- Footer -->
+        <footer id="contact">
+            <p>Built with <span class="heart">❤️</span> and lots of late nights</p>
+            <div class="social-links">
+                <a href="#">🐦 Twitter / X</a>
+                <a href="#">💻 GitHub</a>
+                <a href="#">📺 YouTube</a>
+                <a href="#">🎮 itch.io</a>
+                <a href="#">📧 Email Me</a>
+            </div>
+            <p style="margin-top:12px; font-size:0.8rem;">&copy; 2026 GameVault — All games are my original work</p>
+        </footer>
+    </div>
+
+    <script>
+        // ─────────────────────────────────────
+        //  PARTICLE SYSTEM (Synthwave vibes)
+        // ─────────────────────────────────────
+        const canvas = document.getElementById('particles');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let mouse = { x: -1000, y: -1000 };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+        window.addEventListener('touchmove', (e) => {
+            mouse.x = e.touches[0].clientX;
+            mouse.y = e.touches[0].clientY;
+        });
+
+        class Particle {
+            constructor() {
+                this.reset();
+                this.y = Math.random() * canvas.height; // start scattered
+            }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = -20;
+                this.size = Math.random() * 2.5 + 1;
+                this.speedY = Math.random() * 0.8 + 0.3;
+                this.speedX = (Math.random() - 0.5) * 0.4;
+                this.opacity = Math.random() * 0.6 + 0.2;
+                this.hue = Math.random() < 0.5 ? 195 : 285; // cyan or purple
+                this.twinkleSpeed = Math.random() * 0.02 + 0.005;
+                this.twinkleOffset = Math.random() * Math.PI * 2;
+            }
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX;
+                // Gentle sway toward mouse
+                const dx = mouse.x - this.x;
+                const dy = mouse.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 200) {
+                    const force = (200 - dist) / 200 * 0.03;
+                    this.x += dx * force;
+                    this.y += dy * force * 0.3;
+                }
+                if (this.y > canvas.height + 20 || this.x < -20 || this.x > canvas.width + 20) {
+                    this.reset();
+                }
+            }
+            draw(ctx, frame) {
+                const twinkle = Math.sin(frame * this.twinkleSpeed + this.twinkleOffset) * 0.3 + 0.7;
+                const alpha = this.opacity * twinkle;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                const color =
+                    this.hue === 195 ?
+                    `hsla(195, 100%, 65%, ${alpha})` :
+                    `hsla(285, 90%, 65%, ${alpha})`;
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = this.size * 6;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        const PARTICLE_COUNT = 100;
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            particles.push(new Particle());
+        }
+
+        let frame = 0;
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw(ctx, frame);
+            });
+            frame++;
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        // ─────────────────────────────────────
+        //  GAME DATA — Edit this to add your games!
+        // ─────────────────────────────────────
+        const games = [{
+            id: 1,
+            title: "Pixel Jumper",
+            emoji: "🧑‍🚀",
+            thumbBg: "linear-gradient(135deg, #1a1a3e, #2d1b4e)",
+            description: "A fast-paced platformer where you leap across neon rooftops. Collect stars, dodge obstacles, and reach the cosmic portal!",
+            tags: ["Platformer", "Pixel Art", "Single Player"],
+            rating: "⭐ 4.8",
+            link: "#play-pixel-jumper",
+            highlightTag: "Platformer",
+        }, {
+            id: 2,
+            title: "Mystic Tiles",
+            emoji: "🔮",
+            thumbBg: "linear-gradient(135deg, #1e1a30, #2a1040)",
+            description: "A puzzle game where matching enchanted tiles unleashes powerful spells. 100+ levels of brain-teasing magic!",
+            tags: ["Puzzle", "Casual", "Magic"],
+            rating: "⭐ 4.6",
+            link: "#play-mystic-tiles",
+            highlightTag: "Puzzle",
+        }, {
+            id: 3,
+            title: "Drift Velocity",
+            emoji: "🏎️",
+            thumbBg: "linear-gradient(135deg, #1a2025, #1a0a2e)",
+            description: "High-octane racing with drift mechanics. Customize your ride and compete on synthwave tracks under neon skies.",
+            tags: ["Racing", "Multiplayer", "Synthwave"],
+            rating: "⭐ 4.9",
+            link: "#play-drift-velocity",
+            highlightTag: "Multiplayer",
+        }, {
+            id: 4,
+            title: "Shadow Depths",
+            emoji: "🕯️",
+            thumbBg: "linear-gradient(135deg, #0d0d18, #1a0f0f)",
+            description: "A moody dungeon crawler where light is your only weapon. Explore procedurally generated caves filled with eerie creatures.",
+            tags: ["Roguelike", "Horror", "Dungeon Crawl"],
+            rating: "⭐ 4.7",
+            link: "#play-shadow-depths",
+            highlightTag: "Roguelike",
+        }, {
+            id: 5,
+            title: "Bloom Garden",
+            emoji: "🌸",
+            thumbBg: "linear-gradient(135deg, #1a2a1a, #1e1a30)",
+            description: "A cozy gardening sim where you cultivate magical plants, befriend forest spirits, and restore a forgotten sanctuary.",
+            tags: ["Simulation", "Cozy", "Relaxing"],
+            rating: "⭐ 4.5",
+            link: "#play-bloom-garden",
+            highlightTag: "Cozy",
+        }, {
+            id: 6,
+            title: "Neon Survivors",
+            emoji: "⚔️",
+            thumbBg: "linear-gradient(135deg, #1a1025, #200a20)",
+            description: "Survive endless waves of cybernetic enemies in this bullet-heaven roguelite. Upgrade your build and break the game!",
+            tags: ["Survivor-like", "Action", "Roguelite"],
+            rating: "⭐ 4.9",
+            link: "#play-neon-survivors",
+            highlightTag: "Action",
+        }, ];
+
+        // ─────────────────────────────────────
+        //  RENDER GAME CARDS
+        // ─────────────────────────────────────
+        const gamesGrid = document.getElementById('gamesGrid');
+
+        function renderGames() {
+            gamesGrid.innerHTML = '';
+            games.forEach((game) => {
+                const card = document.createElement('div');
+                card.className = 'game-card';
+                card.innerHTML = `
+                <div class="card-glow"></div>
+                <div class="game-thumb" style="background: ${game.thumbBg};">
+                  <span class="emoji-icon">${game.emoji}</span>
+                </div>
+                <div class="game-info">
+                  <h3>${game.title}</h3>
+                  <div class="game-tags">
+                    ${game.tags.map(t => {
+                      const isHighlight = t === game.highlightTag;
+                      return `<span class="tag${isHighlight ? ' highlight' : ''}">${t}</span>`;
+                    }).join('')}
+                  </div>
+                  <p>${game.description}</p>
+                  <div class="game-meta">
+                    <span class="game-rating">${game.rating}</span>
+                    <a href="${game.link}" class="play-btn" onclick="alert('🔜 This would launch: ${game.title}!\\n\\nReplace the link in the games array with your actual game URL.')">▶ Play</a>
+                  </div>
+                </div>
+              `;
+                // Card click (except when clicking the play button)
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.play-btn')) return;
+                    alert(
+                        `🎮 "${game.title}"\n\n${game.description}\n\nTags: ${game.tags.join(', ')}\nRating: ${game.rating}\n\n🔗 Update the "link" field in the games array to point to your actual game!`
+                        );
+                });
+                gamesGrid.appendChild(card);
+            });
+        }
+        renderGames();
+
+        // ─────────────────────────────────────
+        //  SMOOTH SCROLL FOR NAV LINKS
+        // ─────────────────────────────────────
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                const href = this.getAttribute('href');
+                if (href === '#') return;
+                e.preventDefault();
+                const target = document.querySelector(href);
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        console.log('%c🎮 GameVault Ready! %cEdit the `games` array to add your own games.',
+            'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
+        console.log('%c💡 Tip: Replace each game\'s `link` with your actual game URL (itch.io, GitHub Pages, etc.)',
+            'color:#00e5ff;');
+    </script>
+</body>
+</html>
