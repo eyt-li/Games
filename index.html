@@ -589,37 +589,222 @@
     </div>
 
     <script>
-    // Minimal test – ignores particles and just creates one card
-    const games = [
-        {
-            id: 1,
-            title: "Test Game",
-            emoji: "🎮",
-            thumbBg: "linear-gradient(135deg, #1a1a3e, #2d1b4e)",
-            description: "If you can see this, the script works.",
-            tags: ["Test"],
-            rating: "⭐ 5.0",
-            link: "#",
-            highlightTag: "Test",
-        }
-    ];
+        // ─────────────────────────────────────
+        //  PARTICLE SYSTEM (Synthwave vibes)
+        // ─────────────────────────────────────
+        const canvas = document.getElementById('particles');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let mouse = { x: -1000, y: -1000 };
 
-    const gamesGrid = document.getElementById('gamesGrid');
-    games.forEach(game => {
-        const card = document.createElement('div');
-        card.className = 'game-card';
-        card.innerHTML = `
-            <div class="card-glow"></div>
-            <div class="game-thumb" style="background: ${game.thumbBg};">
-                <span class="emoji-icon">${game.emoji}</span>
-            </div>
-            <div class="game-info">
-                <h3>${game.title}</h3>
-                <p>${game.description}</p>
-            </div>`;
-        gamesGrid.appendChild(card);
-    });
-    console.log('Test script finished');
-</script>
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+        window.addEventListener('touchmove', (e) => {
+            mouse.x = e.touches[0].clientX;
+            mouse.y = e.touches[0].clientY;
+        });
+
+        class Particle {
+            constructor() {
+                this.reset();
+                this.y = Math.random() * canvas.height; // start scattered
+            }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = -20;
+                this.size = Math.random() * 2.5 + 1;
+                this.speedY = Math.random() * 0.8 + 0.3;
+                this.speedX = (Math.random() - 0.5) * 0.4;
+                this.opacity = Math.random() * 0.6 + 0.2;
+                this.hue = Math.random() < 0.5 ? 195 : 285; // cyan or purple
+                this.twinkleSpeed = Math.random() * 0.02 + 0.005;
+                this.twinkleOffset = Math.random() * Math.PI * 2;
+            }
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX;
+                // Gentle sway toward mouse
+                const dx = mouse.x - this.x;
+                const dy = mouse.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 200) {
+                    const force = (200 - dist) / 200 * 0.03;
+                    this.x += dx * force;
+                    this.y += dy * force * 0.3;
+                }
+                if (this.y > canvas.height + 20 || this.x < -20 || this.x > canvas.width + 20) {
+                    this.reset();
+                }
+            }
+            draw(ctx, frame) {
+                const twinkle = Math.sin(frame * this.twinkleSpeed + this.twinkleOffset) * 0.3 + 0.7;
+                const alpha = this.opacity * twinkle;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                const color =
+                    this.hue === 195 ?
+                    `hsla(195, 100%, 65%, ${alpha})` :
+                    `hsla(285, 90%, 65%, ${alpha})`;
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = this.size * 6;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        const PARTICLE_COUNT = 100;
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            particles.push(new Particle());
+        }
+
+        let frame = 0;
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw(ctx, frame);
+            });
+            frame++;
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        // ─────────────────────────────────────
+        //  GAME DATA — Edit this to add your games!
+        // ─────────────────────────────────────
+        const games = [{
+            id: 1,
+            title: "Anti-Platformer",
+            emoji: "😈",
+            thumbBg: "linear-gradient(135deg, #1a1a3e, #2d1b4e)",
+            description: "Anti‑Platformer is a chaotic 2D platformer where the level itself actively works against you. Your goal is simple: reach the glowing door at the end of each level to win. But everything – the ground, the walls, the platforms, even the exit door itself – will try to stop you.",
+            tags: ["Platformer", "Single Player"],
+            rating: "⭐ 4.8",
+            link: "games/Anti-Platformer.html",
+            highlightTag: "Platformer",
+        }, {
+            id: 2,
+            title: "Mystic Tiles",
+            emoji: "🔮",
+            thumbBg: "linear-gradient(135deg, #1e1a30, #2a1040)",
+            description: "A puzzle game where matching enchanted tiles unleashes powerful spells. 100+ levels of brain-teasing magic!",
+            tags: ["Puzzle", "Casual", "Magic"],
+            rating: "⭐ 4.6",
+            link: "#play-mystic-tiles",
+            highlightTag: "Puzzle",
+        }, {
+            id: 3,
+            title: "Drift Velocity",
+            emoji: "🏎️",
+            thumbBg: "linear-gradient(135deg, #1a2025, #1a0a2e)",
+            description: "High-octane racing with drift mechanics. Customize your ride and compete on synthwave tracks under neon skies.",
+            tags: ["Racing", "Multiplayer", "Synthwave"],
+            rating: "⭐ 4.9",
+            link: "#play-drift-velocity",
+            highlightTag: "Multiplayer",
+        }, {
+            id: 4,
+            title: "Shadow Depths",
+            emoji: "🕯️",
+            thumbBg: "linear-gradient(135deg, #0d0d18, #1a0f0f)",
+            description: "A moody dungeon crawler where light is your only weapon. Explore procedurally generated caves filled with eerie creatures.",
+            tags: ["Roguelike", "Horror", "Dungeon Crawl"],
+            rating: "⭐ 4.7",
+            link: "#play-shadow-depths",
+            highlightTag: "Roguelike",
+        }, {
+            id: 5,
+            title: "Bloom Garden",
+            emoji: "🌸",
+            thumbBg: "linear-gradient(135deg, #1a2a1a, #1e1a30)",
+            description: "A cozy gardening sim where you cultivate magical plants, befriend forest spirits, and restore a forgotten sanctuary.",
+            tags: ["Simulation", "Cozy", "Relaxing"],
+            rating: "⭐ 4.5",
+            link: "#play-bloom-garden",
+            highlightTag: "Cozy",
+        }, {
+            id: 6,
+            title: "Neon Survivors",
+            emoji: "⚔️",
+            thumbBg: "linear-gradient(135deg, #1a1025, #200a20)",
+            description: "Survive endless waves of cybernetic enemies in this bullet-heaven roguelite. Upgrade your build and break the game!",
+            tags: ["Survivor-like", "Action", "Roguelite"],
+            rating: "⭐ 4.9",
+            link: "#play-neon-survivors",
+            highlightTag: "Action",
+        }, ];
+
+        // ─────────────────────────────────────
+        //  RENDER GAME CARDS
+        // ─────────────────────────────────────
+        const gamesGrid = document.getElementById('gamesGrid');
+
+        function renderGames() {
+            gamesGrid.innerHTML = '';
+            games.forEach((game) => {
+                const card = document.createElement('div');
+                card.className = 'game-card';
+                card.innerHTML = `
+                <div class="card-glow"></div>
+                <div class="game-thumb" style="background: ${game.thumbBg};">
+                  <span class="emoji-icon">${game.emoji}</span>
+                </div>
+                <div class="game-info">
+                  <h3>${game.title}</h3>
+                  <div class="game-tags">
+                    ${game.tags.map(t => {
+                      const isHighlight = t === game.highlightTag;
+                      return `<span class="tag${isHighlight ? ' highlight' : ''}">${t}</span>`;
+                    }).join('')}
+                  </div>
+                  <p>${game.description}</p>
+                  <div class="game-meta">
+                    <span class="game-rating">${game.rating}</span>
+                    <a href="${game.link}" class="play-btn" onclick="alert('🔜 This would launch: ${game.title}!\\n\\nReplace the link in the games array with your actual game URL.')">▶ Play</a>
+                  </div>
+                </div>
+              `;
+                // Card click (except when clicking the play button)
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.play-btn')) return;
+                    alert(
+                        `🎮 "${game.title}"\n\n${game.description}\n\nTags: ${game.tags.join(', ')}\nRating: ${game.rating}\n\n🔗 Update the "link" field in the games array to point to your actual game!`
+                        );
+                });
+                gamesGrid.appendChild(card);
+            });
+        }
+        renderGames();
+
+        // ─────────────────────────────────────
+        //  SMOOTH SCROLL FOR NAV LINKS
+        // ─────────────────────────────────────
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                const href = this.getAttribute('href');
+                if (href === '#') return;
+                e.preventDefault();
+                const target = document.querySelector(href);
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        console.log('%c🎮 GameVault Ready! %cEdit the `games` array to add your own games.',
+            'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
+        console.log('%c💡 Tip: Replace each game\'s `link` with your actual game URL (itch.io, GitHub Pages, etc.)',
+            'color:#00e5ff;');
+    </script>
 </body>
 </html>
