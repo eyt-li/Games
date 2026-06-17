@@ -820,15 +820,6 @@
             tags: ["Platformer", "level-Editor", "Mushroom"],
             link: "games/ShroomForge.html",
             highlightTag: "Platformer",
-        }, {
-            id: 7,
-            title: "ShroomForge",
-            emoji: "🍄",
-            thumbBg: "linear-gradient(135deg, #1a1025, #200a20)",
-            description: "ShroomForge is a floaty 2D platformer where you play as a mushroom, stomping enemies and bumping lucky blocks. Build your own worlds with the built-in editor!",
-            tags: ["Platformer", "level-Editor", "Mushroom"],
-            link: "games/ShroomForge.html",
-            highlightTag: "Platformer",
         }];
 
         // ────────────────────────────────
@@ -888,7 +879,8 @@
                             <span class="game-rating" data-gameid="${game.id}">
                                 ⭐ ${avgRating} (${commentCount})
                             </span>
-                            <a href="${game.link}" class="play-btn">▶ Play</a>
+                            <!-- 👇 CHANGED: Added target="_blank" to open in new tab -->
+                            <a href="${game.link}" class="play-btn" target="_blank" rel="noopener noreferrer">▶ Play</a>
                         </div>
                     </div>`;
                 // Open modal on card click (except play button)
