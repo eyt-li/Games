@@ -394,13 +394,14 @@
         .comments-list { margin-top: 20px; max-height: 200px; overflow-y: auto; }
         .comment-item {
             background: rgba(255,255,255,0.03); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px;
+            display: flex; justify-content: space-between; align-items: flex-start;
         }
-        .comment-item .comment-text { color: #ddd; }
+        .comment-item .comment-text { color: #ddd; flex: 1; }
         .comment-item .comment-date { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
         .delete-comment-btn {
             background: none; border: 1px solid #ff2d75; color: #ff2d75;
             padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; cursor: pointer;
-            margin-left: 8px; transition: all 0.2s;
+            margin-left: 8px; transition: all 0.2s; white-space: nowrap;
         }
         .delete-comment-btn:hover { background: #ff2d75; color: #fff; }
 
@@ -507,7 +508,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
         import { getDatabase, ref, get, child, push, set, remove } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
 
-        // 🔥 REPLACE WITH YOUR FIREBASE CONFIG
+        // 🔥 Replace with your Firebase config if needed
         const firebaseConfig = {
           apiKey: "AIzaSyDzJQeMOfXarw5sfCjs9cPc1cRs8J_wo6M",
           authDomain: "games-f4f3f.firebaseapp.com",
@@ -520,6 +521,9 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
+
+        // 👇 CHANGE THIS TO YOUR SECRET ADMIN PASSWORD
+        const ADMIN_PASSWORD = '123456798';
 
         // ────────────────────────────────
         //  Particle system (unchanged)
@@ -675,18 +679,18 @@
             const ratings = await fetchRatings(gameId);
             const avg = average(ratings);
             const comments = await fetchComments(gameId);
-            const authorToken = getAuthorToken();   // current user's token
+            const authorToken = getAuthorToken();
 
-            // Build comments list with delete buttons for own comments
+            // Build comments list – EVERY comment shows a delete button
             const commentsHTML = comments.length === 0
                 ? '<p style="color:var(--text-muted)">No comments yet.</p>'
                 : comments.map(c => {
-                    const isOwnComment = c.authorToken === authorToken;
                     return `
                         <div class="comment-item">
                             <div class="comment-text">${c.text}</div>
-                            <div class="comment-date">${new Date(c.date).toLocaleString()}
-                                ${isOwnComment ? `<button class="delete-comment-btn" data-comment-id="${c.id}">🗑️ Delete</button>` : ''}
+                            <div class="comment-date">
+                                ${new Date(c.date).toLocaleString()}
+                                <button class="delete-comment-btn" data-comment-id="${c.id}" data-author="${c.authorToken || ''}">🗑️</button>
                             </div>
                         </div>
                     `;
@@ -748,31 +752,46 @@
                 await set(newCommentRef, {
                     text: text,
                     date: Date.now(),
-                    authorToken: authorToken   // store token to identify owner
+                    authorToken: authorToken
                 });
                 openRatingModal(gameId);
                 renderGames();
             });
 
-            // ── Self-delete for comments ──
+            // ── Delete comment (self-delete or admin delete) ──
             document.querySelectorAll('.delete-comment-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     const commentId = btn.dataset.commentId;
-                    if (confirm('Delete your comment?')) {
-                        const commentRef = ref(db, `games/${gameId}/comments/${commentId}`);
-                        await remove(commentRef);
-                        openRatingModal(gameId);
-                        renderGames();
+                    const commentAuthor = btn.dataset.author;
+                    const isOwner = (commentAuthor === authorToken);
+
+                    if (isOwner) {
+                        // Self delete – just confirm
+                        if (confirm('Delete your comment?')) {
+                            await remove(ref(db, `games/${gameId}/comments/${commentId}`));
+                            openRatingModal(gameId);
+                            renderGames();
+                        }
+                    } else {
+                        // Admin delete – ask for password
+                        const password = prompt('Enter admin password to delete this comment:');
+                        if (password === ADMIN_PASSWORD) {
+                            await remove(ref(db, `games/${gameId}/comments/${commentId}`));
+                            openRatingModal(gameId);
+                            renderGames();
+                        } else if (password !== null) {
+                            alert('Wrong password.');
+                        }
                     }
                 });
             });
 
-            // ── Owner reset button ──
+            // ── Owner reset button (delete all game data) ──
             document.getElementById('ownerResetBtn').addEventListener('click', () => {
-                const password = prompt('Enter admin password to reset all data for this game:');
-                if (password === 'reset123') {   // 👈 CHANGE THIS PASSWORD
-                    if (confirm(`This will permanently delete ALL ratings and comments for "${game.title}". Continue?`)) {
+                const password = prompt('Enter admin password to reset ALL data for this game:');
+                if (password === ADMIN_PASSWORD) {
+                    if (confirm(`Permanently delete all ratings and comments for "${game.title}"?`)) {
                         set(ref(db, `games/${gameId}`), null).then(() => {
                             alert('Data reset successfully!');
                             modalOverlay.classList.remove('active');
@@ -796,7 +815,7 @@
             });
         });
 
-        console.log('%c🎮 GameVault Ready! %cPublic ratings & comments with owner reset.', 'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
+        console.log('%c🎮 GameVault Ready! %cAdmin delete for any comment enabled.', 'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
     </script>
 </body>
 </html>
