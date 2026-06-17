@@ -21,7 +21,6 @@
     const H = Math.min(window.innerHeight - 20, 750);
     canvas.width = W; canvas.height = H;
 
-    // Map: 1200 x 800 (3:2 ratio)
     const MAP_W = 1200, MAP_H = 800;
     const GAME_DURATION = 120;
     const TEAM_COLORS = ['#3498db', '#e74c3c'];
@@ -33,7 +32,6 @@
         { x: MAP_W - 80, y: 25, w: 55, h: MAP_H - 50 }
     ];
 
-    // Death message verbs – specific to damage type
     const DEATH_VERBS = {
         bullet: ['shot', 'gunned down', 'picked off'],
         explosion: ['blown up', 'obliterated', 'detonated'],
@@ -52,7 +50,6 @@
     };
     const STREAK_NAMES = ["", "", "Double Kill", "Triple Kill", "Quadra Kill", "Penta Kill", "Mega Kill", "Ultra Kill", "Monster Kill", "Ludicrous Kill", "Godlike!"];
 
-    // Helper to convert hex color to rgb object
     function hexToRgb(hex) {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
         return result ? {
@@ -925,10 +922,9 @@
     function drawRespawnScreen(){ if(!showRespawnScreen||!player) return; ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H); const cx=W/2,cy=H/2; ctx.fillStyle='#fff'; ctx.font='bold 32px'; ctx.textAlign='center'; ctx.fillText('YOU ARE DEAD',cx,cy-50); ctx.fillStyle='#ccc'; ctx.font='18px'; ctx.fillText('Random weapons on respawn',cx,cy-10); if(player.slots[0]){ ctx.fillStyle='#ddd'; ctx.font='15px'; ctx.fillText(`Guns: ${player.slots[0].name} & ${player.slots[1].name}`,cx,cy+30); ctx.fillText(`Melee: ${player.slots[2].name}  |  Explosive: ${player.slots[3].name}`,cx,cy+55); } const btnW=160,btnH=50,btnX=cx-btnW/2,btnY=cy+90; ctx.fillStyle='rgba(46,204,113,0.9)'; ctx.fillRect(btnX,btnY,btnW,btnH); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.strokeRect(btnX,btnY,btnW,btnH); ctx.fillStyle='#fff'; ctx.font='bold 22px'; ctx.fillText('RESPAWN',cx,btnY+34); window._respawnBtn={x:btnX,y:btnY,w:btnW,h:btnH}; const homeBtnW=100,homeBtnH=40,homeBtnX=20,homeBtnY=20; ctx.fillStyle='#e74c3c'; ctx.fillRect(homeBtnX,homeBtnY,homeBtnW,homeBtnH); ctx.fillStyle='#fff'; ctx.font='bold 18px'; ctx.textAlign='center'; ctx.fillText('HOME',homeBtnX+homeBtnW/2,homeBtnY+28); window._deathHomeBtn={x:homeBtnX,y:homeBtnY,w:homeBtnW,h:homeBtnH}; ctx.textAlign='start'; }
     function drawGameOverScreen(){ ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(0,0,W,H); const cx=W/2,cy=H/2; ctx.textAlign='center'; if(winnerTeam>=0){ ctx.fillStyle=TEAM_COLORS[winnerTeam]; ctx.font='bold 40px'; ctx.fillText(`${TEAM_NAMES[winnerTeam]} TEAM WINS!`,cx,cy-50); } else { ctx.fillStyle='#fff'; ctx.font='bold 40px'; ctx.fillText('DRAW!',cx,cy-50); } const tk=[0,0]; for(const p of players) tk[p.team]+=p.kills; for(let t=0;t<NUM_TEAMS;t++){ ctx.fillStyle=TEAM_COLORS[t]; ctx.font='20px'; ctx.fillText(`${TEAM_NAMES[t]}: ${tk[t]} kills`,cx,cy-10+t*28); } const elapsed=performance.now()-gameEndTime; if(elapsed<3000){ ctx.fillStyle='#fff'; ctx.font='18px'; ctx.fillText(`Next round in ${Math.ceil((3000-elapsed)/1000)}s...`,cx,cy+110); } else { ctx.fillStyle='#fff'; ctx.font='18px'; ctx.fillText('Click or R to restart',cx,cy+110); } const homeBtnW=120,homeBtnH=40,homeBtnX=20,homeBtnY=20; ctx.fillStyle='#e74c3c'; ctx.fillRect(homeBtnX,homeBtnY,homeBtnW,homeBtnH); ctx.fillStyle='#fff'; ctx.font='bold 18px'; ctx.textAlign='center'; ctx.fillText('HOME',homeBtnX+homeBtnW/2,homeBtnY+28); window._gameoverHomeBtn={x:homeBtnX,y:homeBtnY,w:homeBtnW,h:homeBtnH}; ctx.textAlign='start'; }
 
-    // Color‑coded kill feed with background bars to avoid overlap
+    // ======== CORRECTED KILL FEED ========
     function drawKillFeed() {
         let kfX = W - 180, kfY = 100;
-        ctx.textAlign = 'right';
         for (const kf of killFeed) {
             let segments = [];
             if (kf.killerName) {
@@ -957,26 +953,28 @@
             ctx.font = 'bold 14px "Segoe UI", sans-serif';
             for (const seg of segments) totalWidth += ctx.measureText(seg.text).width;
 
-            // Draw background bar with padding
+            // Background bar
             const barHeight = 20, padX = 6, padY = 2;
-            let drawX = kfX - totalWidth - padX; // left edge of background
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(drawX, kfY - barHeight/2 - padY, totalWidth + padX*2, barHeight + padY*2);
-            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            const barLeft = kfX - totalWidth - padX;
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(barLeft, kfY - barHeight/2 - padY, totalWidth + padX*2, barHeight + padY*2);
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
             ctx.lineWidth = 1;
-            ctx.strokeRect(drawX, kfY - barHeight/2 - padY, totalWidth + padX*2, barHeight + padY*2);
+            ctx.strokeRect(barLeft, kfY - barHeight/2 - padY, totalWidth + padX*2, barHeight + padY*2);
 
-            // Draw the text segments
-            drawX = kfX; // reset to right align
+            // Draw segments left‑aligned, from the left edge of the text area
+            ctx.textAlign = 'left';
+            let drawX = kfX - totalWidth;
             for (const seg of segments) {
                 const rgb = hexToRgb(seg.color);
                 ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${Math.min(1, kf.timer)})`;
                 ctx.fillText(seg.text, drawX, kfY);
-                drawX -= ctx.measureText(seg.text).width;
+                drawX += ctx.measureText(seg.text).width;
             }
-            kfY += 24; // increased vertical spacing
+
+            kfY += 24;
         }
-        ctx.textAlign = 'start';
+        ctx.textAlign = 'start';   // restore
     }
 
     function render(){
