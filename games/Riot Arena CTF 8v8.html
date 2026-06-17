@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Riot Arena – Capture The Flag</title>
+    <title>Riot Arena – Capture The Flag (8v8)</title>
     <style>
         :root { --bg: #000035; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -25,7 +25,7 @@
     const GAME_DURATION = 180;
     const TEAM_COLORS = ['#3498db', '#e74c3c'];
     const TEAM_NAMES = ['Blue', 'Red'];
-    const NUM_TEAMS = 2, PLAYERS_PER_TEAM = 10;
+    const NUM_TEAMS = 2, PLAYERS_PER_TEAM = 8;
     const MAX_CAPTURES = 3;
 
     const SPAWN_ZONES = [
@@ -75,6 +75,9 @@
             this.carrier = player;
             this.dropped = false;
             player.hasEnemyFlag = true;
+            // Automatically switch to flag weapon
+            player.currentSlot = 2;
+            player.meleeActive = false;
         }
         returnToBase() {
             this.x = this.homeX;
@@ -528,7 +531,8 @@
     const MELEE_DEFS = {
         'Bat':{ name:'Bat',damage:35,cooldown:0.5,range:65,arc:1.2 },
         'Sword':{ name:'Sword',damage:50,cooldown:0.7,range:75,arc:0.9 },
-        'Knuckle':{ name:'Knuckle',damage:22,cooldown:0.25,range:45,arc:1.5 }
+        'Knuckle':{ name:'Knuckle',damage:22,cooldown:0.25,range:45,arc:1.5 },
+        'Flag':{ name:'Flag',damage:50,cooldown:0.7,range:225,arc:0.9 } // 3x sword range
     };
     const EXPLOSIVE_DEFS = {
         'Grenade':{ name:'Grenade',damage:100,radius:200,fuse:1.8,quantity:5 },
@@ -603,6 +607,8 @@
                 const enemyFlag = flags.find(f => f.carrier === this);
                 if (enemyFlag) enemyFlag.drop(this.x, this.y);
                 this.hasEnemyFlag = false;
+                // Restore original melee weapon
+                this.slots[2] = MELEE_DEFS[choice(Object.keys(MELEE_DEFS))];
             }
             if(killerId !== null && killerId !== this.id) {
                 const killer = players.find(p => p.id === killerId);
@@ -678,6 +684,10 @@
         exitCar(){ if(!this.inCar) return; this.car.seats[this.carSeat]=null; this.inCar=false; this.car=null; this.carSeat=-1; if(this.car&&!this.car.seats[0]&&!this.car.seats[1]) this.car.team=null; }
         update(dt,walls,allPlayers){
             if(!this.alive) return;
+            // Flag carrier healing (8% max HP per second)
+            if(this.hasEnemyFlag) {
+                this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.08 * dt);
+            }
             if(this.healCooldown>0) this.healCooldown-=dt;
             if(this.disruptorImmune>0) this.disruptorImmune-=dt;
             if(this.retreatTimer>0) this.retreatTimer-=dt;
@@ -708,9 +718,24 @@
         }
         shoot(worldMX,worldMY,walls,cars){
             if(!this.alive||this.stunned>0) return;
-            if(this.hasEnemyFlag) return;
             if(this.fireHoldTimer>0) return;
             const slot=this.currentSlot;
+            if(this.hasEnemyFlag) {
+                // Only allow melee attack with flag
+                if(slot !== 2) return;
+                // Use Flag melee
+                if(this.slotCooldown[2] > 0) return;
+                this.meleeActive=true; this.meleeTimer=0.2; this.meleeAngle=angleBetween(this,{x:worldMX,y:worldMY}); this.slotCooldown[2]=MELEE_DEFS['Flag'].cooldown;
+                const def = MELEE_DEFS['Flag'];
+                const range = def.range; // 225
+                const arc = def.arc;
+                for(const p of players) if(p.id!==this.id&&p.hp>0){ const d=dist(this,p), ang=angleBetween(this,p); let diff=Math.abs(ang-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(d<range&&diff<arc){ if(p.team!==this.team) p.takeDamage(def.damage,this.id,this.team,'melee'); else p.hp=Math.min(p.maxHp,p.hp+def.damage*0.5); } }
+                for(const b of buildings) if(b.alive&&!b.isPlaced){ if(b.isEnterable){ for(const w of b.walls){ const cx=w.x+w.w/2,cy=w.y+w.h/2,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(w.w,w.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); } } else { const cx=b.x+b.w/2,cy=b.y+b.h/2,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(b.w,b.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); } }
+                for(const c of cars) if(c.alive){ const cx=c.x,cy=c.y,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(c.w,c.h)/2){ const angleToCar=angleBetween(this,{x:cx,y:cy}); let diff=Math.abs(angleToCar-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(diff<arc) c.takeDamage(15); } }
+                for(const w of walls){ if(!w.alive) continue; const dx=w.x2-w.x1,dy=w.y2-w.y1,lenSq=dx*dx+dy*dy; let t=0; if(lenSq>0) t=clamp(((this.x-w.x1)*dx+(this.y-w.y1)*dy)/lenSq,0,1); const cx=w.x1+t*dx,cy=w.y1+t*dy,d=dist(this,{x:cx,y:cy}); if(d<range+10){ const angTo=angleBetween(this,{x:cx,y:cy}); let diff=Math.abs(angTo-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(diff<arc) w.takeDamage(def.damage*3); } }
+                sfxMelee();
+                return;
+            }
             if(slot!==4&&this.slotReloading[slot]) return;
             if(this.explosiveLocked>0&&(slot===3||(this.isShieldBot&&slot===4))) return;
             if(slot===4){
@@ -730,8 +755,8 @@
                 this.slotAmmo[slot]--; this.slotCooldown[slot]=def.cooldown; if(this.slotAmmo[slot]<=0) this.startReload(slot); sfxShoot();
             } else if(slot===2){
                 this.meleeActive=true; this.meleeTimer=0.2; this.meleeAngle=angleBetween(this,{x:worldMX,y:worldMY}); this.slotCooldown[slot]=def.cooldown;
-                const range = this.hasEnemyFlag ? def.range * 3 : def.range;
-                const arc = this.hasEnemyFlag ? def.arc * 1.5 : def.arc;
+                const range = def.range;
+                const arc = def.arc;
                 for(const p of players) if(p.id!==this.id&&p.hp>0){ const d=dist(this,p), ang=angleBetween(this,p); let diff=Math.abs(ang-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(d<range&&diff<arc){ if(p.team!==this.team) p.takeDamage(def.damage,this.id,this.team,'melee'); else p.hp=Math.min(p.maxHp,p.hp+def.damage*0.5); } }
                 for(const b of buildings) if(b.alive&&!b.isPlaced){ if(b.isEnterable){ for(const w of b.walls){ const cx=w.x+w.w/2,cy=w.y+w.h/2,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(w.w,w.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); } } else { const cx=b.x+b.w/2,cy=b.y+b.h/2,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(b.w,b.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); } }
                 for(const c of cars) if(c.alive){ const cx=c.x,cy=c.y,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(c.w,c.h)/2){ const angleToCar=angleBetween(this,{x:cx,y:cy}); let diff=Math.abs(angleToCar-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(diff<arc) c.takeDamage(15); } }
@@ -746,7 +771,10 @@
             }
         }
         startReload(slot){ if(slot===4||this.isShieldBot) return; const def=this.slots[slot]; if(!def||!def.magSize||this.slotReserve[slot]<=0||this.slotAmmo[slot]>=def.magSize||this.slotReloading[slot]) return; this.slotReloading[slot]=true; this.slotReloadTimer[slot]=def.reloadTime; sfxReload(); }
-        switchSlot(slot){ if(slot>=0&&slot<5&&slot!==this.currentSlot){ this.currentSlot=slot; this.meleeActive=false; sfxSwitch(); } }
+        switchSlot(slot){ 
+            if(this.hasEnemyFlag) return; // Locked to flag weapon
+            if(slot>=0&&slot<5&&slot!==this.currentSlot){ this.currentSlot=slot; this.meleeActive=false; sfxSwitch(); } 
+        }
     }
 
     // ---------- INITIALIZATION ----------
@@ -775,7 +803,7 @@
         players=[]; playerTeam=randInt(0,NUM_TEAMS-1); let id=0;
         const slots=[];
         for(let t=0;t<NUM_TEAMS;t++){
-            for(let p=0;p<8;p++) slots.push({team:t,isShield:false,isCommander:false});
+            for(let p=0;p<6;p++) slots.push({team:t,isShield:false,isCommander:false});
             slots.push({team:t,isShield:true,isCommander:false});
             slots.push({team:t,isShield:false,isCommander:true});
         }
@@ -804,8 +832,8 @@
     function isInWeaponRange(bot, target) {
         const slot = bot.currentSlot;
         if(slot === 2) {
-            const def = bot.slots[2];
-            return def && dist(bot, target) <= (bot.hasEnemyFlag ? def.range*3 : def.range);
+            const def = bot.hasEnemyFlag ? MELEE_DEFS['Flag'] : bot.slots[2];
+            return def && dist(bot, target) <= def.range;
         } else if(slot <= 1) {
             const def = bot.slots[slot];
             return def && dist(bot, target) <= def.range;
@@ -833,8 +861,23 @@
             if(bot.isHuman||!bot.alive) continue;
             if(bot.stunned>0){ bot.vx*=0.5; bot.vy*=0.5; continue; }
             let nearestEnemy=null,nearestDist=bot.aiVisionRange;
-            for(const p of players){ if(p.id===bot.id||p.hp<=0||p.team===bot.team) continue; const d=dist(bot,p); if(d<nearestDist&&lineOfSightClear(bot.x,bot.y,p.x,p.y,buildings,walls)){ nearestDist=d; nearestEnemy=p; } }
-            if(nearestEnemy && !bot.isShieldBot && nearestEnemy.isShieldBot) nearestEnemy = null;
+            const ourFlag = flags[bot.team];
+            const enemyCarrier = ourFlag.carrier && ourFlag.carrier.team !== bot.team ? ourFlag.carrier : null;
+            if (enemyCarrier && enemyCarrier.alive) {
+                const d = dist(bot, enemyCarrier);
+                if (d < 800 && lineOfSightClear(bot.x, bot.y, enemyCarrier.x, enemyCarrier.y, buildings, walls)) {
+                    nearestEnemy = enemyCarrier;
+                    nearestDist = d * 0.5;
+                }
+            }
+            for(const p of players){
+                if(p.id===bot.id||p.hp<=0||p.team===bot.team) continue;
+                const d=dist(bot,p);
+                if(d<nearestDist && lineOfSightClear(bot.x,bot.y,p.x,p.y,buildings,walls)){
+                    nearestDist=d; nearestEnemy=p;
+                }
+            }
+            if (nearestEnemy && !bot.isShieldBot && nearestEnemy.isShieldBot) nearestEnemy = null;
             if(nearestEnemy){
                 if(nearestEnemy.isShieldBot && !bot.isShieldBot){
                     bot.retreatTimer=5; bot.aiTarget=null; bot.aiState='retreat';
@@ -852,21 +895,46 @@
                 let followRally=null;
                 if(bot.team===playerTeam&&playerRallyPoint) followRally=playerRallyPoint;
                 else if(bot.followsCommander&&teamRallyPoints[bot.team]) followRally=teamRallyPoints[bot.team];
-                if(bot.retreatTimer>0){ bot.aiState='retreat'; if(!bot.aiWanderTarget) bot.aiWanderTarget={x:bot.x+rand(-200,200),y:bot.y+rand(-150,150)}; }
-                else if(followRally&&!bot.inCar){
-                    if(dist(bot,followRally)<=30){
-                        if(!bot.patrolTarget||bot.patrolTimer<=0){
-                            const angle=rand(0,2*Math.PI), dist=rand(35,70);
-                            bot.patrolTarget={x:followRally.x+Math.cos(angle)*dist, y:followRally.y+Math.sin(angle)*dist};
-                            bot.patrolTimer=rand(2,4);
+                if(bot.retreatTimer>0){
+                    bot.aiState='retreat'; if(!bot.aiWanderTarget) bot.aiWanderTarget={x:bot.x+rand(-200,200),y:bot.y+rand(-150,150)};
+                } else {
+                    const enemyFlag = flags[1 - bot.team];
+                    const friendlyCarrier = enemyFlag.carrier && enemyFlag.carrier.team === bot.team ? enemyFlag.carrier : null;
+                    if (bot.hasEnemyFlag) {
+                        const zone = SPAWN_ZONES[bot.team];
+                        bot.aiWanderTarget = { x: zone.x + zone.w/2, y: zone.y + zone.h/2 };
+                        bot.aiState = 'wander';
+                    } else if (friendlyCarrier && friendlyCarrier !== bot) {
+                        if (dist(bot, friendlyCarrier) > 150) {
+                            bot.aiWanderTarget = { x: friendlyCarrier.x, y: friendlyCarrier.y };
+                        } else {
+                            if (!bot.patrolTarget || bot.patrolTimer <= 0) {
+                                const angle = rand(0, 2*Math.PI), patrolDist = rand(40, 80);
+                                bot.patrolTarget = { x: friendlyCarrier.x + Math.cos(angle)*patrolDist, y: friendlyCarrier.y + Math.sin(angle)*patrolDist };
+                                bot.patrolTimer = rand(2, 4);
+                            }
+                            bot.aiWanderTarget = bot.patrolTarget;
+                            bot.patrolTimer -= dt;
                         }
-                        bot.aiWanderTarget=bot.patrolTarget; bot.aiState='wander'; bot.angle=angleBetween(bot,bot.aiWanderTarget); bot.patrolTimer-=dt;
+                        bot.aiState = 'wander';
+                    } else if (followRally && !bot.inCar) {
+                        if(dist(bot,followRally)<=30){
+                            if(!bot.patrolTarget||bot.patrolTimer<=0){
+                                const angle=rand(0,2*Math.PI), dist=rand(35,70);
+                                bot.patrolTarget={x:followRally.x+Math.cos(angle)*dist, y:followRally.y+Math.sin(angle)*dist};
+                                bot.patrolTimer=rand(2,4);
+                            }
+                            bot.aiWanderTarget=bot.patrolTarget; bot.aiState='wander'; bot.angle=angleBetween(bot,bot.aiWanderTarget); bot.patrolTimer-=dt;
+                        } else {
+                            const blocking=findBlockingObstacle(bot,followRally,buildings,walls);
+                            if(blocking){ bot.aiTarget=blocking; bot.aiState='combat'; if(bot.slots[2]&&bot.slotCooldown[2]<=0) bot.switchSlot(2); else if(bot.slots[0]&&bot.slotAmmo[0]>0&&!bot.slotReloading[0]) bot.switchSlot(0); }
+                            else { bot.aiWanderTarget=followRally; bot.aiState='wander'; bot.angle=angleBetween(bot,followRally); bot.patrolTarget=null; }
+                        }
                     } else {
-                        const blocking=findBlockingObstacle(bot,followRally,buildings,walls);
-                        if(blocking){ bot.aiTarget=blocking; bot.aiState='combat'; if(bot.slots[2]&&bot.slotCooldown[2]<=0) bot.switchSlot(2); else if(bot.slots[0]&&bot.slotAmmo[0]>0&&!bot.slotReloading[0]) bot.switchSlot(0); }
-                        else { bot.aiWanderTarget=followRally; bot.aiState='wander'; bot.angle=angleBetween(bot,followRally); bot.patrolTarget=null; }
+                        bot.aiWanderTarget = { x: enemyFlag.x, y: enemyFlag.y };
+                        bot.aiState = 'wander';
                     }
-                } else if(bot.isCommander&&!followRally&&bot.aiState==='wander'&&!bot.aiTarget){ bot.aiWanderTarget={x:MAP_W/2+rand(-150,150),y:MAP_H/2+rand(-100,100)}; }
+                }
             }
             if(bot.inCar) continue;
             if(bot.aiState==='combat'&&bot.aiTarget){
@@ -896,15 +964,11 @@
                 }
             } else if(bot.aiState==='retreat'){ if(bot.aiWanderTarget){ const wa=angleBetween(bot,bot.aiWanderTarget); bot.vx+=Math.cos(wa)*bot.speed*0.6*dt; bot.vy+=Math.sin(wa)*bot.speed*0.6*dt; bot.angle=wa; } }
             else {
-                if (!bot.hasEnemyFlag) {
-                    const enemyFlag = flags[1 - bot.team];
-                    bot.aiWanderTarget = { x: enemyFlag.x, y: enemyFlag.y };
-                } else {
-                    const zone = SPAWN_ZONES[bot.team];
-                    bot.aiWanderTarget = { x: zone.x + zone.w/2, y: zone.y + zone.h/2 };
+                if (bot.aiWanderTarget) {
+                    bot.aiWanderTimer-=dt;
+                    const wa=angleBetween(bot,bot.aiWanderTarget); bot.angle=wa;
+                    bot.vx+=Math.cos(wa)*bot.speed*0.5*dt; bot.vy+=Math.sin(wa)*bot.speed*0.5*dt;
                 }
-                bot.aiWanderTimer=rand(0.5,1); bot.angle=angleBetween(bot,bot.aiWanderTarget);
-                bot.vx+=Math.cos(bot.angle)*bot.speed*0.5*dt; bot.vy+=Math.sin(bot.angle)*bot.speed*0.5*dt;
             }
             if (!bot.hasEnemyFlag && !bot.inCar) {
                 const enemyFlag = flags[1 - bot.team];
@@ -932,9 +996,15 @@
                 if(keys['a']||keys['arrowleft']) mx-=1; if(keys['d']||keys['arrowright']) mx+=1;
                 if(mx||my){ const len=Math.sqrt(mx*mx+my*my); mx/=len; my/=len; player.vx+=mx*player.speed*0.85*dt; player.vy+=my*player.speed*0.85*dt; const spd=Math.sqrt(player.vx**2+player.vy**2); if(spd>player.speed){ player.vx=(player.vx/spd)*player.speed; player.vy=(player.vy/spd)*player.speed; } }
                 player.angle=angleBetween(player,{x:mouseWorldX,y:mouseWorldY});
+                // Attack with flag or current weapon
                 if(mouseDown&&player.slotCooldown[player.currentSlot]<=0&&!player.slotReloading[player.currentSlot]&&!player.meleeActive){
-                    if(player.currentSlot<=2) player.shoot(mouseWorldX,mouseWorldY,walls,cars);
-                    else if(player.currentSlot>=3&&mouseClicked){ player.shoot(mouseWorldX,mouseWorldY,walls,cars); mouseClicked=false; }
+                    if(player.hasEnemyFlag) {
+                        // Only allow flag melee
+                        player.shoot(mouseWorldX,mouseWorldY,walls,cars);
+                    } else {
+                        if(player.currentSlot<=2) player.shoot(mouseWorldX,mouseWorldY,walls,cars);
+                        else if(player.currentSlot>=3&&mouseClicked){ player.shoot(mouseWorldX,mouseWorldY,walls,cars); mouseClicked=false; }
+                    }
                 }
                 if(keyJustPressed['e']){ 
                     if (!player.hasEnemyFlag) {
@@ -942,21 +1012,32 @@
                         if(nc){ const seat=nc.seats[0]==null?0:(nc.seats[1]==null?1:-1); if(seat!==-1) player.enterCar(nc,seat); } 
                     }
                 }
+                // F key: pickup/drop flag
                 if (keyJustPressed['f']) {
                     const enemyFlag = flags[1 - player.team];
-                    if (enemyFlag.carrier === null && dist(player, enemyFlag) < 40) {
-                        enemyFlag.pickUp(player); sfxFlagPickup();
+                    if (player.hasEnemyFlag) {
+                        // Drop flag
+                        enemyFlag.drop(player.x, player.y);
+                        player.hasEnemyFlag = false;
+                        // Restore original melee weapon
+                        player.slots[2] = MELEE_DEFS[choice(Object.keys(MELEE_DEFS))];
+                    } else {
+                        // Pick up enemy flag if nearby and not carried
+                        if (enemyFlag.carrier === null && dist(player, enemyFlag) < 40) {
+                            enemyFlag.pickUp(player);
+                            sfxFlagPickup();
+                        }
                     }
-                }
-                if (keyJustPressed['g'] && player.hasEnemyFlag) {
-                    flags[1 - player.team].drop(player.x, player.y);
-                    player.hasEnemyFlag = false;
                 }
             } else {
                 if(keyJustPressed['e']) player.exitCar();
                 if(mouseDown&&player.slotCooldown[player.currentSlot]<=0&&!player.slotReloading[player.currentSlot]&&!player.meleeActive){
-                    if(player.currentSlot<=2) player.shoot(mouseWorldX,mouseWorldY,walls,cars);
-                    else if(player.currentSlot>=3&&mouseClicked){ player.shoot(mouseWorldX,mouseWorldY,walls,cars); mouseClicked=false; }
+                    if(player.hasEnemyFlag) {
+                        player.shoot(mouseWorldX,mouseWorldY,walls,cars);
+                    } else {
+                        if(player.currentSlot<=2) player.shoot(mouseWorldX,mouseWorldY,walls,cars);
+                        else if(player.currentSlot>=3&&mouseClicked){ player.shoot(mouseWorldX,mouseWorldY,walls,cars); mouseClicked=false; }
+                    }
                 }
             }
         }
@@ -968,6 +1049,8 @@
                 captures[p.team]++;
                 flags[1 - p.team].returnToBase();
                 p.hasEnemyFlag = false;
+                // Restore original melee weapon
+                p.slots[2] = MELEE_DEFS[choice(Object.keys(MELEE_DEFS))];
                 sfxFlagScore();
                 if (captures[p.team] >= MAX_CAPTURES) {
                     gameOver = true;
@@ -1027,7 +1110,8 @@
         ctx.beginPath(); ctx.roundRect(panelX, panelY, panelW, panelH, 12); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#ddd'; ctx.font = `${Math.floor(H/35)}px "Segoe UI", sans-serif`; ctx.textAlign = 'left';
         const instructions = [
-            'WASD / Arrow keys — move', 'Mouse — aim & shoot (left click)', '1‑5 or scroll — switch weapons', 'E — enter / exit cars', 'F — grab enemy flag', 'G — drop flag', 'Return enemy flag to your spawn zone to score'
+            'WASD / Arrow keys — move', 'Mouse — aim & click to attack', 'F — pick up / drop enemy flag', 'E — enter / exit cars',
+            'While carrying flag: melee only (3x range), heal 8%/s, cannot switch weapons'
         ];
         for (let i = 0; i < instructions.length; i++) ctx.fillText(instructions[i], panelX + 20, panelY + 28 + i * 20);
         const btnW = 180, btnH = 50, btnX = W/2 - btnW/2, btnY = H*2/3 + 20;
@@ -1079,7 +1163,9 @@
         if(!player||!player.alive){ ctx.fillStyle='#888'; ctx.font='14px'; ctx.fillText('DEAD - Click RESPAWN',hbX+30,hbY+hbH/2+5); ctx.globalAlpha=1; return; } 
         const slotW=50,gap=4,startX=hbX+8; 
         for(let i=0;i<5;i++){ 
-            const sx=startX+i*(slotW+gap),sy=hbY+10,isSel=player.currentSlot===i,def=player.slots[i]; 
+            const sx=startX+i*(slotW+gap),sy=hbY+10,isSel=player.currentSlot===i;
+            let def = player.slots[i];
+            if (player.hasEnemyFlag && i === 2) def = MELEE_DEFS['Flag']; // Show flag weapon
             ctx.fillStyle=isSel?'rgba(255,255,255,0.25)':'rgba(50,50,50,0.6)'; ctx.fillRect(sx,sy,slotW,hbH-20); ctx.strokeStyle=isSel?'#fff':'#666'; ctx.lineWidth=isSel?2:1; ctx.strokeRect(sx,sy,slotW,hbH-20); 
             ctx.fillStyle='#aaa'; ctx.font='bold 11px'; ctx.fillText(i+1,sx+3,sy+13); 
             if(def){ 
@@ -1090,6 +1176,7 @@
                 else if(i===4){ ctx.fillStyle='#aaa'; ctx.font='10px'; ctx.fillText('∞',sx+3,sy+44); } 
             } 
             if(player.slotCooldown[i]>0){ const cdPct=player.slotCooldown[i]/(i===4?0.6:1.2); ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(sx,sy,slotW,(hbH-20)*cdPct); } 
+            if (player.hasEnemyFlag && i !== 2) { ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(sx,sy,slotW,hbH-20); } // darken locked slots
         } 
         ctx.fillStyle='#999'; ctx.font='10px'; ctx.fillText('WEAPONS',hbX+2,hbY-6); ctx.globalAlpha=1; 
     }
@@ -1134,7 +1221,6 @@
                     segments.push({ text: streakText, color: '#ffaa00' });
                 }
                 const verb = kf.deathVerb;
-                // CORRECT ORDER: victim, verb, killer (for right‑aligned rendering)
                 if (kf.isTeamkill) {
                     segments.push({ text: kf.victimName, color: TEAM_COLORS[kf.victimTeam] });
                     segments.push({ text: ` ${verb} `, color: '#aaaaaa' });
@@ -1175,7 +1261,7 @@
     function render(){
         ctx.clearRect(0,0,W,H);
         if(homeScreen){ drawHomeScreen(); return; }
-        ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.font='bold 16px "Segoe UI",sans-serif'; ctx.fillText('RIOR CTF',20,35);
+        ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.font='bold 16px "Segoe UI",sans-serif'; ctx.fillText('RIOR CTF (8v8)',20,35);
         if(player){ ctx.fillStyle='#fff'; ctx.font='bold 14px "Segoe UI",sans-serif'; ctx.textAlign='right'; ctx.fillText(`K: ${player.kills}  D: ${player.deaths}`,W-20,30); ctx.textAlign='start'; }
         ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=1; const gs=60,sgx=-(camera.x%gs),sgy=-(camera.y%gs);
         for(let gx=sgx;gx<W;gx+=gs){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
@@ -1205,7 +1291,7 @@
             if(p.explosiveLocked>0){ const pulse=Math.sin(performance.now()*0.02)*0.3+0.6; ctx.fillStyle=`rgba(255,68,255,${pulse})`; ctx.beginPath(); ctx.arc(sx,sy,p.radius+4,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#ff44ff'; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle='#fff'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.fillText('🔒',sx,sy-p.radius-20); ctx.textAlign='start'; }
             if (p.hasEnemyFlag) { ctx.fillStyle = TEAM_COLORS[1-p.team]; ctx.fillRect(sx-7, sy-p.radius-14, 14, 9); }
             const barrelLen=p.radius+8; ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(sx+Math.cos(p.angle)*(p.radius-2),sy+Math.sin(p.angle)*(p.radius-2)); ctx.lineTo(sx+Math.cos(p.angle)*barrelLen,sy+Math.sin(p.angle)*barrelLen); ctx.stroke();
-            if(p.meleeActive&&p.slots[2]){ const def=p.slots[2]; const range = p.hasEnemyFlag ? def.range*3 : def.range; const arc = p.hasEnemyFlag ? def.arc*1.5 : def.arc; ctx.strokeStyle='rgba(255,255,200,0.7)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(sx,sy,range,p.meleeAngle-arc,p.meleeAngle+arc); ctx.stroke(); ctx.fillStyle='rgba(255,255,200,0.25)'; ctx.beginPath(); ctx.moveTo(sx,sy); ctx.arc(sx,sy,range,p.meleeAngle-arc,p.meleeAngle+arc); ctx.closePath(); ctx.fill(); }
+            if(p.meleeActive&&p.slots[2]){ const def = p.hasEnemyFlag ? MELEE_DEFS['Flag'] : p.slots[2]; const range = def.range; const arc = def.arc; ctx.strokeStyle='rgba(255,255,200,0.7)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(sx,sy,range,p.meleeAngle-arc,p.meleeAngle+arc); ctx.stroke(); ctx.fillStyle='rgba(255,255,200,0.25)'; ctx.beginPath(); ctx.moveTo(sx,sy); ctx.arc(sx,sy,range,p.meleeAngle-arc,p.meleeAngle+arc); ctx.closePath(); ctx.fill(); }
             const hpBarW=p.radius*2,hpBarH=4,hpBarY=sy-p.radius-10; ctx.fillStyle='#333'; ctx.fillRect(sx-hpBarW/2,hpBarY,hpBarW,hpBarH);
             ctx.fillStyle=(p.hp/p.maxHp)>0.5?'#4f4':(p.hp/p.maxHp)>0.25?'#ff0':'#f22'; ctx.fillRect(sx-hpBarW/2,hpBarY,hpBarW*(p.hp/p.maxHp),hpBarH);
             if(p.isHuman){ ctx.fillStyle='#fff'; ctx.font='bold 11px'; ctx.textAlign='center'; ctx.fillText('YOU',sx,sy-p.radius-14); ctx.textAlign='start'; }
@@ -1240,7 +1326,8 @@
     } return; } if(gameOver){ const homeBtn=window._gameoverHomeBtn; if(homeBtn&&cx>=homeBtn.x&&cx<=homeBtn.x+homeBtn.w&&cy>=homeBtn.y&&cy<=homeBtn.y+homeBtn.h){ homeScreen=true; gameOver=false; showRespawnScreen=false; canvas.style.cursor='pointer'; return; } restartGame(); return; } if(showRespawnScreen&&player){ const homeBtn=window._deathHomeBtn; if(homeBtn&&cx>=homeBtn.x&&cx<=homeBtn.x+homeBtn.w&&cy>=homeBtn.y&&cy<=homeBtn.y+homeBtn.h){ homeScreen=true; showRespawnScreen=false; gameOver=false; canvas.style.cursor='pointer'; return; } const btn=window._respawnBtn; if(btn&&cx>=btn.x&&cx<=btn.x+btn.w&&cy>=btn.y&&cy<=btn.y+btn.h){ player.respawn(); showRespawnScreen=false; canvas.style.cursor='crosshair'; } return; } mouseDown=true; mouseClicked=true; } });
     canvas.addEventListener('mouseup',e=>{ if(e.button===0) mouseDown=false; });
     canvas.addEventListener('contextmenu',e=>{ e.preventDefault(); if(homeScreen||gameOver||showRespawnScreen) return; if(playerRallyPoint) playerRallyPoint=null; else playerRallyPoint={x:mouseWorldX,y:mouseWorldY}; });
-    canvas.addEventListener('wheel',e=>{ if(homeScreen||gameOver||showRespawnScreen) return; if(!player||!player.alive) return; e.preventDefault(); const delta=e.deltaY>0?1:-1; let newSlot=player.currentSlot+delta; if(newSlot<0) newSlot=4; else if(newSlot>4) newSlot=0; player.switchSlot(newSlot); },{passive:false});
+    canvas.addEventListener('wheel',e=>{ if(homeScreen||gameOver||showRespawnScreen) return; if(!player||!player.alive) return; if(player.hasEnemyFlag) return; // prevent weapon switch while carrying flag
+        e.preventDefault(); const delta=e.deltaY>0?1:-1; let newSlot=player.currentSlot+delta; if(newSlot<0) newSlot=4; else if(newSlot>4) newSlot=0; player.switchSlot(newSlot); },{passive:false});
     window.addEventListener('keydown',e=>{ keys[e.key.toLowerCase()]=true; initAudio(); if(!keyJustPressed[e.key.toLowerCase()]) keyJustPressed[e.key.toLowerCase()]=true; if(e.key==='r'||e.key==='R'){ if(gameOver){ restartGame(); return; } if(player&&player.alive&&player.currentSlot<=1&&!player.slotReloading[player.currentSlot]&&player.slotAmmo[player.currentSlot]<player.slots[player.currentSlot].magSize) player.startReload(player.currentSlot); } if(e.key>='1'&&e.key<='5'){ const slot=parseInt(e.key)-1; if(player&&player.alive&&!showRespawnScreen) player.switchSlot(slot); } });
     window.addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
 
