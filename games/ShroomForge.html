@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>🍄 ShroomForge</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1e1e2f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      gap: 0.6rem;
+      padding: 1rem;
+    }
+    .game-title {
+      font-size: 2.4rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #f9a825, #d32f2f);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 0 20px #f9a82566;
+      letter-spacing: 0.02em;
+      margin-bottom: -0.2rem;
+    }
+    .toolbar {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      background: rgba(0,0,0,0.5);
+      padding: 0.5rem 1.2rem;
+      border-radius: 3rem;
+      backdrop-filter: blur(8px);
+      color: #f0e6d2;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .toolbar button {
+      background: #4a3f35;
+      border: none;
+      color: #f0e6d2;
+      padding: 0.4rem 0.8rem;
+      border-radius: 2rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .toolbar button.active {
+      background: #d98c2e;
+      color: #000;
+      box-shadow: 0 0 12px #d98c2eaa;
+    }
+    .toolbar button:hover { background: #6b5c4d; }
+    canvas {
+      border: 3px solid #5a4e3c;
+      border-radius: 18px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+      background: #89cff0;
+      display: block;
+      max-width: 100%;
+      height: auto;
+      cursor: crosshair;
+    }
+    .info {
+      color: #f0e6d2;
+      font-size: 1.1rem;
+      background: rgba(0,0,0,0.5);
+      padding: 0.3rem 1.5rem;
+      border-radius: 2rem;
+      backdrop-filter: blur(8px);
+    }
+    .info span { font-weight: bold; color: #ffb347; }
+    .hint { font-size: 0.85rem; color: #ffe082; }
+  </style>
+</head>
+<body>
+  <div class="game-title">🍄 ShroomForge</div>
+  <div class="info">
+    🍄 Lives: <span id="livesDisplay">3</span>&nbsp;&nbsp;|&nbsp;&nbsp;✨ Power: <span id="powerDisplay">small</span>
+    <span class="hint" id="restartHint"></span>
+  </div>
+  <canvas id="game" width="800" height="400" aria-label="ShroomForge - Mushroom platformer with full editing"></canvas>
+  <div class="toolbar">
+    <span style="margin-right:0.3rem;">🖌️ Edit:</span>
+    <button id="btnEmpty" class="active">⛅ Empty</button>
+    <button id="btnBrick">🧱 Brick</button>
+    <button id="btnLucky">❓ Lucky</button>
+    <button id="btnInfLucky">♾️ Inf. Lucky</button>
+    <button id="btnEnemy">👾 Enemy</button>
+    <button id="btnRemoveEnemy">🗑️ Remove Enemy</button>
+    <button id="toggleEdit">✎ Play Mode</button>
+    <button id="resetLevel">🎲 Random Level</button>
+  </div>
+  <div class="info" style="font-size:0.85rem;">
+    ← → / A D to move &nbsp;|&nbsp; Space to jump &nbsp;|&nbsp; Hold <b>↓ / S</b> while big to crouch &nbsp;|&nbsp; Press <b>R</b> to restart
+  </div>
+
+  <script>
+    (function() {
+      const canvas = document.getElementById('game');
+      const ctx = canvas.getContext('2d');
+      const livesSpan = document.getElementById('livesDisplay');
+      const powerSpan = document.getElementById('powerDisplay');
+      const restartHint = document.getElementById('restartHint');
+
+      // ---- Tile types ----
+      const TILE_EMPTY = 0, TILE_BRICK = 1, TILE_LUCKY = 2, TILE_INFINITE_LUCKY = 3;
+      const TILE_SIZE = 40;
+      const GRAVITY = 0.45;
+      const PLAYER_SPEED = 3.2;
+      const JUMP_FORCE = -11.8;
+      const BIG_JUMP_FORCE = -13.8;
+      const PLAYER_WIDTH_SMALL = 28, PLAYER_HEIGHT_SMALL = 32;
+      const PLAYER_WIDTH_BIG = 32, PLAYER_HEIGHT_BIG = 48;
+      const MAP_WIDTH = 80, MAP_HEIGHT = 10;
+      const FINISH_X = (MAP_WIDTH - 2) * TILE_SIZE;
+
+      let map = [];
+      let enemies = [];
+      let initialEnemies = [];
+      let player = {
+        x: 60, y: 0, vx: 0, vy: 0,
+        width: PLAYER_WIDTH_SMALL, height: PLAYER_HEIGHT_SMALL,
+        isBig: false, onGround: false, invincible: false, invincibleTimer: 0,
+        lives: 3, facingRight: true, canJump: true,
+        crouching: false
+      };
+      let powerUps = [];
+      let cameraX = 0;
+      let gameOver = false, victory = false;
+      let editMode = false;
+      let selectedTool = TILE_EMPTY;
+
+      function getTile(col, row) {
+        if (col < 0 || col >= MAP_WIDTH || row < 0 || row >= MAP_HEIGHT) return TILE_EMPTY;
+        return map[row][col];
+      }
+      function isSolid(tile) {
+        return tile === TILE_BRICK || tile === TILE_LUCKY || tile === TILE_INFINITE_LUCKY;
+      }
+
+      function updatePlayerSize() {
+        if (player.isBig) {
+          player.width = PLAYER_WIDTH_BIG;
+          player.height = player.crouching ? PLAYER_HEIGHT_SMALL : PLAYER_HEIGHT_BIG;
+        } else {
+          player.width = PLAYER_WIDTH_SMALL;
+          player.height = PLAYER_HEIGHT_SMALL;
+          player.crouching = false;
+        }
+        powerSpan.textContent = player.isBig ? (player.crouching ? 'CROUCH' : 'BIG') : 'small';
+      }
+
+      function generateRandomLevel() {
+        const rows = MAP_HEIGHT, cols = MAP_WIDTH;
+        const newMap = Array(rows).fill().map(() => Array(cols).fill(TILE_EMPTY));
+        for (let c = 0; c < cols; c++) {
+          if (c < 3 || c >= cols-3) { newMap[rows-1][c] = TILE_BRICK; continue; }
+          if (Math.random() < 0.2 && c > 3 && c < cols-4 && newMap[rows-1][c-1] === TILE_BRICK) {
+            newMap[rows-1][c] = TILE_EMPTY;
+          } else {
+            newMap[rows-1][c] = TILE_BRICK;
+          }
+        }
+        for (let c = 1; c < cols-1; c++) {
+          if (newMap[rows-1][c] === TILE_EMPTY && newMap[rows-1][c-1] === TILE_EMPTY) {
+            newMap[rows-1][c-1] = TILE_BRICK;
+          }
+        }
+        for (let i = 0; i < 12; i++) {
+          let row = 5 + Math.floor(Math.random() * 4);
+          let col = 5 + Math.floor(Math.random() * (cols-10));
+          let len = 2 + Math.floor(Math.random() * 3);
+          for (let c = col; c < col+len && c < cols-2; c++) {
+            if (newMap[row][c] === TILE_EMPTY) newMap[row][c] = TILE_BRICK;
+          }
+        }
+        for (let r = 0; r < rows-1; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (newMap[r][c] === TILE_BRICK && Math.random() < 0.25) {
+              if (r < rows-1 && !isSolid(newMap[r+1][c])) {
+                newMap[r][c] = TILE_LUCKY;
+              }
+            }
+          }
+        }
+        return newMap;
+      }
+
+      function recordInitialEnemies() {
+        initialEnemies = enemies.map(e => ({
+          x: e.x, y: e.y, width: e.width, height: e.height,
+          vx: e.vx, vy: 0, dir: e.dir || 1, alive: true
+        }));
+      }
+      function resetEnemiesToInitial() {
+        enemies = initialEnemies.map(e => ({
+          x: e.x, y: e.y, width: e.width, height: e.height,
+          vx: e.vx, vy: 0, dir: e.dir || 1, alive: true
+        }));
+      }
+
+      function respawnPlayer() {
+        player.x = 60;
+        player.y = (MAP_HEIGHT - 2) * TILE_SIZE - player.height;
+        player.vx = player.vy = 0;
+        player.isBig = false;
+        player.crouching = false;
+        updatePlayerSize();
+        player.invincible = true;
+        player.invincibleTimer = 150;
+        player.facingRight = true;
+        player.canJump = true;
+      }
+
+      function fullRestart() {
+        player.lives = 3;
+        livesSpan.textContent = player.lives;
+        respawnPlayer();
+        resetEnemiesToInitial();
+        powerUps = [];
+        gameOver = false;
+        victory = false;
+        restartHint.textContent = '';
+      }
+
+      function takeDamage() {
+        if (player.invincible) return;
+        if (player.isBig) {
+          player.isBig = false;
+          player.crouching = false;
+          updatePlayerSize();
+          player.invincible = true;
+          player.invincibleTimer = 120;
+          player.vy = -4;
+        } else {
+          player.lives--;
+          livesSpan.textContent = player.lives;
+          if (player.lives <= 0) {
+            gameOver = true;
+            restartHint.textContent = 'Press R to restart';
+            return;
+          }
+          respawnPlayer();
+          resetEnemiesToInitial();
+          powerUps = [];
+        }
+      }
+
+      function spawnPowerUp(tileCol, tileRow) {
+        let tile = map[tileRow][tileCol];
+        if (tile !== TILE_LUCKY && tile !== TILE_INFINITE_LUCKY) return;
+        if (tile === TILE_LUCKY) map[tileRow][tileCol] = TILE_BRICK;
+        let sx = tileCol * TILE_SIZE + TILE_SIZE/2 - 14;
+        let sy = tileRow * TILE_SIZE - 30;
+        powerUps.push({ x: sx, y: sy, vx: 1.5, vy: -2.5, width: 28, height: 28, collected: false });
+      }
+
+      function collectPowerUp(pu) {
+        pu.collected = true;
+        if (player.isBig) {
+          player.lives++;
+          livesSpan.textContent = player.lives;
+        } else {
+          player.isBig = true;
+          player.crouching = false;
+          updatePlayerSize();
+          player.y -= (PLAYER_HEIGHT_BIG - PLAYER_HEIGHT_SMALL);
+          resolvePlayerTileCollision();
+        }
+      }
+
+      function resolvePlayerTileCollision() {
+        let left = Math.floor(player.x / TILE_SIZE);
+        let right = Math.floor((player.x + player.width - 0.01) / TILE_SIZE);
+        let top = Math.floor(player.y / TILE_SIZE);
+        let bottom = Math.floor((player.y + player.height - 0.01) / TILE_SIZE);
+        for (let row = top; row <= bottom; row++) {
+          for (let col = left; col <= right; col++) {
+            if (!isSolid(getTile(col, row))) continue;
+            let tx = col * TILE_SIZE, ty = row * TILE_SIZE;
+            if (player.x + player.width > tx && player.x < tx + TILE_SIZE &&
+                player.y + player.height > ty && player.y < ty + TILE_SIZE) {
+              let ol = (player.x + player.width) - tx, or = (tx + TILE_SIZE) - player.x;
+              let ot = (player.y + player.height) - ty, ob = (ty + TILE_SIZE) - player.y;
+              let min = Math.min(ol, or, ot, ob);
+              if (min === ot && player.vy >= 0) {
+                player.y = ty - player.height;
+                player.vy = 0;
+                player.onGround = true;
+                player.canJump = true;
+              } else if (min === ob && player.vy < 0) {
+                player.y = ty + TILE_SIZE;
+                player.vy = 0;
+                let tile = getTile(col, row);
+                if (tile === TILE_LUCKY || tile === TILE_INFINITE_LUCKY) spawnPowerUp(col, row);
+              } else if (min === ol) {
+                player.x = tx - player.width;
+                player.vx = 0;
+              } else if (min === or) {
+                player.x = tx + TILE_SIZE;
+                player.vx = 0;
+              }
+            }
+          }
+        }
+      }
+
+      function tryCrouch() {
+        if (!player.isBig || player.crouching || !player.onGround) return;
+        player.crouching = true;
+        player.y += PLAYER_HEIGHT_BIG - PLAYER_HEIGHT_SMALL;
+        player.height = PLAYER_HEIGHT_SMALL;
+      }
+
+      function tryStandUp() {
+        if (!player.crouching) return;
+        let newY = player.y - (PLAYER_HEIGHT_BIG - PLAYER_HEIGHT_SMALL);
+        let left = Math.floor(player.x / TILE_SIZE);
+        let right = Math.floor((player.x + PLAYER_WIDTH_BIG - 0.01) / TILE_SIZE);
+        let top = Math.floor(newY / TILE_SIZE);
+        let bottom = Math.floor((newY + PLAYER_HEIGHT_BIG - 0.01) / TILE_SIZE);
+        for (let row = top; row <= bottom; row++) {
+          for (let col = left; col <= right; col++) {
+            if (isSolid(getTile(col, row))) return;
+          }
+        }
+        player.crouching = false;
+        player.y = newY;
+        player.height = PLAYER_HEIGHT_BIG;
+      }
+
+      function updateEnemy(enemy) {
+        enemy.x += enemy.vx;
+        enemy.vy += GRAVITY;
+        enemy.y += enemy.vy;
+        let left = Math.floor(enemy.x / TILE_SIZE);
+        let right = Math.floor((enemy.x + enemy.width - 0.01) / TILE_SIZE);
+        let top = Math.floor(enemy.y / TILE_SIZE);
+        let bottom = Math.floor((enemy.y + enemy.height - 0.01) / TILE_SIZE);
+        let hitWall = false;
+        for (let row = top; row <= bottom; row++) {
+          for (let col = left; col <= right; col++) {
+            if (!isSolid(getTile(col, row))) continue;
+            let tx = col * TILE_SIZE, ty = row * TILE_SIZE;
+            if (enemy.x + enemy.width > tx && enemy.x < tx + TILE_SIZE &&
+                enemy.y + enemy.height > ty && enemy.y < ty + TILE_SIZE) {
+              let ol = (enemy.x+enemy.width)-tx, or = (tx+TILE_SIZE)-enemy.x;
+              let ot = (enemy.y+enemy.height)-ty, ob = (ty+TILE_SIZE)-enemy.y;
+              let min = Math.min(ol,or,ot,ob);
+              if(min===ot && enemy.vy>=0){ enemy.y=ty-enemy.height; enemy.vy=0; }
+              else if(min===ob && enemy.vy<0){ enemy.y=ty+TILE_SIZE; enemy.vy=0; }
+              else if(min===ol){ enemy.x=tx-enemy.width; hitWall=true; }
+              else if(min===or){ enemy.x=tx+TILE_SIZE; hitWall=true; }
+            }
+          }
+        }
+        let dir = enemy.vx > 0 ? 1 : -1;
+        let frontX = dir === 1 ? enemy.x + enemy.width : enemy.x - 1;
+        if (!isSolid(getTile(Math.floor(frontX / TILE_SIZE), Math.floor((enemy.y + enemy.height + 2) / TILE_SIZE))) && enemy.vy === 0) {
+          hitWall = true;
+        }
+        if (hitWall) {
+          enemy.vx *= -1;
+          enemy.dir = enemy.vx > 0 ? 1 : -1;
+        }
+      }
+
+      function updatePlayer() {
+        if (gameOver || victory || editMode) return;
+        let speed = PLAYER_SPEED;
+        if (player.crouching) speed *= 0.5;
+        if (keys.left) { player.vx = -speed; player.facingRight = false; }
+        else if (keys.right) { player.vx = speed; player.facingRight = true; }
+        else player.vx = 0;
+        if (keys.jumpPressed && player.canJump && player.onGround) {
+          let jumpForce = (player.isBig && !player.crouching) ? BIG_JUMP_FORCE : JUMP_FORCE;
+          player.vy = jumpForce;
+          player.onGround = false;
+          player.canJump = false;
+        }
+        keys.jumpPressed = false;
+        if (keys.down) {
+          tryCrouch();
+        } else {
+          if (player.crouching) tryStandUp();
+        }
+        player.vy += GRAVITY;
+        player.x += player.vx;
+        player.y += player.vy;
+        player.onGround = false;
+        resolvePlayerTileCollision();
+        if (player.x < 0) player.x = 0;
+        if (player.x + player.width > MAP_WIDTH * TILE_SIZE) player.x = MAP_WIDTH * TILE_SIZE - player.width;
+        if (player.y > canvas.height + 200) takeDamage();
+        if (player.invincible) {
+          player.invincibleTimer--;
+          if (player.invincibleTimer <= 0) player.invincible = false;
+        }
+      }
+
+      function updateAllEnemies() {
+        if (editMode) return;
+        for (let enemy of enemies) {
+          if (!enemy.alive) continue;
+          updateEnemy(enemy);
+        }
+      }
+
+      function updatePowerUps() {
+        if (editMode) return;
+        for (let pu of powerUps) {
+          if (pu.collected) continue;
+          pu.vy += GRAVITY;
+          pu.y += pu.vy;
+          pu.x += pu.vx;
+          let l = Math.floor(pu.x/TILE_SIZE), r = Math.floor((pu.x+pu.width-0.01)/TILE_SIZE);
+          let t = Math.floor(pu.y/TILE_SIZE), b = Math.floor((pu.y+pu.height-0.01)/TILE_SIZE);
+          for (let rr=t; rr<=b; rr++) for (let cc=l; cc<=r; cc++) if (isSolid(getTile(cc,rr))) {
+            let tx=cc*TILE_SIZE, ty=rr*TILE_SIZE;
+            if (pu.x+pu.width>tx && pu.x<tx+TILE_SIZE && pu.y+pu.height>ty && pu.y<ty+TILE_SIZE) {
+              let ot=(pu.y+pu.height)-ty, ob=(ty+TILE_SIZE)-pu.y, ol=(pu.x+pu.width)-tx, orr=(tx+TILE_SIZE)-pu.x;
+              let min=Math.min(ot,ob,ol,orr);
+              if(min===ot&&pu.vy>=0){pu.y=ty-pu.height;pu.vy=0;pu.vx*=0.9;}
+              else if(min===ob&&pu.vy<0){pu.y=ty+TILE_SIZE;pu.vy=0;}
+              else if(min===ol){pu.x=tx-pu.width;pu.vx*=-0.5;}
+              else if(min===orr){pu.x=tx+TILE_SIZE;pu.vx*=-0.5;}
+            }
+          }
+          if(pu.x<0){pu.x=0;pu.vx*=-0.5;}
+          if(pu.x+pu.width>MAP_WIDTH*TILE_SIZE){pu.x=MAP_WIDTH*TILE_SIZE-pu.width;pu.vx*=-0.5;}
+          if(pu.y>canvas.height+100) pu.collected=true;
+        }
+        powerUps = powerUps.filter(p=>!p.collected);
+      }
+
+      function handleCollisions() {
+        if (editMode || gameOver || victory) return;
+        if (!player.invincible) {
+          for (let enemy of enemies) {
+            if (!enemy.alive) continue;
+            if (player.x+player.width>enemy.x && player.x<enemy.x+enemy.width &&
+                player.y+player.height>enemy.y && player.y<enemy.y+enemy.height) {
+              let playerBotPrev = player.y+player.height - player.vy;
+              if (player.vy>0 && playerBotPrev <= enemy.y+8) {
+                enemy.alive = false;
+                player.vy = -7;
+              } else {
+                takeDamage();
+                break;
+              }
+            }
+          }
+        }
+        for (let pu of powerUps) {
+          if (!pu.collected && player.x+player.width>pu.x && player.x<pu.x+pu.width &&
+              player.y+player.height>pu.y && player.y<pu.y+pu.height) {
+            collectPowerUp(pu);
+          }
+        }
+      }
+
+      function checkVictory() {
+        if (!victory && !gameOver && player.x + player.width/2 > FINISH_X) {
+          victory = true;
+          restartHint.textContent = 'Press R to restart';
+        }
+      }
+
+      function updateCamera() {
+        let target = player.x - canvas.width/2 + player.width/2;
+        target = Math.max(0, Math.min(target, MAP_WIDTH*TILE_SIZE - canvas.width));
+        cameraX += (target - cameraX) * 0.1;
+      }
+
+      function drawBackground() {
+        const grad = ctx.createLinearGradient(0,0,0,canvas.height);
+        grad.addColorStop(0,'#87CEEB'); grad.addColorStop(1,'#E0F7FA');
+        ctx.fillStyle=grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle='#8BC34A';
+        for(let i=0;i<8;i++){
+          let x=(i*120-cameraX*0.2)%(canvas.width+200)-100;
+          ctx.beginPath(); ctx.ellipse(x,canvas.height-60,90,60,0,0,Math.PI*2); ctx.fill();
+        }
+      }
+
+      function drawTileMap() {
+        let sc=Math.floor(cameraX/TILE_SIZE), ec=Math.floor((cameraX+canvas.width)/TILE_SIZE)+1;
+        for(let r=0;r<MAP_HEIGHT;r++) for(let c=sc;c<=ec;c++){
+          let tile=getTile(c,r);
+          if(tile===TILE_EMPTY) continue;
+          let x=c*TILE_SIZE-cameraX, y=r*TILE_SIZE;
+          if(tile===TILE_BRICK){
+            ctx.fillStyle='#C6784A'; ctx.fillRect(x,y,TILE_SIZE-1,TILE_SIZE-1);
+            ctx.fillStyle='#B56532'; ctx.fillRect(x+2,y+2,TILE_SIZE-5,TILE_SIZE-5);
+            ctx.strokeStyle='#6B4226'; ctx.lineWidth=1.5; ctx.strokeRect(x+1,y+1,TILE_SIZE-3,TILE_SIZE-3);
+          }else if(tile===TILE_LUCKY){
+            ctx.fillStyle='#F9A825'; ctx.fillRect(x,y,TILE_SIZE-1,TILE_SIZE-1);
+            ctx.fillStyle='#FFD54F'; ctx.fillRect(x+2,y+2,TILE_SIZE-5,TILE_SIZE-5);
+            ctx.fillStyle='#5D4037'; ctx.font='bold 22px "Segoe UI"'; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText('?',x+TILE_SIZE/2,y+TILE_SIZE/2);
+          }else if(tile===TILE_INFINITE_LUCKY){
+            ctx.fillStyle='#F9A825'; ctx.fillRect(x,y,TILE_SIZE-1,TILE_SIZE-1);
+            ctx.fillStyle='#FFD54F'; ctx.fillRect(x+2,y+2,TILE_SIZE-5,TILE_SIZE-5);
+            ctx.fillStyle='#5D4037'; ctx.font='bold 22px "Segoe UI"'; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText('★',x+TILE_SIZE/2,y+TILE_SIZE/2);
+          }
+        }
+        if(editMode){
+          ctx.strokeStyle='#ffffff44'; ctx.lineWidth=0.8;
+          for(let c=sc;c<=ec;c++){ let x=c*TILE_SIZE-cameraX; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+          for(let r=0;r<MAP_HEIGHT;r++){ let y=r*TILE_SIZE; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+        }
+      }
+
+      function drawPlayer() {
+        if(player.invincible && Math.floor(Date.now()/100)%2===0) return;
+        let x=player.x-cameraX, y=player.y, w=player.width, h=player.height;
+        if(player.crouching) {
+          ctx.fillStyle='#F5E6D3';
+          ctx.fillRect(x+w*0.25, y+h*0.6, w*0.5, h*0.4);
+          ctx.fillStyle='#D32F2F';
+          ctx.beginPath(); ctx.ellipse(x+w/2, y+h*0.4, w*0.5, h*0.35, 0, Math.PI, 0); ctx.fill();
+          ctx.fillStyle='white';
+          ctx.beginPath(); ctx.arc(x+w*0.35,y+h*0.3,2,0,2*Math.PI); ctx.fill();
+          ctx.beginPath(); ctx.arc(x+w*0.65,y+h*0.3,2,0,2*Math.PI); ctx.fill();
+          return;
+        }
+        ctx.fillStyle='#F5E6D3';
+        let sw=w*0.55, sh=h*0.45, sx=x+(w-sw)/2, sy=y+h-sh;
+        ctx.fillRect(sx,sy,sw,sh);
+        let cr=w*0.6, ccx=x+w/2, ccy=y+h*0.4;
+        ctx.fillStyle='#D32F2F'; ctx.beginPath(); ctx.arc(ccx,ccy,cr,Math.PI,0); ctx.fill();
+        ctx.fillStyle='#FFFFFF';
+        ctx.beginPath(); ctx.arc(ccx-cr*0.5,ccy-cr*0.3,cr*0.25,0,2*Math.PI); ctx.fill();
+        ctx.beginPath(); ctx.arc(ccx+cr*0.6,ccy-cr*0.2,cr*0.18,0,2*Math.PI); ctx.fill();
+        let ey=ccy+cr*0.2; ctx.fillStyle='#212121';
+        ctx.beginPath(); ctx.arc(ccx-cr*0.35,ey,3,0,2*Math.PI); ctx.fill();
+        ctx.beginPath(); ctx.arc(ccx+cr*0.35,ey,3,0,2*Math.PI); ctx.fill();
+        ctx.fillStyle='#FFFFFF';
+        ctx.beginPath(); ctx.arc(ccx-cr*0.35-1,ey-1,1.2,0,2*Math.PI); ctx.fill();
+        ctx.beginPath(); ctx.arc(ccx+cr*0.35-1,ey-1,1.2,0,2*Math.PI); ctx.fill();
+      }
+
+      function drawEnemies() {
+        for(let e of enemies){
+          if(!e.alive) continue;
+          let x=e.x-cameraX, y=e.y;
+          ctx.fillStyle='#8B5A2B';
+          ctx.beginPath(); ctx.ellipse(x+e.width/2,y+e.height/2,e.width/2,e.height/2.5,0,0,Math.PI*2); ctx.fill();
+          ctx.fillStyle='white';
+          ctx.beginPath(); ctx.arc(x+e.width*0.35,y+e.height*0.4,4,0,2*Math.PI); ctx.fill();
+          ctx.beginPath(); ctx.arc(x+e.width*0.65,y+e.height*0.4,4,0,2*Math.PI); ctx.fill();
+          ctx.fillStyle='#212121';
+          ctx.beginPath(); ctx.arc(x+e.width*0.35-0.5,y+e.height*0.4,2,0,2*Math.PI); ctx.fill();
+          ctx.beginPath(); ctx.arc(x+e.width*0.65-0.5,y+e.height*0.4,2,0,2*Math.PI); ctx.fill();
+        }
+      }
+
+      function drawPowerUps() {
+        for(let pu of powerUps){
+          if(pu.collected) continue;
+          let x=pu.x-cameraX, y=pu.y;
+          ctx.fillStyle='#F5E6D3'; ctx.fillRect(x+pu.width*0.25,y+pu.height*0.5,pu.width*0.5,pu.height*0.5);
+          ctx.fillStyle='#43A047'; ctx.beginPath(); ctx.arc(x+pu.width/2,y+pu.height*0.45,pu.width*0.45,Math.PI,0); ctx.fill();
+          ctx.fillStyle='white';
+          ctx.beginPath(); ctx.arc(x+pu.width*0.35,y+pu.height*0.3,2,0,2*Math.PI); ctx.fill();
+          ctx.beginPath(); ctx.arc(x+pu.width*0.65,y+pu.height*0.3,2,0,2*Math.PI); ctx.fill();
+        }
+      }
+
+      function drawFinishFlag() {
+        let fx=FINISH_X-cameraX;
+        ctx.fillStyle='#795548'; ctx.fillRect(fx,200,6,160);
+        ctx.fillStyle='#F44336'; ctx.beginPath(); ctx.moveTo(fx,205); ctx.lineTo(fx+45,220); ctx.lineTo(fx,235); ctx.fill();
+        ctx.font='bold 14px "Segoe UI"'; ctx.fillStyle='white'; ctx.fillText('FINISH',fx-15,195);
+      }
+
+      function drawUI() {
+        if(gameOver){
+          ctx.globalAlpha=0.7; ctx.fillStyle='black'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.globalAlpha=1;
+          ctx.fillStyle='#FFB74D'; ctx.font='bold 36px "Segoe UI"'; ctx.textAlign='center';
+          ctx.fillText('GAME OVER',canvas.width/2,canvas.height/2);
+        }else if(victory){
+          ctx.globalAlpha=0.6; ctx.fillStyle='#FFF9C4'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.globalAlpha=1;
+          ctx.fillStyle='#2E7D32'; ctx.font='bold 40px "Segoe UI"'; ctx.textAlign='center';
+          ctx.fillText('YOU WIN!',canvas.width/2,canvas.height/2);
+        }
+      }
+
+      const keys = { left:false, right:false, jump:false, jumpPressed:false, down:false };
+      window.addEventListener('keydown',(e)=>{
+        if(e.key==='ArrowLeft'||e.key==='Left'||e.key==='a'||e.key==='A'){ keys.left=true; e.preventDefault(); }
+        if(e.key==='ArrowRight'||e.key==='Right'||e.key==='d'||e.key==='D'){ keys.right=true; e.preventDefault(); }
+        if(e.key===' '||e.key==='Space'||e.key==='ArrowUp'||e.key==='Up'||e.key==='w'||e.key==='W'){ keys.jump=true; keys.jumpPressed=true; e.preventDefault(); }
+        if(e.key==='ArrowDown'||e.key==='Down'||e.key==='s'||e.key==='S'){ keys.down=true; e.preventDefault(); }
+        if(e.key==='r'||e.key==='R'){ fullRestart(); e.preventDefault(); }
+      });
+      window.addEventListener('keyup',(e)=>{
+        if(e.key==='ArrowLeft'||e.key==='Left'||e.key==='a'||e.key==='A'){ keys.left=false; e.preventDefault(); }
+        if(e.key==='ArrowRight'||e.key==='Right'||e.key==='d'||e.key==='D'){ keys.right=false; e.preventDefault(); }
+        if(e.key===' '||e.key==='Space'||e.key==='ArrowUp'||e.key==='Up'||e.key==='w'||e.key==='W'){ keys.jump=false; e.preventDefault(); }
+        if(e.key==='ArrowDown'||e.key==='Down'||e.key==='s'||e.key==='S'){ keys.down=false; e.preventDefault(); }
+      });
+
+      canvas.addEventListener('click',(e)=>{
+        if(!editMode) return;
+        const rect=canvas.getBoundingClientRect();
+        const scaleX=canvas.width/rect.width, scaleY=canvas.height/rect.height;
+        const mx=(e.clientX-rect.left)*scaleX, my=(e.clientY-rect.top)*scaleY;
+        const worldX=mx+cameraX, worldY=my;
+        const col=Math.floor(worldX/TILE_SIZE), row=Math.floor(worldY/TILE_SIZE);
+        if(col<0||col>=MAP_WIDTH||row<0||row>=MAP_HEIGHT) return;
+        if(selectedTool === TILE_EMPTY || selectedTool === TILE_BRICK || selectedTool === TILE_LUCKY || selectedTool === TILE_INFINITE_LUCKY) {
+          if ((selectedTool === TILE_LUCKY || selectedTool === TILE_INFINITE_LUCKY) &&
+              (row === MAP_HEIGHT-1 || isSolid(getTile(col, row+1)))) {
+            return;
+          }
+          map[row][col] = selectedTool;
+        } else if(selectedTool === 4) {
+          let spawnX = col * TILE_SIZE + (TILE_SIZE-30)/2;
+          let spawnY = row * TILE_SIZE + (TILE_SIZE-30)/2;
+          enemies.push({
+            x: spawnX, y: spawnY, width:30, height:30,
+            vx: 0.6 * (Math.random()>0.5?1:-1), vy:0,
+            dir: Math.random()>0.5?1:-1, alive: true
+          });
+          recordInitialEnemies();
+        } else if(selectedTool === 5) {
+          for(let i=enemies.length-1; i>=0; i--){
+            let e=enemies[i];
+            if(worldX >= e.x && worldX <= e.x+e.width && worldY >= e.y && worldY <= e.y+e.height){
+              enemies.splice(i,1);
+              recordInitialEnemies();
+              break;
+            }
+          }
+        }
+      });
+
+      function setActive(id) {
+        ['btnEmpty','btnBrick','btnLucky','btnInfLucky','btnEnemy','btnRemoveEnemy'].forEach(b=>document.getElementById(b).classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+      }
+      document.getElementById('btnEmpty').addEventListener('click',()=>{ selectedTool=TILE_EMPTY; setActive('btnEmpty'); });
+      document.getElementById('btnBrick').addEventListener('click',()=>{ selectedTool=TILE_BRICK; setActive('btnBrick'); });
+      document.getElementById('btnLucky').addEventListener('click',()=>{ selectedTool=TILE_LUCKY; setActive('btnLucky'); });
+      document.getElementById('btnInfLucky').addEventListener('click',()=>{ selectedTool=TILE_INFINITE_LUCKY; setActive('btnInfLucky'); });
+      document.getElementById('btnEnemy').addEventListener('click',()=>{ selectedTool=4; setActive('btnEnemy'); });
+      document.getElementById('btnRemoveEnemy').addEventListener('click',()=>{ selectedTool=5; setActive('btnRemoveEnemy'); });
+      document.getElementById('toggleEdit').addEventListener('click',()=>{
+        editMode = !editMode;
+        document.getElementById('toggleEdit').textContent = editMode ? '▶ Play Mode' : '✎ Edit Mode';
+        if(editMode){ gameOver=false; victory=false; restartHint.textContent=''; }
+      });
+      document.getElementById('resetLevel').addEventListener('click',()=>{
+        map = generateRandomLevel();
+        powerUps = [];
+        enemies = [];
+        for(let i=0;i<5;i++){
+          let col = 5 + Math.floor(Math.random()*(MAP_WIDTH-10));
+          let row = MAP_HEIGHT-2;
+          enemies.push({
+            x: col*TILE_SIZE+5, y: row*TILE_SIZE-30, width:30, height:30,
+            vx: 0.6*(Math.random()>0.5?1:-1), vy:0, dir:1, alive:true
+          });
+        }
+        recordInitialEnemies();
+        gameOver=false; victory=false; restartHint.textContent='';
+        player.lives=3; livesSpan.textContent=3;
+        respawnPlayer();
+        if(editMode){ editMode=false; document.getElementById('toggleEdit').textContent='✎ Edit Mode'; }
+      });
+
+      map = generateRandomLevel();
+      enemies = [];
+      for(let i=0;i<5;i++){
+        let col = 5 + Math.floor(Math.random()*(MAP_WIDTH-10));
+        let row = MAP_HEIGHT-2;
+        enemies.push({
+          x: col*TILE_SIZE+5, y: row*TILE_SIZE-30, width:30, height:30,
+          vx: 0.6*(Math.random()>0.5?1:-1), vy:0, dir:1, alive:true
+        });
+      }
+      recordInitialEnemies();
+      player.y = (MAP_HEIGHT-2)*TILE_SIZE - player.height;
+      updatePlayerSize();
+      livesSpan.textContent = player.lives;
+
+      function gameLoop() {
+        if(!gameOver && !victory && !editMode) {
+          updatePlayer();
+          updateAllEnemies();
+          updatePowerUps();
+          handleCollisions();
+          checkVictory();
+          updateCamera();
+        }
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        drawBackground();
+        drawTileMap();
+        drawPowerUps();
+        drawEnemies();
+        drawPlayer();
+        drawFinishFlag();
+        drawUI();
+        requestAnimationFrame(gameLoop);
+      }
+      gameLoop();
+    })();
+  </script>
+</body>
+</html>
