@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Sandbox – Bombs with Fuse Delay</title>
+    <title>Pixel Sandbox – Confirm Clear, Cleaner Fire & Steam</title>
     <style>
         :root {
             --bg: #1a1a2e;
@@ -111,10 +111,9 @@
         </div>
     </div>
     <div class="info-bar">
-        <span>💣 Bombs: fall, 10‑frame fuse when lit, radius‑7 fire</span>
+        <span>🔥 Less smoke | 💨 Longer-lasting steam | 🛡️ Clear requires confirmation</span>
         <span><kbd>X</kbd> bomb</span>
         <span><kbd>U</kbd> unbreakable wall</span>
-        <span><kbd>W</kbd> wood toggle</span>
         <span><kbd>Shift</kbd> + drag = straight lines</span>
     </div>
 </div>
@@ -164,8 +163,8 @@
 
     const grid = new Uint8Array(COLS * ROWS);
     const plantColor = new Uint8Array(COLS * ROWS);
-    const fuse = new Uint8Array(COLS * ROWS); // Bomb fuse timer (0 = unlit)
-    const EXPLOSIVE_FUSE = 10; // frames of delay
+    const fuse = new Uint8Array(COLS * ROWS);
+    const EXPLOSIVE_FUSE = 10;
 
     let selected = ELEMENTS.SAND;
     let brushSize = 1;
@@ -414,11 +413,16 @@
     function updateWater(c,r) { flowToLowest(c,r, ELEMENTS.WATER); checkWaterLava(c,r); }
     function updateLava(c,r) { flowToLowest(c,r, ELEMENTS.LAVA); checkLavaWater(c,r); }
 
+    // Fire: reduced smoke production
     function updateFire(c,r) {
+        // 4% chance to die and become smoke (unchanged, but we'll keep it)
         if(Math.random()<0.04) { set(c,r,ELEMENTS.SMOKE); return; }
-        if(Math.random()<0.2 && isEmpty(c,r-1)) set(c,r-1,ELEMENTS.SMOKE);
+        // 5% chance to create smoke above (was 20%)
+        if(Math.random()<0.05 && isEmpty(c,r-1)) set(c,r-1,ELEMENTS.SMOKE);
+        // ignite wood
         const neigh = [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]];
         for(const [nc,nr] of neigh) if(get(nc,nr)===ELEMENTS.WOOD && Math.random()<0.15) set(nc,nr,ELEMENTS.FIRE);
+        // rise
         if(Math.random()<0.15 && isEmpty(c,r-1)) swap(c,r,c,r-1);
     }
 
@@ -436,18 +440,24 @@
         }
     }
 
+    // Steam: longer lifetime (reduce dissipation, increase rise chance)
     function updateSteam(c,r) {
+        // absorb by water/lava
         for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
             const n = get(nc,nr);
             if(n === ELEMENTS.WATER || n === ELEMENTS.LAVA) { set(c,r,ELEMENTS.EMPTY); return; }
         }
-        if(Math.random()<0.04) { set(c,r,ELEMENTS.EMPTY); return; }
+        // 2% chance to dissipate (was 4%)
+        if(Math.random()<0.02) { set(c,r,ELEMENTS.EMPTY); return; }
+        // condense near top
         if(r <= 2 && Math.random()<0.03) { set(c,r,ELEMENTS.WATER); return; }
+        // condense if trapped
         const surrounded = !isEmpty(c,r-1) && !isEmpty(c,r+1) && !isEmpty(c-1,r) && !isEmpty(c+1,r)
                          && !isEmpty(c-1,r-1) && !isEmpty(c+1,r-1) && !isEmpty(c-1,r+1) && !isEmpty(c+1,r+1);
         if(surrounded && Math.random()<0.05) { set(c,r,ELEMENTS.WATER); return; }
-        if(Math.random()<0.3 && isEmpty(c,r-1)) { swap(c,r,c,r-1); return; }
-        if(Math.random()<0.3) {
+        // rise more often (40% chance, was 30%)
+        if(Math.random()<0.4 && isEmpty(c,r-1)) { swap(c,r,c,r-1); return; }
+        if(Math.random()<0.35) {  // slight horizontal drift
             const dx = Math.random()<0.5 ? -1 : 1;
             if(isEmpty(c+dx,r-1)) { swap(c,r,c+dx,r-1); return; }
             if(isEmpty(c+dx,r)) swap(c,r,c+dx,r);
@@ -542,14 +552,10 @@
 
     function updateExplosive(c,r) {
         const i = idx(c,r);
-        // Gravity first
         if (fallThroughLiquids(c,r, ELEMENTS.EXPLOSIVE)) return;
-
-        // Fuse countdown
         if (fuse[i] > 0) {
             fuse[i]--;
             if (fuse[i] === 0) {
-                // Explode
                 const radius = 7;
                 for(let dr = -radius; dr <= radius; dr++) {
                     for(let dc = -radius; dc <= radius; dc++) {
@@ -569,8 +575,6 @@
             }
             return;
         }
-
-        // Light the fuse if touching fire or lava
         for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
             const n = get(nc,nr);
             if(n === ELEMENTS.FIRE || n === ELEMENTS.LAVA) {
@@ -665,7 +669,14 @@
             }
         }
     }
-    function clearAll() { grid.fill(ELEMENTS.EMPTY); plantColor.fill(0); fuse.fill(0); }
+
+    function clearAll() { 
+        if (confirm('Are you sure you want to clear the entire screen?')) {
+            grid.fill(ELEMENTS.EMPTY);
+            plantColor.fill(0);
+            fuse.fill(0);
+        }
+    }
 
     function gridPos(e) {
         const rect = canvas.getBoundingClientRect();
@@ -766,7 +777,7 @@
         else if(key==='e') selectErase();
         else if(key==='r') toggleSelectiveErase();
         else if(key==='w') toggleWoodConversion();
-        else if(key==='c') clearAll();
+        else if(key==='c') clearAll();  // now includes confirmation
         else if(key===' ') { e.preventDefault(); togglePause(); }
         else if(key==='['||key==='-') { brushSize=Math.max(1,brushSize-1); brushSlider.value=brushSize; brushDisplay.textContent=brushSize; }
         else if(key===']'||key==='=') { brushSize=Math.min(20,brushSize+1); brushSlider.value=brushSize; brushDisplay.textContent=brushSize; }
