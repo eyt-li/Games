@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Riot Arena</title>
+    <style>
+        :root { --bg: #000035; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        canvas {
+            display: block;
+            border: 2px solid #1a1a5e;
+            border-radius: 4px;
+            box-shadow: 0 0 40px rgba(0,0,0,0.6);
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+    <script>
+        (function() {
+            const canvas = document.getElementById('game');
+            const ctx = canvas.getContext('2d');
+
+            const W = Math.min(window.innerWidth - 20, 1200);
+            const H = Math.min(window.innerHeight - 20, 750);
+            canvas.width = W;
+            canvas.height = H;
+
+            const MAP_W = 1600, MAP_H = 1600;
+            const GAME_DURATION = 120;
+            const TEAM_COLORS = ['#e74c3c','#3498db','#2ecc71','#ffdd00'];
+            const TEAM_NAMES = ['Red','Blue','Green','Yellow'];
+            const NUM_TEAMS = 4, PLAYERS_PER_TEAM = 5;
+
+            const SPAWN_ZONES = [
+                { x: 40, y: 40, w: 360, h: 240 },
+                { x: MAP_W - 400, y: 40, w: 360, h: 240 },
+                { x: 40, y: MAP_H - 280, w: 360, h: 240 },
+                { x: MAP_W - 400, y: MAP_H - 280, w: 360, h: 240 }
+            ];
+
+            const keys = {};
+            let mouseX = W/2, mouseY = H/2, mouseDown = false, mouseClicked = false;
+            let mouseWorldX = 0, mouseWorldY = 0;
+            let keyJustPressed = {};
+            let playerRallyPoint = null;
+
+            let audioCtx = null;
+            function initAudio() { if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+            function playSound(f,d,t='square',v=0.08) { if(!audioCtx) return; try { const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type=t; o.frequency.setValueAtTime(f,audioCtx.currentTime); g.gain.setValueAtTime(v,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+d); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+d); } catch(e){} }
+            function sfxShoot(){ playSound(200,0.08,'square',0.06); playSound(80,0.1,'sawtooth',0.04); }
+            function sfxHit(){ playSound(60,0.15,'sawtooth',0.07); }
+            function sfxExplosion(){ playSound(30,0.4,'sawtooth',0.15); playSound(15,0.5,'triangle',0.12); }
+            function sfxMelee(){ playSound(120,0.12,'square',0.05); playSound(40,0.08,'triangle',0.06); }
+            function sfxSwitch(){ playSound(600,0.05,'sine',0.03); }
+            function sfxReload(){ playSound(300,0.1,'triangle',0.04); playSound(400,0.08,'triangle',0.03); }
+            function sfxWall(){ playSound(100,0.15,'triangle',0.05); playSound(150,0.1,'sine',0.04); }
+
+            function dist(a,b){ return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2); }
+            function angleBetween(a,b){ return Math.atan2(b.y-a.y,b.x-a.x); }
+            function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
+            function rand(min,max){ return Math.random()*(max-min)+min; }
+            function randInt(min,max){ return Math.floor(rand(min,max+1)); }
+            function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+            function pointToSegmentDist(px, py, ax, ay, bx, by) {
+                const dx = bx - ax, dy = by - ay;
+                if(dx === 0 && dy === 0) return Math.hypot(px-ax, py-ay);
+                const t = clamp(((px-ax)*dx + (py-ay)*dy) / (dx*dx+dy*dy), 0, 1);
+                const closestX = ax + t*dx, closestY = ay + t*dy;
+                return Math.hypot(px-closestX, py-closestY);
+            }
+
+            function lineOfSightClear(x1,y1,x2,y2, buildings, walls) {
+                for(const b of buildings) if(b.alive) {
+                    if(b.isEnterable) { for(const w of b.walls) if(lineRectIntersection(x1,y1,x2,y2, w.x,w.y,w.w,w.h)) return false; }
+                    else if(lineRectIntersection(x1,y1,x2,y2, b.x,b.y,b.w,b.h)) return false;
+                }
+                for(const w of walls) if(w.alive) {
+                    if(pointToSegmentDist((x1+x2)/2, (y1+y2)/2, w.x1,w.y1,w.x2,w.y2) < w.thickness + 8) return false;
+                }
+                return true;
+            }
+
+            function rectCircleCollision(rx,ry,rw,rh,cx,cy,cr){ const cx2=clamp(cx,rx,rx+rw), cy2=clamp(cy,ry,ry+rh); return dist({x:cx2,y:cy2},{x:cx,y:cy})<cr; }
+            function rectRectCollision(a,b,c,d,e,f,g,h){ return a<e+g && a+c>e && b<f+h && b+d>f; }
+            function lineRectIntersection(x1,y1,x2,y2,rx,ry,rw,rh){ if(x1>=rx&&x1<=rx+rw&&y1>=ry&&y1<=ry+rh) return true; if(x2>=rx&&x2<=rx+rw&&y2>=ry&&y2<=ry+rh) return true; const edges=[[rx,ry,rx+rw,ry],[rx+rw,ry,rx+rw,ry+rh],[rx+rw,ry+rh,rx,ry+rh],[rx,ry+rh,rx,ry]]; for(const e of edges) if(segmentsIntersect(x1,y1,x2,y2,e[0],e[1],e[2],e[3])) return true; return false; }
+            function segmentsIntersect(x1,y1,x2,y2,x3,y3,x4,y4){ const d=(x1-x2)*(y3-y4)-(y1-y2)*(x3-x4); if(Math.abs(d)<0.0001) return false; const t=((x1-x3)*(y3-y4)-(y1-y3)*(x3-x4))/d; const u=-((x1-x2)*(y1-y3)-(y1-y2)*(x1-x3))/d; return t>=0&&t<=1&&u>=0&&u<=1; }
+
+            if (!ctx.roundRect) {
+                ctx.roundRect = function (x, y, w, h, r) {
+                    if (typeof r === 'number') r = {tl: r, tr: r, br: r, bl: r};
+                    this.beginPath();
+                    this.moveTo(x + r.tl, y);
+                    this.lineTo(x + w - r.tr, y);
+                    this.quadraticCurveTo(x + w, y, x + w, y + r.tr);
+                    this.lineTo(x + w, y + h - r.br);
+                    this.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
+                    this.lineTo(x + r.bl, y + h);
+                    this.quadraticCurveTo(x, y + h, x, y + h - r.bl);
+                    this.lineTo(x, y + r.tl);
+                    this.quadraticCurveTo(x, y, x + r.tl, y);
+                    this.closePath();
+                };
+            }
+
+            let homeScreen = true;
+            let gameTime = GAME_DURATION, gameOver = false, winnerTeam = -1, playerTeam = -1;
+            let gameEndTime = 0;
+            let players = [], buildings = [], bullets = [], particles = [], explosives = [], smokeClouds = [], walls = [];
+            let disruptorProjectiles = [];
+            let cars = [], destroyedCarRemains = [];
+            let player = null, camera = { x:0, y:0 };
+            let showRespawnScreen = false;
+            let killFeed = [];
+
+            const KILL_MESSAGES = [
+                "eliminated", "destroyed", "fragged", "wiped out", "took down", "neutralized", "obliterated", "iced"
+            ];
+            const TEAMKILL_MESSAGES = [
+                "betrayed", "team-killed", "friendly-fired", "backstabbed", "TK'd", "misfired on", "oopsied"
+            ];
+
+            const GUN_RANGE = Math.min(W/2, H/2);
+
+            const GUN_DEFS = {
+                'Sniper':{ name:'Sniper',damage:75,cooldown:1.1,range:GUN_RANGE*1.2,bulletSpeed:1300,magSize:5,reloadTime:2.8,spread:0.01,color:'#ff0000',bulletSize:4,trail:true },
+                'Rifle':{ name:'Rifle',damage:38,cooldown:0.35,range:GUN_RANGE,bulletSpeed:950,magSize:20,reloadTime:1.8,spread:0.04,color:'#ff4444',bulletSize:3 },
+                'SMG':{ name:'SMG',damage:14,cooldown:0.08,range:GUN_RANGE,bulletSpeed:750,magSize:30,reloadTime:1.8,spread:0.1,color:'#ffaa00',bulletSize:2 },
+                'Pistol':{ name:'Pistol',damage:25,cooldown:0.35,range:GUN_RANGE,bulletSpeed:900,magSize:12,reloadTime:1.2,spread:0.03,color:'#ffd700',bulletSize:3 },
+                'Shotgun':{ name:'Shotgun',damage:18,cooldown:0.7,range:GUN_RANGE*0.7,bulletSpeed:650,magSize:6,reloadTime:2.2,spread:0.25,pellets:6,color:'#ff6600',bulletSize:3 },
+                'MachinePistol':{ name:'MachPistol',damage:12,cooldown:0.07,range:GUN_RANGE*0.8,bulletSpeed:700,magSize:20,reloadTime:1.5,spread:0.08,color:'#ff9900',bulletSize:2 }
+            };
+            const MELEE_DEFS = {
+                'Bat':{ name:'Bat',damage:35,cooldown:0.5,range:65,arc:1.2 },
+                'Sword':{ name:'Sword',damage:50,cooldown:0.7,range:75,arc:0.9 },
+                'Knuckle':{ name:'Knuckle',damage:22,cooldown:0.25,range:45,arc:1.5 },
+            };
+            const EXPLOSIVE_DEFS = {
+                'Grenade':{ name:'Grenade',damage:100,radius:200,fuse:1.8,quantity:5 },
+                'Molotov':{ name:'Molotov',damage:35,radius:150,fuse:0.6,quantity:5,fireDuration:3,fireDPS:30 },
+                'C4':{ name:'C4',damage:200,radius:250,fuse:3.0,quantity:5,sticky:true },
+                'Mine':{ name:'Mine',damage:50,carDamage:200,radius:180,fuse:1.0,quantity:5,sticky:true,proximity:true },
+            };
+
+            class Car {
+                constructor(x, y, id) {
+                    this.id = id; this.spawnX = x; this.spawnY = y;
+                    this.x = x; this.y = y; this.w = 60; this.h = 35;
+                    this.angle = 0; this.speed = 0;
+                    this.maxSpeed = 280; this.acceleration = 200; this.turnSpeed = 2.2;
+                    this.maxHp = 80; this.hp = 80;
+                    this.alive = true; this.seats = [null, null]; this.team = null;
+                    this.stuckTimer = 0;
+                    this.ramDamage = 100; // greatly increased damage to obstacles & walls
+                }
+                takeDamage(dmg) { if (!this.alive) return; this.hp -= dmg; if (this.hp <= 0) { this.hp = 0; this.destroy(); } }
+                heal(amount) { if (!this.alive) return; this.hp = Math.min(this.maxHp, this.hp + amount); }
+                destroy() {
+                    if (!this.alive) return;
+                    this.alive = false;
+                    const explosionRadius = 160, explosionDamage = 50, healAmount = 30;
+                    for (const p of players) {
+                        if (!p.alive) continue;
+                        const d = dist(this, p);
+                        if (d < explosionRadius) {
+                            if (p.team !== this.team) p.takeDamage(explosionDamage, null, null, 'explosion');
+                            else p.hp = Math.min(p.maxHp, p.hp + healAmount);
+                        }
+                    }
+                    for (const p of this.seats) if (p) { p.exitCar(); p.takeDamage(10, null, null, 'explosion'); }
+                    destroyedCarRemains.push({x: this.x, y: this.y, angle: this.angle, timer: 5});
+                    for (let i=0;i<30;i++){ const a=Math.random()*Math.PI*2; particles.push(new Particle(this.x,this.y,rand(-100,100),rand(-100,100),rand(0.4,1),'#ff4400',rand(3,6))); }
+                    sfxExplosion();
+                    setTimeout(() => this.reset(), 5000);
+                }
+                reset() {
+                    this.alive = true; this.hp = this.maxHp;
+                    this.x = this.spawnX; this.y = this.spawnY;
+                    this.angle = 0; this.speed = 0;
+                    this.team = null;
+                    this.seats[0] = null; this.seats[1] = null;
+                    this.stuckTimer = 0;
+                }
+                getAvoidanceSteer(buildings, walls) {
+                    const lookAhead = 90;
+                    const coneAngle = 1.3;
+                    let avoidX = 0, avoidY = 0;
+                    for (const b of buildings) {
+                        if (!b.alive || b.isEnterable) continue;
+                        const closestX = clamp(this.x, b.x, b.x+b.w);
+                        const closestY = clamp(this.y, b.y, b.y+b.h);
+                        const d = Math.hypot(this.x - closestX, this.y - closestY);
+                        if (d < lookAhead) {
+                            const angleTo = Math.atan2(closestY - this.y, closestX - this.x);
+                            let diff = angleTo - this.angle;
+                            while (diff > Math.PI) diff -= 2*Math.PI;
+                            while (diff < -Math.PI) diff += 2*Math.PI;
+                            if (Math.abs(diff) < coneAngle) {
+                                const weight = (1 - d/lookAhead) * (coneAngle - Math.abs(diff)) / coneAngle;
+                                avoidX += Math.cos(angleTo + Math.PI) * weight;
+                                avoidY += Math.sin(angleTo + Math.PI) * weight;
+                            }
+                        }
+                    }
+                    for (const w of walls) {
+                        if (!w.alive) continue;
+                        const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
+                        const lenSq = dx*dx+dy*dy;
+                        let t = 0;
+                        if (lenSq > 0) t = clamp(((this.x - w.x1)*dx + (this.y - w.y1)*dy) / lenSq, 0, 1);
+                        const closestX = w.x1 + t*dx, closestY = w.y1 + t*dy;
+                        const d = Math.hypot(this.x - closestX, this.y - closestY);
+                        if (d < lookAhead) {
+                            const angleTo = Math.atan2(closestY - this.y, closestX - this.x);
+                            let diff = angleTo - this.angle;
+                            while (diff > Math.PI) diff -= 2*Math.PI;
+                            while (diff < -Math.PI) diff += 2*Math.PI;
+                            if (Math.abs(diff) < coneAngle) {
+                                const weight = (1 - d/lookAhead) * (coneAngle - Math.abs(diff)) / coneAngle;
+                                avoidX += Math.cos(angleTo + Math.PI) * weight;
+                                avoidY += Math.sin(angleTo + Math.PI) * weight;
+                            }
+                        }
+                    }
+                    for (const b of buildings) {
+                        if (!b.alive || !b.isEnterable) continue;
+                        for (const bw of b.walls) {
+                            const closestX = clamp(this.x, bw.x, bw.x+bw.w);
+                            const closestY = clamp(this.y, bw.y, bw.y+bw.h);
+                            const d = Math.hypot(this.x - closestX, this.y - closestY);
+                            if (d < lookAhead) {
+                                const angleTo = Math.atan2(closestY - this.y, closestX - this.x);
+                                let diff = angleTo - this.angle;
+                                while (diff > Math.PI) diff -= 2*Math.PI;
+                                while (diff < -Math.PI) diff += 2*Math.PI;
+                                if (Math.abs(diff) < coneAngle) {
+                                    const weight = (1 - d/lookAhead) * (coneAngle - Math.abs(diff)) / coneAngle;
+                                    avoidX += Math.cos(angleTo + Math.PI) * weight;
+                                    avoidY += Math.sin(angleTo + Math.PI) * weight;
+                                }
+                            }
+                        }
+                    }
+                    if (avoidX === 0 && avoidY === 0) return 0;
+                    const avoidAngle = Math.atan2(avoidY, avoidX);
+                    let diff = avoidAngle - this.angle;
+                    while (diff > Math.PI) diff -= 2*Math.PI;
+                    while (diff < -Math.PI) diff += 2*Math.PI;
+                    return clamp(diff * 1.8, -0.7, 0.7);
+                }
+
+                update(dt, buildings, walls, players, allCars) {
+                    if (!this.alive) return;
+                    const driver = this.seats[0];
+                    if (driver) {
+                        let moveInput = 0, turnInput = 0;
+                        if (driver.isHuman) {
+                            if (keys['w'] || keys['arrowup']) moveInput += 1;
+                            if (keys['s'] || keys['arrowdown']) moveInput -= 1;
+                            if (keys['a'] || keys['arrowleft']) turnInput -= 1;
+                            if (keys['d'] || keys['arrowright']) turnInput += 1;
+                        } else {
+                            if (driver.aiTarget && driver.aiState === 'combat') {
+                                const targetAngle = angleBetween(this, driver.aiTarget);
+                                let diff = targetAngle - this.angle;
+                                while (diff > Math.PI) diff -= 2*Math.PI;
+                                while (diff < -Math.PI) diff += 2*Math.PI;
+                                turnInput = clamp(diff * 2, -1, 1);
+                                moveInput = 1;
+                            } else {
+                                if (driver.aiWanderTarget) {
+                                    const targetAngle = angleBetween(this, driver.aiWanderTarget);
+                                    let diff = targetAngle - this.angle;
+                                    while (diff > Math.PI) diff -= 2*Math.PI;
+                                    while (diff < -Math.PI) diff += 2*Math.PI;
+                                    turnInput = clamp(diff * 2, -1, 1);
+                                    moveInput = 0.5;
+                                }
+                            }
+                            const avoidSteer = this.getAvoidanceSteer(buildings, walls);
+                            turnInput += avoidSteer;
+                            turnInput = clamp(turnInput, -1, 1);
+                        }
+                        this.angle += turnInput * this.turnSpeed * dt;
+                        this.speed += moveInput * this.acceleration * dt;
+                        this.speed = clamp(this.speed, -this.maxSpeed*0.5, this.maxSpeed);
+                        let newX = this.x + Math.cos(this.angle) * this.speed * dt;
+                        let newY = this.y + Math.sin(this.angle) * this.speed * dt;
+
+                        const carRect = { x: newX - this.w/2, y: newY - this.h/2, w: this.w, h: this.h };
+                        let collides = false;
+                        for (const b of buildings) {
+                            if (!b.alive) continue;
+                            if (b.isEnterable) {
+                                for (const w of b.walls) {
+                                    if (rectRectCollision(carRect.x, carRect.y, carRect.w, carRect.h, w.x, w.y, w.w, w.h)) {
+                                        collides = true; break;
+                                    }
+                                }
+                            } else {
+                                if (rectRectCollision(carRect.x, carRect.y, carRect.w, carRect.h, b.x, b.y, b.w, b.h)) {
+                                    if (b.hp >= 9999) {
+                                        const angle = rand(0, Math.PI*2);
+                                        const dist = rand(50, 250);
+                                        this.x = MAP_W/2 + Math.cos(angle) * dist;
+                                        this.y = MAP_H/2 + Math.sin(angle) * dist;
+                                        this.speed = 0;
+                                        return;
+                                    }
+                                    collides = true; break;
+                                }
+                            }
+                            if (collides) break;
+                        }
+                        if (!collides) {
+                            for (const w of walls) {
+                                if (w.alive && pointToSegmentDist(newX, newY, w.x1, w.y1, w.x2, w.y2) < Math.max(this.w, this.h)/2 + w.thickness) {
+                                    collides = true; break;
+                                }
+                            }
+                        }
+
+                        if (collides) {
+                            const backAngle = this.angle + Math.PI;
+                            const stepSize = 2;
+                            let tries = 0;
+                            while (collides && tries < 50) {
+                                newX += Math.cos(backAngle) * stepSize;
+                                newY += Math.sin(backAngle) * stepSize;
+                                carRect.x = newX - this.w/2; carRect.y = newY - this.h/2;
+                                collides = false;
+                                for (const b of buildings) {
+                                    if (!b.alive) continue;
+                                    if (b.isEnterable) {
+                                        for (const w of b.walls) {
+                                            if (rectRectCollision(carRect.x, carRect.y, carRect.w, carRect.h, w.x, w.y, w.w, w.h)) { collides = true; break; }
+                                        }
+                                    } else {
+                                        if (rectRectCollision(carRect.x, carRect.y, carRect.w, carRect.h, b.x, b.y, b.w, b.h)) {
+                                            if (b.hp >= 9999) {
+                                                const angle = rand(0, Math.PI*2);
+                                                const dist = rand(50, 250);
+                                                this.x = MAP_W/2 + Math.cos(angle) * dist;
+                                                this.y = MAP_H/2 + Math.sin(angle) * dist;
+                                                this.speed = 0; return;
+                                            }
+                                            collides = true; break;
+                                        }
+                                    }
+                                    if (collides) break;
+                                }
+                                if (!collides) {
+                                    for (const w of walls) {
+                                        if (w.alive && pointToSegmentDist(newX, newY, w.x1, w.y1, w.x2, w.y2) < Math.max(this.w, this.h)/2 + w.thickness) { collides = true; break; }
+                                    }
+                                }
+                                tries++;
+                            }
+                            this.speed = 0;
+                        }
+
+                        this.x = clamp(newX, this.w/2, MAP_W - this.w/2);
+                        this.y = clamp(newY, this.h/2, MAP_H - this.h/2);
+
+                        // Apply heavy ram damage to obstacles and walls
+                        const carBox = { x: this.x - this.w/2, y: this.y - this.h/2, w: this.w, h: this.h };
+                        for (const b of buildings) {
+                            if (!b.alive || b.hp >= 9999) continue;
+                            if (b.isEnterable) {
+                                for (const w of b.walls) {
+                                    if (rectRectCollision(carBox.x, carBox.y, carBox.w, carBox.h, w.x, w.y, w.w, w.h)) {
+                                        b.takeDamage(this.ramDamage * dt, driver.id, driver.team);
+                                        break;
+                                    }
+                                }
+                            } else {
+                                if (rectRectCollision(carBox.x, carBox.y, carBox.w, carBox.h, b.x, b.y, b.w, b.h)) {
+                                    b.takeDamage(this.ramDamage * dt, driver.id, driver.team);
+                                }
+                            }
+                        }
+                        for (const w of walls) {
+                            if (w.alive && pointToSegmentDist(this.x, this.y, w.x1, w.y1, w.x2, w.y2) < Math.max(this.w, this.h)/2 + w.thickness) {
+                                w.takeDamage(this.ramDamage * dt);
+                            }
+                        }
+
+                        for (const otherCar of allCars) {
+                            if (otherCar === this || !otherCar.alive) continue;
+                            if (rectRectCollision(this.x - this.w/2, this.y - this.h/2, this.w, this.h,
+                                otherCar.x - otherCar.w/2, otherCar.y - otherCar.h/2, otherCar.w, otherCar.h)) {
+                                const dx = this.x - otherCar.x;
+                                const dy = this.y - otherCar.y;
+                                const distCars = Math.sqrt(dx*dx+dy*dy) || 1;
+                                const overlap = (this.w + otherCar.w)/2 + (this.h + otherCar.h)/4 - distCars;
+                                if (overlap > 0) {
+                                    const pushX = (dx / distCars) * overlap * 0.6;
+                                    const pushY = (dy / distCars) * overlap * 0.6;
+                                    this.x += pushX;
+                                    this.y += pushY;
+                                    otherCar.x -= pushX;
+                                    otherCar.y -= pushY;
+                                    this.speed *= 0.4;
+                                    otherCar.speed *= 0.4;
+                                }
+                            }
+                        }
+
+                        if (!driver.isHuman && Math.abs(this.speed) < 5) {
+                            this.stuckTimer += dt;
+                            if (this.stuckTimer > 5) {
+                                driver.exitCar();
+                                this.stuckTimer = 0;
+                            }
+                        } else {
+                            this.stuckTimer = 0;
+                        }
+
+                        for (const p of players) {
+                            if (!p.alive || p.inCar) continue;
+                            if (p === this.seats[0] || p === this.seats[1]) continue;
+                            if (rectCircleCollision(this.x - this.w/2, this.y - this.h/2, this.w, this.h, p.x, p.y, p.radius)) {
+                                const dmg = 35;
+                                p.takeDamage(dmg, driver.id, driver.team, 'car');
+                                const angle = angleBetween(this, p);
+                                p.x += Math.cos(angle) * 4;
+                                p.y += Math.sin(angle) * 4;
+                                this.speed *= 0.8;
+                            }
+                        }
+                        for (let i = 0; i < 2; i++) {
+                            const p = this.seats[i];
+                            if (p) {
+                                const offset = i === 0 ? (this.w/2 - 8) : -(this.w/2 - 8);
+                                p.x = this.x + Math.cos(this.angle) * offset;
+                                p.y = this.y + Math.sin(this.angle) * offset;
+                                p.angle = this.angle; p.vx = 0; p.vy = 0;
+                            }
+                        }
+                    } else {
+                        this.speed *= 0.9;
+                        this.stuckTimer = 0;
+                    }
+                }
+                draw(ctx, cam) {
+                    if (!this.alive) return;
+                    const sx = this.x - cam.x, sy = this.y - cam.y;
+                    ctx.save(); ctx.translate(sx, sy); ctx.rotate(this.angle);
+                    ctx.fillStyle = '#334455';
+                    ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+                    ctx.strokeStyle = '#aaa'; ctx.lineWidth = 2; ctx.strokeRect(-this.w/2, -this.h/2, this.w, this.h);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(this.w/2 - 10, -this.h/2 + 4, 8, 6);
+                    ctx.fillRect(this.w/2 - 10, this.h/2 - 10, 8, 6);
+                    ctx.fillStyle = '#ff3333';
+                    ctx.fillRect(-this.w/2 + 2, -this.h/2 + 4, 6, 6);
+                    ctx.fillRect(-this.w/2 + 2, this.h/2 - 10, 6, 6);
+                    for (let i = 0; i < 2; i++) {
+                        const occ = this.seats[i];
+                        if (occ) {
+                            const seatX = i === 0 ? (this.w/2 - 8) : (-this.w/2 + 8);
+                            ctx.fillStyle = TEAM_COLORS[occ.team];
+                            ctx.beginPath(); ctx.arc(seatX, 0, 7, 0, Math.PI*2); ctx.fill();
+                            if (occ === player) {
+                                ctx.fillStyle = '#fff';
+                                ctx.font = 'bold 9px sans-serif';
+                                ctx.textAlign = 'center';
+                                ctx.fillText('YOU', seatX, -12);
+                                ctx.textAlign = 'start';
+                            }
+                        }
+                    }
+                    ctx.restore();
+                    const hpPct = this.hp / this.maxHp;
+                    const barW = 40, barH = 4;
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(sx - barW/2, sy - this.h/2 - 12, barW, barH);
+                    ctx.fillStyle = hpPct > 0.5 ? '#4f4' : '#f22';
+                    ctx.fillRect(sx - barW/2, sy - this.h/2 - 12, barW * hpPct, barH);
+                    if (player && player.alive && player.inCar && player.car === this) {
+                        ctx.fillStyle = '#ffff00';
+                        ctx.font = 'bold 14px "Segoe UI", sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('E to exit', sx, sy - this.h/2 - 20);
+                        ctx.textAlign = 'start';
+                    }
+                }
+            }
+
+            class Particle {
+                constructor(x,y,vx,vy,life,color,size=2){ this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.life=life;this.maxLife=life;this.color=color;this.size=size; }
+                update(dt){ this.x+=this.vx*dt; this.y+=this.vy*dt; this.life-=dt; this.vx*=0.98; this.vy*=0.98; }
+                get alpha(){ return clamp(this.life/this.maxLife,0,1); } get dead(){ return this.life<=0; }
+            }
+
+            class Wall {
+                constructor(x, y, angle, team) {
+                    this.x=x;this.y=y;this.angle=angle;this.length=55;this.thickness=6;this.team=team;
+                    this.life=20; this.hp=400; this.maxHp=400;
+                    const perpX=Math.cos(angle)*this.length/2, perpY=Math.sin(angle)*this.length/2;
+                    this.x1=x-perpX;this.y1=y-perpY;this.x2=x+perpX;this.y2=y+perpY;
+                }
+                update(dt) { this.life -= dt; if(this.hp <= 0) this.life = 0; }
+                get alive() { return this.hp > 0 && this.life > 0; }
+                takeDamage(dmg) { this.hp -= dmg; if(this.hp <= 0) this.life = 0; }
+                heal(amount) { this.life = Math.min(10, this.life + amount); }
+                draw(ctx, cam) {
+                    const sx1=this.x1-cam.x,sy1=this.y1-cam.y,sx2=this.x2-cam.x,sy2=this.y2-cam.y;
+                    ctx.strokeStyle='#888'; ctx.lineWidth=4;
+                    ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+                    if(this.alive) {
+                        const midX = (sx1+sx2)/2, midY = (sy1+sy2)/2;
+                        const hpPct = this.hp / this.maxHp;
+                        ctx.fillStyle = '#333';
+                        ctx.fillRect(midX-20, midY-8, 40, 3);
+                        ctx.fillStyle = hpPct > 0.5 ? '#4f4' : '#f22';
+                        ctx.fillRect(midX-20, midY-8, 40 * hpPct, 3);
+                    }
+                }
+            }
+
+            class DisruptorProjectile {
+                constructor(x,y,vx,vy,throwerId,team){
+                    this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.throwerId=throwerId;this.team=team;
+                    this.fuse=0.5;this.radius=150;
+                    this.alive=true;
+                }
+                update(dt){ this.x+=this.vx*dt;this.y+=this.vy*dt;this.vx*=0.99;this.vy*=0.99;this.fuse-=dt; for(const b of buildings) if(b.alive){ if(b.isEnterable){ for(const w of b.walls) if(rectCircleCollision(w.x,w.y,w.w,w.h,this.x,this.y,6)){ this.explode(); return; } } else if(rectCircleCollision(b.x,b.y,b.w,b.h,this.x,this.y,6)){ this.explode(); return; } } for(const p of players) if(p.alive&&p.id!==this.throwerId&&dist(this,p)<20){ this.explode(); return; } if(this.fuse<=0){ this.explode(); } }
+                explode(){
+                    this.alive=false;
+                    for(const p of players) if(p.alive){
+                        const d=dist(p,this);
+                        if(d<this.radius) {
+                            if(p.team === this.team) {
+                                p.hp = Math.min(p.maxHp, p.hp + 30 * (1 - d/this.radius));
+                                p.disruptorImmune = Math.max(p.disruptorImmune, 8);
+                            } else if(p.id !== this.throwerId && !p.disruptorImmune) {
+                                p.explosiveLocked = 4;
+                                for(let i=0;i<8;i++){ 
+                                    particles.push(new Particle(p.x, p.y, rand(-30,30), rand(-30,30), 0.5, '#ff44ff', 3));
+                                }
+                            }
+                        }
+                    }
+                    for(let i=0;i<30;i++){ const a=Math.random()*Math.PI*2,s=rand(80,300); particles.push(new Particle(this.x,this.y,Math.cos(a)*s,Math.sin(a)*s,rand(0.3,0.7),'#ff44ff',rand(2,5))); }
+                    sfxExplosion();
+                }
+                get dead(){ return !this.alive; }
+                draw(ctx,cam){ const sx=this.x-cam.x,sy=this.y-cam.y; ctx.fillStyle='#ff44ff'; ctx.beginPath(); ctx.arc(sx,sy,7,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(sx,sy,3,0,Math.PI*2); ctx.fill(); }
+            }
+
+            class Bullet {
+                constructor(x,y,vx,vy,damage,range,color,size,shooterId,team,isPellet=false){ this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.damage=damage;this.range=range;this.maxRange=range;this.color=color;this.size=size;this.shooterId=shooterId;this.team=team;this.trail=[];this.isPellet=isPellet; }
+                update(dt, cars, walls){
+                    this.trail.push({x:this.x,y:this.y,life:0.15}); if(this.trail.length>12) this.trail.shift(); for(const t of this.trail) t.life-=dt;
+                    const speed=Math.sqrt(this.vx**2+this.vy**2); const dx=(this.vx/speed)*speed*dt, dy=(this.vy/speed)*speed*dt;
+                    this.x+=dx; this.y+=dy; this.range-=Math.sqrt(dx**2+dy**2);
+                    for(const c of cars) if(c.alive && rectCircleCollision(c.x-c.w/2, c.y-c.h/2, c.w, c.h, this.x, this.y, this.size)){ c.takeDamage(1); return false; }
+                    for(const w of walls) {
+                        if(w.alive && pointToSegmentDist(this.x, this.y, w.x1, w.y1, w.x2, w.y2) < this.size + w.thickness) {
+                            w.takeDamage(this.damage * 0.5);
+                            return false;
+                        }
+                    }
+                    for(const b of buildings) if(b.alive){ if(b.isEnterable){ for(const w of b.walls) if(rectCircleCollision(w.x,w.y,w.w,w.h,this.x,this.y,this.size)){ b.takeDamage(this.damage*0.5,this.shooterId,this.team); return false; } } else if(rectCircleCollision(b.x,b.y,b.w,b.h,this.x,this.y,this.size)){ b.takeDamage(this.damage*0.5,this.shooterId,this.team); return false; } }
+                    return this.range>0 && this.x>0 && this.x<MAP_W && this.y>0 && this.y<MAP_H;
+                }
+                get dead(){ return this.range<=0||this.x<-50||this.x>MAP_W+50||this.y<-50||this.y>MAP_H+50; }
+            }
+
+            class ExplosiveProjectile {
+                constructor(x,y,vx,vy,def,throwerId,team){
+                    this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.def=def;this.throwerId=throwerId;this.team=team;
+                    this.fuse=def.fuse;this.stuck=false;this.stuckTo=null;this.alive=true;
+                    this.proximity=def.proximity||false;this.armed=false;
+                }
+                update(dt){
+                    if(this.stuck){
+                        if(this.stuckTo && this.stuckTo.alive) { this.x=this.stuckTo.x; this.y=this.stuckTo.y; }
+                        if(this.proximity){
+                            if(this.fuse<=0 && !this.armed){ this.armed=true; this.fuse=0; }
+                            else if(!this.armed){ this.fuse-=dt; if(this.fuse<=0) this.armed=true; }
+                            if(this.armed){ for(const c of cars) if(c.alive && dist(this,c)<this.def.radius){ this.explode(); return; } }
+                            return;
+                        }
+                        this.fuse-=dt; if(this.fuse<=0){ this.explode(); return; }
+                        return;
+                    }
+                    this.x += this.vx * dt;
+                    this.y += this.vy * dt;
+                    this.fuse -= dt;
+                    if(this.def.explodeOnImpact){
+                        for(const b of buildings) if(b.alive){
+                            if(b.isEnterable){ for(const w of b.walls) if(rectCircleCollision(w.x,w.y,w.w,w.h,this.x,this.y,6)){ this.explode(); return; } }
+                            else if(rectCircleCollision(b.x,b.y,b.w,b.h,this.x,this.y,6)){ this.explode(); return; }
+                        }
+                        for(const p of players) if(p.hp>0 && p.id!==this.throwerId && dist(this,p)<20){ this.explode(); return; }
+                    }
+                    if(this.fuse<=0){ this.explode(); return; }
+                    if(this.def.sticky && this.fuse<this.def.fuse*0.7){
+                        for(const c of cars) if(c.alive && rectCircleCollision(c.x-c.w/2,c.y-c.h/2,c.w,c.h,this.x,this.y,8)){ this.stuck=true; this.stuckTo=c; break; }
+                        for(const b of buildings) if(b.alive){
+                            if(b.isEnterable){ for(const w of b.walls) if(rectCircleCollision(w.x,w.y,w.w,w.h,this.x,this.y,8)){ this.stuck=true; this.stuckTo=b; break; } }
+                            else if(rectCircleCollision(b.x,b.y,b.w,b.h,this.x,this.y,8)){ this.stuck=true; this.stuckTo=b; break; }
+                        }
+                    }
+                }
+                explode(){
+                    this.alive=false;
+                    const r=this.def.radius, dmg=this.def.damage, carDmg=this.def.carDamage||0;
+
+                    for(const p of players) if(p.hp>0){
+                        const d=dist(p,this);
+                        if(d<r){
+                            if (p.team === this.team) {
+                                p.hp = Math.min(p.maxHp, p.hp + dmg * (1 - d/r));
+                            } else {
+                                p.takeDamage(dmg * (1 - d/r), this.throwerId, this.team, 'explosion');
+                            }
+                        }
+                    }
+
+                    for(const b of buildings) if(b.alive){
+                        if(b.isEnterable){ let totalDmg=0; for(const w of b.walls){ const cx=clamp(this.x,w.x,w.x+w.w), cy=clamp(this.y,w.y,w.y+w.h); const d=dist({x:cx,y:cy},{x:this.x,y:this.y}); if(d<r) totalDmg=Math.max(totalDmg,dmg*(1-d/r)); } if(totalDmg>0) b.takeDamage(totalDmg,this.throwerId,this.team); }
+                        else { const cx=clamp(this.x,b.x,b.x+b.w), cy=clamp(this.y,b.y,b.y+b.h); const d=dist({x:cx,y:cy},{x:this.x,y:this.y}); if(d<r) b.takeDamage(dmg*(1-d/r),this.throwerId,this.team); }
+                    }
+                    for(const c of cars) if(c.alive && carDmg>0 && dist(this,c)<r){ c.takeDamage(carDmg); }
+
+                    for(let i=0;i<40;i++){ const a=Math.random()*Math.PI*2,s=rand(100,400); particles.push(new Particle(this.x,this.y,Math.cos(a)*s,Math.sin(a)*s,rand(0.3,0.9),choice(['#ff4400','#ff8800','#ffcc00','#ff0000','#333']),rand(2,6))); }
+                    if(this.def.name==='Molotov') smokeClouds.push({x:this.x,y:this.y,radius:this.def.radius,life:this.def.fireDuration||3,maxLife:this.def.fireDuration||3,dps:this.def.fireDPS||30,team:this.team,throwerId:this.throwerId});
+                    sfxExplosion();
+                }
+                get dead(){ return !this.alive; }
+            }
+
+            class Building {
+                constructor(x,y,w,h,hp,color, isEnterable=false, isPlaced=false){ this.x=x;this.y=y;this.w=w;this.h=h;this.maxHp=hp;this.hp=hp;this.color=color;this.damageFlash=0;this.isEnterable=isEnterable;this.isPlaced=isPlaced;this.regenRate=(!isPlaced&&hp<99999)?3:0; if(isEnterable){ const wt=12,door=40,hw=(w-door)/2; this.walls=[ {x:x,y:y,w:w,h:wt}, {x:x,y:y+h-wt,w:hw,h:wt}, {x:x+hw+door,y:y+h-wt,w:hw,h:wt}, {x:x,y:y+wt,w:wt,h:h-wt*2}, {x:x+w-wt,y:y+wt,w:wt,h:h-wt*2} ]; } else this.walls=[]; }
+                takeDamage(dmg,sourceId,sourceTeam){ this.hp-=dmg; this.damageFlash=0.3; if(this.hp<=0){ this.hp=0; const cx=this.x+this.w/2,cy=this.y+this.h/2; for(let i=0;i<20;i++){ const a=Math.random()*Math.PI*2,s=rand(60,250); particles.push(new Particle(cx,cy,Math.cos(a)*s,Math.sin(a)*s,rand(0.4,1.2),this.color,rand(2,5))); } sfxExplosion(); } }
+                update(dt){ if(this.damageFlash>0) this.damageFlash-=dt; if(this.hp>0&&this.hp<this.maxHp&&this.regenRate>0) this.hp=Math.min(this.maxHp,this.hp+this.regenRate*dt); }
+                get alive(){ return this.hp>0; } get flashAlpha(){ return this.damageFlash>0?Math.sin(this.damageFlash*20)*0.4:0; }
+            }
+
+            class Player {
+                constructor(id,team,isHuman=false,isShieldBot=false){
+                    this.id=id;this.team=team;this.isHuman=isHuman;this.isShieldBot=isShieldBot;
+                    const zone=SPAWN_ZONES[team];
+                    this.x=rand(zone.x+15,zone.x+zone.w-15); this.y=rand(zone.y+15,zone.y+zone.h-15);
+                    this.vx=0;this.vy=0;this.radius=16;
+                    this.speed=isHuman?800:(isShieldBot?500:rand(500,700));
+                    this.maxHp=isShieldBot?9999:150;this.hp=this.maxHp;this.angle=0;this.alive=true;
+                    this.slots=[null,null,null,null,null];this.currentSlot=0;
+                    this.slotAmmo=[0,0,0,0,Infinity];this.slotReserve=[0,0,0,0,0];
+                    this.slotCooldown=[0,0,0,0,0];this.slotReloading=[false,false,false,false,false];this.slotReloadTimer=[0,0,0,0,0];
+                    this.meleeActive=false;this.meleeTimer=0;this.meleeAngle=0;
+                    this.stunned=0;this.flashAlpha=0;this.spawnImmunity=3;
+                    this.explosiveLocked=0;
+                    this.disruptorImmune=0;
+                    this.lastDamageTime = -Infinity;
+                    this.regenAccumulator = 0;
+                    this.aiTarget=null;this.aiState='wander';this.aiWanderTarget=null;this.aiWanderTimer=0;this.aiAttackTimer=0;
+                    this.aiVisionRange=rand(400,600);this.aiReactionTime=rand(0.3,0.7);
+                    this.kills=0;this.deaths=0;this.healTickTimer=0;this.explosiveRegenTimer=0;this.ammoRegenTimer=[0,0];
+                    this.inCar=false;this.car=null;this.carSeat=-1;
+                    this.healCooldown = 0;
+                    this.randomSwitchTimer = rand(10, 25);
+                    if(isShieldBot){
+                        this.slots[0]=null;this.slots[1]=null;this.slots[2]=MELEE_DEFS[choice(Object.keys(MELEE_DEFS))];this.slots[3]=null;this.slots[4]={name:'DISRUPT',cooldown:1.2};
+                        this.slotAmmo[2]=999;this.slotAmmo[3]=0;this.slotAmmo[4]=Infinity;
+                    } else this.randomizeWeapons();
+                }
+                randomizeWeapons(){ if(this.isShieldBot) return;
+                    const primaries = ['Sniper','Rifle','SMG'];
+                    const secondaries = ['Pistol','Shotgun','MachinePistol'];
+                    const g1 = choice(primaries);
+                    const g2 = choice(secondaries);
+                    this.setupWeapons(g1,g2,choice(Object.keys(MELEE_DEFS)),choice(Object.keys(EXPLOSIVE_DEFS)));
+                }
+                setupWeapons(gun1,gun2,melee,explosive){ this.slots[0]=GUN_DEFS[gun1];this.slots[1]=GUN_DEFS[gun2];this.slots[2]=MELEE_DEFS[melee];this.slots[3]=EXPLOSIVE_DEFS[explosive];this.slots[4]={name:'SUPPORT',wallCooldown:0.6}; this.slotAmmo[0]=this.slots[0].magSize;this.slotReserve[0]=this.slots[0].magSize*4;this.slotAmmo[1]=this.slots[1].magSize;this.slotReserve[1]=this.slots[1].magSize*4;this.slotAmmo[2]=999;this.slotAmmo[3]=5;this.slotAmmo[4]=Infinity; this.slotCooldown=[0,0,0,0,0];this.slotReloading=[false,false,false,false,false];this.slotReloadTimer=[0,0,0,0,0]; }
+                takeDamage(dmg,sourceId,sourceTeam,type='bullet'){
+                    if (this.inCar && this.car && this.car.alive) return;
+                    if(this.isShieldBot) return;
+                    if(this.spawnImmunity>0) return;
+                    if(this.hp<=0) return;
+                    this.hp-=dmg; this.flashAlpha=0.25;
+                    this.lastDamageTime = performance.now() / 1000;
+                    this.regenAccumulator = 0;
+                    if(this.hp<=0){ this.hp=0;this.alive=false;this.die(sourceId,sourceTeam); }
+                }
+                die(killerId,killerTeam){ if(this.isShieldBot) return; this.deaths++; if(killerId!==null&&killerId!==this.id){ const killer=players.find(p=>p.id===killerId); if(killer){
+                    if(killer.team!==this.team){
+                        killer.kills++;
+                        const kn=killer.isHuman?'You':(killer.isShieldBot?'Shield Bot':`${TEAM_NAMES[killer.team]} Bot`);
+                        const vn=this.isHuman?'You':(this.isShieldBot?'Shield Bot':`${TEAM_NAMES[this.team]} Bot`);
+                        const msg = choice(KILL_MESSAGES);
+                        killFeed.push({text:`${kn} ${msg} ${vn}`,timer:3});
+                    } else {
+                        killer.kills = Math.max(0, killer.kills - 1);
+                        const kn=killer.isHuman?'You':`${TEAM_NAMES[killer.team]} Bot`;
+                        const vn=this.isHuman?'You':`${TEAM_NAMES[this.team]} Bot`;
+                        const msg = choice(TEAMKILL_MESSAGES);
+                        killFeed.push({text:`${kn} ${msg} ${vn} (-1)`,timer:3});
+                    }
+                    if(killFeed.length>5) killFeed.shift();
+                }} for(let i=0;i<25;i++){ const a=Math.random()*Math.PI*2,s=rand(50,200); particles.push(new Particle(this.x,this.y,Math.cos(a)*s,Math.sin(a)*s,rand(0.3,0.7),TEAM_COLORS[this.team],rand(2,4))); } if(this.isHuman) showRespawnScreen=true; this.exitCar(); }
+                respawn(){ const zone=SPAWN_ZONES[this.team]; this.x=rand(zone.x+15,zone.x+zone.w-15);this.y=rand(zone.y+15,zone.y+zone.h-15); this.hp=this.maxHp;this.alive=true;this.vx=0;this.vy=0;this.stunned=0;this.flashAlpha=0;this.spawnImmunity=3;this.explosiveLocked=0;this.disruptorImmune=0; this.lastDamageTime = -Infinity; this.regenAccumulator = 0; this.aiTarget=null;this.aiState='wander'; this.healCooldown = 0; this.randomSwitchTimer = rand(10, 25); if(this.isShieldBot){ this.slots[2]=MELEE_DEFS[choice(Object.keys(MELEE_DEFS))];this.slotAmmo[2]=999; } else this.randomizeWeapons(); this.exitCar(); }
+                enterCar(car,seat){ if(this.inCar) return; if(car.team !== null && car.team !== this.team) return; if(car.seats[seat]) return; this.inCar=true;this.car=car;this.carSeat=seat; car.seats[seat]=this; if(car.team===null) car.team=this.team; this.vx=0;this.vy=0; }
+                exitCar(){ if(!this.inCar) return; this.car.seats[this.carSeat]=null; this.inCar=false; this.car=null; this.carSeat=-1; if(this.car && !this.car.seats[0] && !this.car.seats[1]) this.car.team = null; }
+                update(dt,walls,allPlayers){
+                    if(!this.alive) return;
+                    if(this.healCooldown > 0) this.healCooldown -= dt;
+                    if(this.disruptorImmune > 0) this.disruptorImmune -= dt;
+                    if(this.inCar){ if(!this.car.alive){ this.exitCar(); this.takeDamage(20,null,null,'explosion'); } return; }
+                    if(this.explosiveLocked>0) this.explosiveLocked-=dt;
+                    if(this.flashAlpha>0) this.flashAlpha-=dt; if(this.stunned>0){ this.stunned-=dt; this.vx*=0.9;this.vy*=0.9; }
+                    if(this.spawnImmunity>0) this.spawnImmunity-=dt;
+                    for(let i=0;i<4;i++){ if(this.slotCooldown[i]>0) this.slotCooldown[i]-=dt; if(this.slotReloading[i]){ this.slotReloadTimer[i]-=dt; if(this.slotReloadTimer[i]<=0){ this.slotReloading[i]=false; const def=this.slots[i]; if(def&&def.magSize){ const needed=def.magSize-this.slotAmmo[i]; const available=Math.min(needed,this.slotReserve[i]); this.slotAmmo[i]+=available;this.slotReserve[i]-=available; } } } }
+                    if(this.slotCooldown[4]>0) this.slotCooldown[4]-=dt;
+                    if(!this.isShieldBot && this.slotAmmo[3] < 5){ this.explosiveRegenTimer+=dt; const interval=10; while(this.explosiveRegenTimer>=interval){ this.explosiveRegenTimer-=interval; this.slotAmmo[3]=Math.min(5,this.slotAmmo[3]+(this.slotAmmo[3]===0?2:1)); } }
+                    if(!this.isShieldBot) for(let i=0;i<2;i++){ if(this.currentSlot!==i && this.slotAmmo[i] < this.slots[i].magSize*0.25){ this.ammoRegenTimer[i]+=dt; if(this.ammoRegenTimer[i]>=5){ this.ammoRegenTimer[i]-=5; this.slotAmmo[i]=Math.min(this.slots[i].magSize,this.slotAmmo[i]+1); } } else this.ammoRegenTimer[i]=0; }
+                    if(this.meleeActive){ this.meleeTimer-=dt; if(this.meleeTimer<=0) this.meleeActive=false; }
+                    this.x+=this.vx*dt; this.y+=this.vy*dt; this.vx*=0.92; this.vy*=0.92;
+                    this.x=clamp(this.x,this.radius,MAP_W-this.radius); this.y=clamp(this.y,this.radius,MAP_H-this.radius);
+                    for(const b of buildings){
+                        if(b.alive && b.hp >= 9999 && rectCircleCollision(b.x,b.y,b.w,b.h, this.x, this.y, this.radius)){
+                            const angle = rand(0, Math.PI*2);
+                            const dist = rand(50, 250);
+                            this.x = MAP_W/2 + Math.cos(angle) * dist;
+                            this.y = MAP_H/2 + Math.sin(angle) * dist;
+                        }
+                    }
+                    for(const w of walls) if(w.alive && pointToSegmentDist(this.x,this.y,w.x1,w.y1,w.x2,w.y2) < this.radius + w.thickness){ const dx=this.x-(w.x1+w.x2)/2, dy=this.y-(w.y1+w.y2)/2; const ang=Math.atan2(dy,dx); this.x+=Math.cos(ang)*(this.radius+w.thickness-dist(this,{x:(w.x1+w.x2)/2,y:(w.y1+w.y2)/2})); this.y+=Math.sin(ang)*(this.radius+w.thickness-dist(this,{x:(w.x1+w.x2)/2,y:(w.y1+w.y2)/2})); }
+                    for(const b of buildings){ if(!b.alive || b.hp >= 9999) continue; if(b.isEnterable){ for(const w of b.walls){ const cx=clamp(this.x,w.x,w.x+w.w), cy=clamp(this.y,w.y,w.y+w.h); const d=dist({x:cx,y:cy},{x:this.x,y:this.y}); if(d<this.radius){ const overlap=this.radius-d; const ang=angleBetween({x:cx,y:cy},this); this.x+=Math.cos(ang)*overlap; this.y+=Math.sin(ang)*overlap; } } } else { const cx=clamp(this.x,b.x,b.x+b.w), cy=clamp(this.y,b.y,b.y+b.h); const d=dist({x:cx,y:cy},{x:this.x,y:this.y}); if(d<this.radius){ const overlap=this.radius-d; const ang=angleBetween({x:cx,y:cy},this); this.x+=Math.cos(ang)*overlap; this.y+=Math.sin(ang)*overlap; } } }
+                    for(const cloud of smokeClouds) {
+                        if(dist(this,cloud)<cloud.radius && cloud.throwerId!==this.id) {
+                            if (this.team === cloud.team) {
+                                this.hp = Math.min(this.maxHp, this.hp + cloud.dps * dt);
+                            } else {
+                                this.takeDamage(cloud.dps*dt, cloud.throwerId, cloud.team, 'fire');
+                            }
+                        }
+                    }
+                    const centerX=MAP_W/2, centerY=MAP_H/2; if(dist(this,{x:centerX,y:centerY})<140) this.hp=Math.min(this.maxHp,this.hp+2*dt);
+                    if(this.currentSlot===4 && this.alive && !this.isShieldBot){ this.healTickTimer+=dt; const healInterval=0.5, healAmount=10, healRadius=160; while(this.healTickTimer>=healInterval){ this.healTickTimer-=healInterval; for(const p of allPlayers) if(p.alive && p.team===this.team && dist(this,p)<healRadius) p.hp=Math.min(p.maxHp,p.hp+healAmount); for(let i=0;i<5;i++) particles.push(new Particle(this.x,this.y,rand(-60,60),rand(-60,60),0.4,'#00ff88',2)); } }
+                    if (this.hp < this.maxHp && this.alive && !this.isShieldBot) {
+                        const now = performance.now() / 1000;
+                        const timeSinceDamage = now - this.lastDamageTime;
+                        if (timeSinceDamage > 5) {
+                            this.regenAccumulator += dt;
+                            const regenRate = 5 + Math.floor(this.regenAccumulator / 2) * 2;
+                            const healAmount = regenRate * dt;
+                            this.hp = Math.min(this.maxHp, this.hp + healAmount);
+                        } else {
+                            this.regenAccumulator = 0;
+                        }
+                    }
+                    if (!this.isHuman && this.alive) {
+                        this.randomSwitchTimer -= dt;
+                        if (this.randomSwitchTimer <= 0) {
+                            const slot = randInt(0, 4);
+                            this.switchSlot(slot);
+                            this.randomSwitchTimer = rand(10, 25);
+                        }
+                    }
+                }
+                shoot(worldMX,worldMY,walls,cars){
+                    if(!this.alive||this.stunned>0) return;
+                    const slot=this.currentSlot;
+                    if(slot!==4 && this.slotReloading[slot]) return;
+                    if(this.explosiveLocked > 0 && (slot === 3 || (this.isShieldBot && slot === 4))) return;
+                    if(slot===4){
+                        if(this.slotCooldown[4]>0) return;
+                        if(this.isShieldBot){
+                            const a=angleBetween(this,{x:worldMX,y:worldMY}); const spd=450;
+                            disruptorProjectiles.push(new DisruptorProjectile(this.x+Math.cos(a)*(this.radius+6),this.y+Math.sin(a)*(this.radius+6),Math.cos(a)*spd,Math.sin(a)*spd,this.id,this.team));
+                            this.slotCooldown[4]=1.2; sfxWall();
+                        } else {
+                            const wallAngle=this.angle+Math.PI/2;
+                            walls.push(new Wall(worldMX,worldMY,wallAngle,this.team));
+                            this.slotCooldown[4]=0.6; sfxWall();
+                        }
+                        return;
+                    }
+                    if(this.isShieldBot) return;
+                    if(this.slotCooldown[slot]>0) return;
+                    const def=this.slots[slot]; if(!def) return;
+                    if(slot<=1){
+                        if(this.slotAmmo[slot]<=0){ this.startReload(slot); return; } const pellets=def.pellets||1;
+                        for(let p=0;p<pellets;p++){ const spread=(Math.random()-0.5)*def.spread*2; const a=angleBetween(this,{x:worldMX,y:worldMY})+spread; const bx=this.x+Math.cos(a)*(this.radius+8), by=this.y+Math.sin(a)*(this.radius+8); bullets.push(new Bullet(bx,by,Math.cos(a)*def.bulletSpeed,Math.sin(a)*def.bulletSpeed,def.damage,def.range,def.color,def.bulletSize,this.id,this.team,pellets>1)); }
+                        this.slotAmmo[slot]--; this.slotCooldown[slot]=def.cooldown; if(this.slotAmmo[slot]<=0) this.startReload(slot); sfxShoot();
+                    } else if(slot===2){
+                        this.meleeActive=true; this.meleeTimer=0.2; this.meleeAngle=angleBetween(this,{x:worldMX,y:worldMY}); this.slotCooldown[slot]=def.cooldown;
+                        for(const p of players) if(p.id!==this.id&&p.hp>0){
+                            const d=dist(this,p); const ang=angleBetween(this,p); let diff=Math.abs(ang-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff;
+                            if(d<def.range&&diff<def.arc) {
+                                if(p.team!==this.team) p.takeDamage(def.damage,this.id,this.team,'melee');
+                                else p.hp = Math.min(p.maxHp, p.hp + def.damage * 0.5);
+                            }
+                        }
+                        for(const b of buildings) if(b.alive && !b.isPlaced){ if(b.isEnterable){ for(const w of b.walls){ const cx=w.x+w.w/2,cy=w.y+w.h/2; const d=dist(this,{x:cx,y:cy}); if(d<def.range+Math.max(w.w,w.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); } } else { const cx=b.x+b.w/2,cy=b.y+b.h/2; const d=dist(this,{x:cx,y:cy}); if(d<def.range+Math.max(b.w,b.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); } }
+                        for(const c of cars) if(c.alive){ const cx=c.x, cy=c.y; const d=dist(this,{x:cx,y:cy}); if(d<def.range+Math.max(c.w,c.h)/2){ const angleToCar=angleBetween(this,{x:cx,y:cy}); let diff=Math.abs(angleToCar-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(diff<def.arc) c.takeDamage(15); } }
+                        for(const w of walls) {
+                            if(!w.alive) continue;
+                            const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
+                            const lenSq = dx*dx+dy*dy;
+                            let t = 0;
+                            if(lenSq > 0) t = clamp(((this.x - w.x1)*dx + (this.y - w.y1)*dy) / lenSq, 0, 1);
+                            const closestX = w.x1 + t*dx, closestY = w.y1 + t*dy;
+                            const d = dist(this, {x:closestX, y:closestY});
+                            if(d < def.range + 10) {
+                                const angToClosest = angleBetween(this, {x:closestX, y:closestY});
+                                let diff = Math.abs(angToClosest - this.meleeAngle);
+                                if(diff > Math.PI) diff = Math.PI*2 - diff;
+                                if(diff < def.arc) {
+                                    w.takeDamage(def.damage * 3);
+                                }
+                            }
+                        }
+                        sfxMelee();
+                    } else if(slot===3 && !this.isShieldBot){
+                        if(this.slotAmmo[slot]<=0) return;
+                        const target = {x:worldMX, y:worldMY};
+                        const d = dist(this, target);
+                        const a = angleBetween(this, target);
+                        const spd = d / def.fuse;
+                        explosives.push(new ExplosiveProjectile(this.x+Math.cos(a)*(this.radius+6),this.y+Math.sin(a)*(this.radius+6),Math.cos(a)*spd,Math.sin(a)*spd,def,this.id,this.team));
+                        this.slotAmmo[slot]--; this.slotCooldown[slot]=1.2;
+                    }
+                }
+                startReload(slot){ if(slot===4 || this.isShieldBot) return; const def=this.slots[slot]; if(!def||!def.magSize||this.slotReserve[slot]<=0||this.slotAmmo[slot]>=def.magSize||this.slotReloading[slot]) return; this.slotReloading[slot]=true; this.slotReloadTimer[slot]=def.reloadTime; sfxReload(); }
+                switchSlot(slot){ if(slot>=0&&slot<5&&slot!==this.currentSlot){ this.currentSlot=slot; this.meleeActive=false; sfxSwitch(); } }
+            }
+
+            function initCars() { cars = [ new Car(300,300,0), new Car(1300,300,1), new Car(300,1300,2), new Car(1300,1300,3), new Car(800,400,4), new Car(800,1200,5) ]; }
+            function generateMap(){
+                buildings=[]; const placed=[]; const solidSizes = [ {w:130,h:100},{w:150,h:110},{w:120,h:130},{w:160,h:90},{w:110,h:140} ];
+                for(const s of solidSizes){ let bx,by,overlap,attempts=0; do{ bx=rand(30,MAP_W-s.w-30); by=rand(30,MAP_H-s.h-30); overlap=false; for(const p of placed) if(rectRectCollision(bx-20,by-20,s.w+40,s.h+40,p.x,p.y,p.w,p.h)){ overlap=true; break; } for(const z of SPAWN_ZONES) if(rectRectCollision(bx,by,s.w,s.h,z.x,z.y,z.w,z.h)){ overlap=true; break; } attempts++; } while(overlap&&attempts<30); if(!overlap){ buildings.push(new Building(bx,by,s.w,s.h,rand(300,450),choice(['#6b705c','#7f7f7f','#8a817c']))); placed.push({x:bx,y:by,w:s.w,h:s.h}); } }
+                for(let i=0;i<15;i++){ const w=rand(20,50),h=rand(20,50),bx=rand(25,MAP_W-w-25),by=rand(25,MAP_H-h-25); let overlap=false; for(const p of placed) if(rectRectCollision(bx-10,by-10,w+20,h+20,p.x,p.y,p.w,p.h)){ overlap=true; break; } for(const z of SPAWN_ZONES) if(rectRectCollision(bx,by,w,h,z.x-5,z.y-5,z.w+10,z.h+10)){ overlap=true; break; } if(!overlap){ buildings.push(new Building(bx,by,w,h,rand(60,150),choice(['#a68a64','#936639','#b08968']))); placed.push({x:bx,y:by,w,h}); } }
+                for(let i=0;i<4;i++){ const w=rand(110,160), h=rand(90,130), bx=rand(50,MAP_W-w-50), by=rand(50,MAP_H-h-50); let overlap=false; for(const p of placed) if(rectRectCollision(bx-15,by-15,w+30,h+30,p.x,p.y,p.w,p.h)){ overlap=true; break; } for(const z of SPAWN_ZONES) if(rectRectCollision(bx,by,w,h,z.x-5,z.y-5,z.w+10,z.h+10)){ overlap=true; break; } if(!overlap){ buildings.push(new Building(bx,by,w,h,280,choice(['#8a7a6a','#7a6b5c']), true)); placed.push({x:bx,y:by,w:h}); } }
+                buildings.push(new Building(0,0,MAP_W,10,99999,'#222')); buildings.push(new Building(0,MAP_H-10,MAP_W,10,99999,'#222'));
+                buildings.push(new Building(0,0,10,MAP_H,99999,'#222')); buildings.push(new Building(MAP_W-10,0,10,MAP_H,99999,'#222'));
+            }
+            function initPlayers(){ players=[]; playerTeam=randInt(0,3); let id=0; const slots=[]; for(let t=0;t<NUM_TEAMS;t++){ for(let p=0;p<PLAYERS_PER_TEAM-1;p++) slots.push({team:t,isShield:false}); slots.push({team:t,isShield:true}); } for(let i=slots.length-1;i>0;i--){ const j=randInt(0,i); [slots[i],slots[j]]=[slots[j],slots[i]]; } let assigned=false; for(const info of slots){ const isHuman=!assigned&&!info.isShield&&info.team===playerTeam; if(isHuman) assigned=true; const p=new Player(id,info.team,isHuman,info.isShield); players.push(p); if(isHuman) player=p; id++; } if(!player){ const rp=players.find(p=>p.team===playerTeam&&!p.isHuman&&!p.isShieldBot); if(rp){ rp.isHuman=true; rp.speed=800; player=rp; } } }
+
+            function updateAI(dt,walls,cars){
+                for(const bot of players){ if(bot.isHuman||!bot.alive) continue; if(bot.stunned>0){ bot.vx*=0.5; bot.vy*=0.5; continue; }
+                    if (!bot.inCar && bot.team === playerTeam && playerRallyPoint && (!bot.aiTarget || bot.aiState !== 'combat')) {
+                        bot.aiWanderTarget = playerRallyPoint;
+                        bot.aiState = 'wander';
+                        bot.angle = angleBetween(bot, playerRallyPoint);
+                    }
+                    if(bot.inCar) {
+                        let nearestEnemy=null,nearestDist=bot.aiVisionRange;
+                        for(const p of players){ if(p.id===bot.id||p.hp<=0||p.team===bot.team || p.isShieldBot) continue; const d=dist(bot,p); if(d<nearestDist && lineOfSightClear(bot.x,bot.y,p.x,p.y,buildings,walls)){ nearestDist=d; nearestEnemy=p; } }
+                        if(nearestEnemy){
+                            bot.angle = angleBetween(bot, nearestEnemy);
+                            if(bot.aiAttackTimer<=0 && bot.slotCooldown[bot.currentSlot]<=0 && !bot.slotReloading[bot.currentSlot]){
+                                bot.shoot(nearestEnemy.x, nearestEnemy.y, walls, cars);
+                                bot.aiAttackTimer = rand(0.8,1.6);
+                            }
+                        }
+                        continue;
+                    }
+                    if(bot.isShieldBot){ let nearestEnemy=null,nearestDist=bot.aiVisionRange; for(const p of players){ if(p.id===bot.id||p.hp<=0||p.team===bot.team || p.isShieldBot) continue; const d=dist(bot,p); if(d<nearestDist){ nearestDist=d; nearestEnemy=p; } } bot.aiTarget=nearestEnemy;
+                        if(nearestEnemy){ bot.aiState='combat'; let targetX=nearestEnemy.x,targetY=nearestEnemy.y; let nearestTm=null,tmDist=Infinity; for(const p of players) if(p.id!==bot.id&&p.team===bot.team&&p.alive){ const d=dist(bot,p); if(d<tmDist){ tmDist=d;nearestTm=p; } } if(nearestTm){ targetX=nearestTm.x+(nearestEnemy.x-nearestTm.x)*0.3; targetY=nearestTm.y+(nearestEnemy.y-nearestTm.y)*0.3; } const tAngle=angleBetween(bot,{x:targetX,y:targetY}); bot.angle=tAngle; bot.vx+=Math.cos(tAngle)*bot.speed*0.7*dt; bot.vy+=Math.sin(tAngle)*bot.speed*0.7*dt; if(nearestDist<70&&bot.slots[2]&&bot.slotCooldown[2]<=0) bot.switchSlot(2); if(bot.currentSlot===2&&bot.slotCooldown[2]<=0&&!bot.meleeActive) bot.shoot(nearestEnemy.x,nearestEnemy.y,walls,cars); if(nearestDist<200&&bot.slotCooldown[4]<=0&&Math.random()<0.04){ bot.switchSlot(4); bot.shoot(nearestEnemy.x,nearestEnemy.y,walls,cars); setTimeout(()=>{if(bot.alive)bot.switchSlot(2);},200); } } else { bot.aiState='wander'; bot.aiWanderTimer-=dt; if(bot.aiWanderTimer<=0||!bot.aiWanderTarget||dist(bot,bot.aiWanderTarget)<40){ if(Math.random()<0.7){ const cx=MAP_W/2,cy=MAP_H/2; bot.aiWanderTarget={x:clamp(cx+rand(-200,200),50,MAP_W-50),y:clamp(cy+rand(-200,200),50,MAP_H-50)}; } else bot.aiWanderTarget={x:rand(50,MAP_W-50),y:rand(50,MAP_H-50)}; bot.aiWanderTimer=rand(2,5); } const wa=angleBetween(bot,bot.aiWanderTarget); bot.vx+=Math.cos(wa)*bot.speed*0.35*dt; bot.vy+=Math.sin(wa)*bot.speed*0.35*dt; bot.angle=wa; } }
+                    else { let nearestEnemy=null,nearestDist=bot.aiVisionRange; for(const p of players){ if(p.id===bot.id||p.hp<=0||p.team===bot.team || p.isShieldBot) continue; const d=dist(bot,p); if(d<nearestDist && lineOfSightClear(bot.x,bot.y,p.x,p.y,buildings,walls)){ nearestDist=d; nearestEnemy=p; } } bot.aiTarget=nearestEnemy;
+                        if(nearestEnemy){ bot.aiState='combat'; bot.aiAttackTimer-=dt; const tAngle=angleBetween(bot,nearestEnemy); bot.angle=tAngle; const idealDist=bot.slots[0]&&bot.slots[0].range?bot.slots[0].range*0.6:250; if(nearestDist>idealDist){ bot.vx+=Math.cos(tAngle)*bot.speed*0.5*dt; bot.vy+=Math.sin(tAngle)*bot.speed*0.5*dt; } else if(nearestDist<idealDist*0.4){ bot.vx-=Math.cos(tAngle)*bot.speed*0.4*dt; bot.vy-=Math.sin(tAngle)*bot.speed*0.4*dt; } else { const strafe=tAngle+Math.PI/2*(Math.sin(bot.aiWanderTimer*3)>0?1:-1); bot.vx+=Math.cos(strafe)*bot.speed*0.3*dt; bot.vy+=Math.sin(strafe)*bot.speed*0.3*dt; }
+                            if(bot.hp<bot.maxHp*0.5 && bot.slotCooldown[4]<=0 && !bot.slotReloading[4] && bot.currentSlot!==4 && Math.random()<0.02) bot.switchSlot(4);
+                            if(bot.currentSlot===4 && bot.slotCooldown[4]<=0){ const wx=bot.x+Math.cos(bot.angle)*40, wy=bot.y+Math.sin(bot.angle)*40; bot.shoot(wx,wy,walls,cars); setTimeout(()=>{if(bot.alive&&bot.currentSlot===4)bot.switchSlot(0);},400); }
+                            else if(bot.currentSlot!==4){ if(nearestDist<70&&bot.slots[2]){ if(bot.currentSlot!==2&&bot.slotCooldown[2]<=0) bot.switchSlot(2); } else if(nearestDist<200&&bot.slots[1]&&bot.slots[1].name==='SMG'){ if(bot.currentSlot!==1&&bot.slotCooldown[1]<=0) bot.switchSlot(1); } else if(nearestDist>350&&bot.slots[0]&&bot.slots[0].name==='Sniper'){ if(bot.currentSlot!==0&&bot.slotCooldown[0]<=0) bot.switchSlot(0); } else if(bot.currentSlot>1&&bot.slotCooldown[0]<=0) bot.switchSlot(0);
+                                if(bot.slotAmmo[3]>0 && bot.slotCooldown[3]<=0 && Math.random()<0.005 && bot.explosiveLocked<=0){ let group=0,cx=0,cy=0; for(const p of players) if(p.alive && p.team!==bot.team && !p.isShieldBot && dist(bot,p)<250){ group++; cx+=p.x; cy+=p.y; } if(group>=2){ cx/=group; cy/=group; bot.switchSlot(3); bot.shoot(cx,cy,walls,cars); bot.switchSlot(0); } }
+                                if(bot.aiAttackTimer<=0&&bot.slotCooldown[bot.currentSlot]<=0&&!bot.slotReloading[bot.currentSlot]){ bot.shoot(nearestEnemy.x+rand(-20,20),nearestEnemy.y+rand(-20,20),walls,cars); bot.aiAttackTimer=rand(0.8,1.6); }
+                                if(bot.currentSlot<=1&&bot.slotAmmo[bot.currentSlot]<=0&&!bot.slotReloading[bot.currentSlot]) bot.startReload(bot.currentSlot);
+                            }
+                        } else { bot.aiState='wander'; bot.aiWanderTimer-=dt; if(bot.aiWanderTimer<=0||!bot.aiWanderTarget||dist(bot,bot.aiWanderTarget)<40){ if(Math.random()<0.7){ const cx=MAP_W/2,cy=MAP_H/2; bot.aiWanderTarget={x:clamp(cx+rand(-200,200),50,MAP_W-50),y:clamp(cy+rand(-200,200),50,MAP_H-50)}; } else bot.aiWanderTarget={x:rand(50,MAP_W-50),y:rand(50,MAP_H-50)}; bot.aiWanderTimer=rand(2,5); } const wa=angleBetween(bot,bot.aiWanderTarget); bot.vx+=Math.cos(wa)*bot.speed*0.35*dt; bot.vy+=Math.sin(wa)*bot.speed*0.35*dt; bot.angle=wa; } }
+                    if(!bot.inCar && Math.random()<0.01){ const nearbyCar=cars.find(c=>c.alive && (c.team===null||c.team===bot.team) && (c.seats[0]==null||c.seats[1]==null) && dist(bot,c)<50); if(nearbyCar){ const seat=nearbyCar.seats[0]==null?0:(nearbyCar.seats[1]==null?1:-1); if(seat!==-1) bot.enterCar(nearbyCar,seat); } }
+
+                    if (!bot.inCar && bot.healCooldown <= 0 && (!bot.aiTarget || bot.aiState !== 'combat')) {
+                        let targetWall = null;
+                        let closestDist = 150;
+                        for (const w of walls) {
+                            if (w.alive && w.hp > w.maxHp * 0.5) {
+                                const midX = (w.x1+w.x2)/2, midY = (w.y1+w.y2)/2;
+                                const d = dist(bot, {x:midX, y:midY});
+                                if (d < closestDist && lineOfSightClear(bot.x, bot.y, midX, midY, buildings, walls)) {
+                                    closestDist = d;
+                                    targetWall = w;
+                                }
+                            }
+                        }
+                        if (targetWall) {
+                            const midX = (targetWall.x1+targetWall.x2)/2, midY = (targetWall.y1+targetWall.y2)/2;
+                            bot.angle = angleBetween(bot, {x:midX, y:midY});
+                            if (bot.isShieldBot) {
+                                bot.switchSlot(2);
+                                bot.shoot(midX, midY, walls, cars);
+                            } else {
+                                if (bot.slots[0] && bot.slotAmmo[0] > 0 && !bot.slotReloading[0]) {
+                                    bot.switchSlot(0);
+                                    bot.shoot(midX, midY, walls, cars);
+                                } else if (bot.slots[1] && bot.slotAmmo[1] > 0 && !bot.slotReloading[1]) {
+                                    bot.switchSlot(1);
+                                    bot.shoot(midX, midY, walls, cars);
+                                }
+                            }
+                            bot.healCooldown = rand(0.3, 0.8);
+                        }
+                    }
+
+                    if (!bot.inCar && bot.healCooldown <= 0 && (!bot.aiTarget || bot.aiState !== 'combat')) {
+                        let healRange = 0;
+                        let gunSlot = -1;
+                        if (bot.isShieldBot) {
+                            if (bot.slots[4] && bot.slotCooldown[4] <= 0) {
+                                healRange = 600;
+                            }
+                        } else {
+                            if (bot.currentSlot <= 1 && bot.slots[bot.currentSlot] && bot.slotAmmo[bot.currentSlot] > 0 && !bot.slotReloading[bot.currentSlot]) {
+                                gunSlot = bot.currentSlot;
+                            } else if (bot.slots[0] && bot.slotAmmo[0] > 0 && !bot.slotReloading[0]) {
+                                gunSlot = 0;
+                                bot.switchSlot(0);
+                            } else if (bot.slots[1] && bot.slotAmmo[1] > 0 && !bot.slotReloading[1]) {
+                                gunSlot = 1;
+                                bot.switchSlot(1);
+                            }
+                            if (gunSlot !== -1) {
+                                healRange = bot.slots[gunSlot].range;
+                            }
+                        }
+                        if (healRange > 0) {
+                            let nearestTeammate = null;
+                            let nearestDist = healRange;
+                            for (const p of players) {
+                                if (p.id === bot.id || p.team !== bot.team || !p.alive || p.hp >= p.maxHp * 0.5) continue;
+                                const d = dist(bot, p);
+                                if (d < nearestDist && lineOfSightClear(bot.x, bot.y, p.x, p.y, buildings, walls)) {
+                                    nearestDist = d;
+                                    nearestTeammate = p;
+                                }
+                            }
+                            if (nearestTeammate) {
+                                bot.angle = angleBetween(bot, nearestTeammate);
+                                if (bot.isShieldBot) {
+                                    bot.switchSlot(4);
+                                }
+                                bot.shoot(nearestTeammate.x, nearestTeammate.y, walls, cars);
+                                bot.healCooldown = rand(0.5, 1.5);
+                            }
+                        }
+                    }
+
+                    const spd=Math.sqrt(bot.vx**2+bot.vy**2); if(spd>bot.speed){ bot.vx=(bot.vx/spd)*bot.speed; bot.vy=(bot.vy/spd)*bot.speed; }
+                }
+            }
+
+            let lastTime=performance.now();
+            function update(dt){
+                if(gameOver || homeScreen) return;
+                dt=Math.min(dt,0.1); gameTime-=dt;
+                if(gameTime<=0){ gameTime=0; gameOver=true; endGame(); }
+                if(player&&player.alive&&!showRespawnScreen){
+                    if(!player.inCar){
+                        let mx=0,my=0;
+                        if(keys['w']||keys['arrowup']) my-=1; if(keys['s']||keys['arrowdown']) my+=1; if(keys['a']||keys['arrowleft']) mx-=1; if(keys['d']||keys['arrowright']) mx+=1;
+                        if(mx||my){ const len=Math.sqrt(mx*mx+my*my); mx/=len; my/=len; player.vx+=mx*player.speed*0.85*dt; player.vy+=my*player.speed*0.85*dt; const spd=Math.sqrt(player.vx**2+player.vy**2); if(spd>player.speed){ player.vx=(player.vx/spd)*player.speed; player.vy=(player.vy/spd)*player.speed; } }
+                        player.angle=angleBetween(player,{x:mouseWorldX,y:mouseWorldY});
+                        if(mouseDown&&player.slotCooldown[player.currentSlot]<=0&&!player.slotReloading[player.currentSlot]&&!player.meleeActive){
+                            if(player.currentSlot<=2) player.shoot(mouseWorldX,mouseWorldY, walls, cars);
+                            else if(player.currentSlot>=3&&mouseClicked){ player.shoot(mouseWorldX,mouseWorldY, walls, cars); mouseClicked=false; }
+                        }
+                        if(keyJustPressed['e']){ const nearbyCar=cars.find(c=>c.alive && (c.team===null||c.team===player.team) && (c.seats[0]==null||c.seats[1]==null) && dist(player,c)<60); if(nearbyCar){ const seat=nearbyCar.seats[0]==null?0:(nearbyCar.seats[1]==null?1:-1); if(seat!==-1) player.enterCar(nearbyCar,seat); } }
+                    } else {
+                        if(keyJustPressed['e']) player.exitCar();
+                        if(mouseDown&&player.slotCooldown[player.currentSlot]<=0&&!player.slotReloading[player.currentSlot]&&!player.meleeActive){
+                            if(player.currentSlot<=2) player.shoot(mouseWorldX,mouseWorldY, walls, cars);
+                            else if(player.currentSlot>=3&&mouseClicked){ player.shoot(mouseWorldX,mouseWorldY, walls, cars); mouseClicked=false; }
+                        }
+                    }
+                }
+                for(const bot of players){ if(bot.isHuman||bot.alive) continue; if(!bot._respawnTimer) bot._respawnTimer=rand(3,6); bot._respawnTimer-=dt; if(bot._respawnTimer<=0){ bot.respawn(); bot._respawnTimer=null; } }
+                updateAI(dt,walls,cars);
+                for(const p of players) if(p.alive) p.update(dt,walls,players);
+                for(const c of cars) c.update(dt, buildings, walls, players, cars);
+                bullets=bullets.filter(b=>b.update(dt, cars, walls));
+                for(const exp of explosives){ if(!exp.dead) exp.update(dt); }
+                explosives=explosives.filter(e=>!e.dead);
+                for(const d of disruptorProjectiles) if(!d.dead) d.update(dt);
+                disruptorProjectiles=disruptorProjectiles.filter(d=>!d.dead);
+                for(const cloud of smokeClouds) cloud.life-=dt; smokeClouds=smokeClouds.filter(c=>c.life>0);
+                for(const p of particles) p.update(dt); particles=particles.filter(p=>!p.dead);
+                for(const b of buildings) b.update(dt); buildings=buildings.filter(b=>b.alive);
+                for(const w of walls) w.update(dt); walls=walls.filter(w=>w.alive);
+                for(let i=destroyedCarRemains.length-1;i>=0;i--){ destroyedCarRemains[i].timer-=dt; if(destroyedCarRemains[i].timer<=0) destroyedCarRemains.splice(i,1); }
+                for(let i=killFeed.length-1;i>=0;i--){ killFeed[i].timer-=dt; if(killFeed[i].timer<=0) killFeed.splice(i,1); }
+                for(const bullet of bullets){ if(bullet.dead) continue; for(const p of players) if(p.alive&&p.id!==bullet.shooterId&&dist(bullet,p)<p.radius+bullet.size){
+                    if(p.team === bullet.team){
+                        p.hp = Math.min(p.maxHp, p.hp + bullet.damage * 0.5);
+                        bullet.range = 0;
+                    } else {
+                        p.takeDamage(bullet.damage,bullet.shooterId,bullet.team,'bullet');
+                        bullet.range=0; sfxHit(); break;
+                    }
+                } }
+                bullets=bullets.filter(b=>!b.dead);
+                if(player&&player.alive){ camera.x=player.x-W/2; camera.y=player.y-H/2; }
+                mouseWorldX=mouseX+camera.x; mouseWorldY=mouseY+camera.y; mouseClicked=false; keyJustPressed={};
+            }
+            function endGame(){
+                gameOver=true;
+                gameEndTime = performance.now();
+                const teamKills=[0,0,0,0]; for(const p of players) teamKills[p.team]+=p.kills; let max=-1; for(let t=0;t<4;t++) if(teamKills[t]>max){ max=teamKills[t]; winnerTeam=t; } else if(teamKills[t]===max&&max>=0) winnerTeam=-1;
+            }
+            function restartGame(){
+                if (gameOver && performance.now() - gameEndTime < 3000) return;
+                gameTime=GAME_DURATION; gameOver=false; winnerTeam=-1; bullets=[]; particles=[]; explosives=[]; smokeClouds=[]; killFeed=[]; showRespawnScreen=false; buildings=[]; walls=[]; disruptorProjectiles=[]; destroyedCarRemains=[]; cars.forEach(c=>c.reset()); playerRallyPoint = null; generateMap(); initPlayers(); if(player){ camera.x=player.x-W/2; camera.y=player.y-H/2; }
+                gameEndTime = 0;
+            }
+
+            function drawHomeScreen(){
+                const grad = ctx.createLinearGradient(0, 0, 0, H);
+                grad.addColorStop(0, '#0a0a2e');
+                grad.addColorStop(1, '#000015');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, W, H);
+                
+                ctx.save();
+                ctx.shadowColor = '#00aaff';
+                ctx.shadowBlur = 30;
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `bold ${Math.floor(H/18)}px "Segoe UI", sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('RIOT ARENA', W/2, H/3 - 20);
+                ctx.restore();
+                
+                ctx.fillStyle = '#aaa';
+                ctx.font = `${Math.floor(H/30)}px "Segoe UI", sans-serif`;
+                ctx.fillText('fast‑paced team shooter', W/2, H/3 + 15);
+                
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.strokeStyle = '#444';
+                ctx.lineWidth = 2;
+                const panelX = W/2 - 300, panelY = H/3 + 40, panelW = 600, panelH = 180;
+                ctx.beginPath();
+                ctx.roundRect(panelX, panelY, panelW, panelH, 12);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.fillStyle = '#ddd';
+                ctx.font = `${Math.floor(H/35)}px "Segoe UI", sans-serif`;
+                ctx.textAlign = 'left';
+                const instructions = [
+                    'WASD / Arrow keys — move',
+                    'Mouse — aim & shoot (left click)',
+                    '1‑5 or scroll — switch weapons',
+                    'E — enter / exit cars',
+                    'R — reload',
+                    'Right‑click — order team bots (toggle)',
+                    'Shoot teammates to heal · Explosives heal',
+                    'Pink disruptor grants immunity & locks enemy explosives'
+                ];
+                for (let i = 0; i < instructions.length; i++) {
+                    ctx.fillText(instructions[i], panelX + 20, panelY + 28 + i * 20);
+                }
+                
+                const btnW = 180, btnH = 50;
+                const btnX = W/2 - btnW/2, btnY = H*2/3 + 20;
+                ctx.fillStyle = '#2ecc71';
+                ctx.beginPath();
+                ctx.roundRect(btnX, btnY, btnW, btnH, 8);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 22px "Segoe UI", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('START', W/2, btnY + 34);
+                window._homeStartBtn = {x:btnX, y:btnY, w:btnW, h:btnH};
+            }
+
+            function drawMinimap(){
+                const mmW=155,mmH=130,mmX=15,mmY=15,sx=mmW/MAP_W,sy=mmH/MAP_H;
+                ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(mmX-2,mmY-2,mmW+4,mmH+4); ctx.strokeStyle='#555'; ctx.lineWidth=2; ctx.strokeRect(mmX-2,mmY-2,mmW+4,mmH+4);
+                ctx.fillStyle='#2a2a1a'; ctx.fillRect(mmX,mmY,mmW,mmH);
+                for(let t=0;t<4;t++){ const z=SPAWN_ZONES[t]; ctx.fillStyle=`${TEAM_COLORS[t]}22`; ctx.fillRect(mmX+z.x*sx,mmY+z.y*sy,z.w*sx,z.h*sy); }
+                for(const b of buildings) if(b.alive){ ctx.fillStyle=b.isPlaced?'#4a90e2':(b.isEnterable?'rgba(200,180,150,0.6)':`rgba(150,140,120,${0.5+(b.hp/b.maxHp)*0.4})`); ctx.fillRect(mmX+b.x*sx,mmY+b.y*sy,Math.max(b.w*sx,1.5),Math.max(b.h*sy,1.5)); }
+                for(const c of cars) if(c.alive){ ctx.fillStyle = '#ffffff'; ctx.fillRect(mmX+c.x*sx-2, mmY+c.y*sy-1, 4, 2); }
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 1;
+                for (const w of walls) {
+                    if (w.alive) {
+                        const sx1 = mmX + w.x1 * sx, sy1 = mmY + w.y1 * sy;
+                        const sx2 = mmX + w.x2 * sx, sy2 = mmY + w.y2 * sy;
+                        ctx.beginPath();
+                        ctx.moveTo(sx1, sy1);
+                        ctx.lineTo(sx2, sy2);
+                        ctx.stroke();
+                    }
+                }
+                if (playerRallyPoint) {
+                    const rx = mmX + playerRallyPoint.x * sx, ry = mmY + playerRallyPoint.y * sy;
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath(); ctx.arc(rx, ry, 4, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+                }
+                for(const p of players) if(p.alive){
+                    if(p.inCar){
+                        ctx.fillStyle = '#ffff00';
+                        ctx.beginPath(); ctx.arc(mmX+p.x*sx, mmY+p.y*sy, 3.5, 0, Math.PI*2);
+                        ctx.fill();
+                        ctx.strokeStyle = TEAM_COLORS[p.team];
+                        ctx.lineWidth = 1.5;
+                        ctx.stroke();
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(mmX+p.x*sx-2, mmY+p.y*sy-1, 4, 2);
+                    } else if(p.isShieldBot){
+                        ctx.fillStyle = '#ffffff';
+                        ctx.beginPath(); ctx.arc(mmX+p.x*sx, mmY+p.y*sy, 3.0, 0, Math.PI*2);
+                        ctx.fill();
+                        ctx.strokeStyle = TEAM_COLORS[p.team];
+                        ctx.lineWidth = 1.5;
+                        ctx.stroke();
+                    } else {
+                        ctx.fillStyle = TEAM_COLORS[p.team];
+                        ctx.beginPath(); ctx.arc(mmX+p.x*sx, mmY+p.y*sy, p.isHuman?3.5:2.5, 0, Math.PI*2);
+                        ctx.fill();
+                        if(p.isHuman){ ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.stroke(); }
+                    }
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(mmX + p.x*sx, mmY + p.y*sy);
+                    ctx.lineTo(mmX + p.x*sx + Math.cos(p.angle)*6, mmY + p.y*sy + Math.sin(p.angle)*6);
+                    ctx.stroke();
+                }
+                ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(mmX+camera.x*sx,mmY+camera.y*sy,W*sx,H*sy);
+                ctx.fillStyle='#ccc'; ctx.font='10px'; ctx.fillText('MINIMAP',mmX+2,mmY-6);
+            }
+            function drawScoreboard(){ const sbW=170,sbH=130,sbX=15,sbY=H-sbH-15,tk=[0,0,0,0]; for(const p of players) tk[p.team]+=p.kills; const sorted=[0,1,2,3].sort((a,b)=>tk[b]-tk[a]); ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(sbX-2,sbY-2,sbW+4,sbH+4); ctx.strokeStyle='#555'; ctx.lineWidth=2; ctx.strokeRect(sbX-2,sbY-2,sbW+4,sbH+4); const mins=Math.floor(gameTime/60),secs=Math.floor(gameTime%60); ctx.fillStyle='#fff'; ctx.font='bold 18px'; ctx.fillText(`${mins}:${secs.toString().padStart(2,'0')}`,sbX+sbW/2-25,sbY+22); for(let i=0;i<sorted.length;i++){ const t=sorted[i], y=sbY+44+i*20; ctx.fillStyle=TEAM_COLORS[t]; ctx.fillRect(sbX+8,y-2,10,10); ctx.fillStyle='#ddd'; ctx.font='13px'; ctx.fillText(`${TEAM_NAMES[t]}: ${tk[t]}`,sbX+24,y+8); if(t===playerTeam&&player) ctx.fillText('←',sbX+sbW-20,y+8); } ctx.fillStyle='#999'; ctx.font='10px'; ctx.fillText('SCOREBOARD',sbX+2,sbY-6); }
+            function drawHotbar(){ const hbW=280,hbH=70,hbX=W-hbW-15,hbY=H-hbH-15; ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(hbX-2,hbY-2,hbW+4,hbH+4); ctx.strokeStyle='#555'; ctx.lineWidth=2; ctx.strokeRect(hbX-2,hbY-2,hbW+4,hbH+4); if(!player||!player.alive){ ctx.fillStyle='#888'; ctx.font='14px'; ctx.fillText('DEAD - Click RESPAWN',hbX+30,hbY+hbH/2+5); return; } const slotW=50,gap=4,startX=hbX+8; for(let i=0;i<5;i++){ const sx=startX+i*(slotW+gap),sy=hbY+10,isSel=player.currentSlot===i,def=player.slots[i]; ctx.fillStyle=isSel?'rgba(255,255,255,0.25)':'rgba(50,50,50,0.6)'; ctx.fillRect(sx,sy,slotW,hbH-20); ctx.strokeStyle=isSel?'#fff':'#666'; ctx.lineWidth=isSel?2:1; ctx.strokeRect(sx,sy,slotW,hbH-20); ctx.fillStyle='#aaa'; ctx.font='bold 11px'; ctx.fillText(i+1,sx+3,sy+13); if(def){ ctx.fillStyle=isSel?'#fff':'#ddd'; ctx.font='bold 11px'; ctx.fillText(i===4?(player.isShieldBot?'DIS':def.name.substring(0,7)):def.name.substring(0,7),sx+3,sy+30); if(i<=1&&def.magSize){ ctx.fillStyle=player.slotReloading[i]?'#ff8888':'#aaa'; ctx.font='10px'; ctx.fillText(`${player.slotAmmo[i]}/${def.magSize}`,sx+3,sy+44); if(player.slotReloading[i]) ctx.fillText('R',sx+slotW-14,sy+44); } else if(i===3){ ctx.fillStyle='#aaa'; ctx.font='10px'; ctx.fillText(`x${player.slotAmmo[i]}/5`,sx+3,sy+44); } else if(i===4){ ctx.fillStyle='#aaa'; ctx.font='10px'; ctx.fillText('∞',sx+3,sy+44); } } if(player.slotCooldown[i]>0){ const cdPct=player.slotCooldown[i]/(i===4?0.6:1.2); ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(sx,sy,slotW,(hbH-20)*cdPct); } } ctx.fillStyle='#999'; ctx.font='10px'; ctx.fillText('WEAPONS',hbX+2,hbY-6); }
+            function drawPlayerHealthBar(){
+                if(!player || !player.alive) return;
+                const barWidth = 200, barHeight = 16;
+                const x = W/2 - 150;
+                const y = H - 50;
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.fillRect(x-2, y-2, barWidth+4, barHeight+4);
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x-2, y-2, barWidth+4, barHeight+4);
+                const hpPct = player.hp / player.maxHp;
+                const fillColor = hpPct > 0.5 ? '#4f4' : hpPct > 0.25 ? '#ff0' : '#f22';
+                ctx.fillStyle = fillColor;
+                ctx.fillRect(x, y, barWidth * hpPct, barHeight);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px "Segoe UI"';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${Math.ceil(player.hp)} / ${player.maxHp}`, x + barWidth/2, y + 12);
+                ctx.textAlign = 'start';
+            }
+            function drawRespawnScreen(){
+                if(!showRespawnScreen||!player) return;
+                ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H);
+                const cx=W/2,cy=H/2;
+                ctx.fillStyle='#fff'; ctx.font='bold 32px'; ctx.textAlign='center'; ctx.fillText('YOU ARE DEAD',cx,cy-50);
+                ctx.fillStyle='#ccc'; ctx.font='18px'; ctx.fillText('Random weapons on respawn',cx,cy-10);
+                if(player.slots[0]){ ctx.fillStyle='#ddd'; ctx.font='15px'; ctx.fillText(`Guns: ${player.slots[0].name} & ${player.slots[1].name}`,cx,cy+30); ctx.fillText(`Melee: ${player.slots[2].name}  |  Explosive: ${player.slots[3].name}`,cx,cy+55); }
+                const btnW=160,btnH=50,btnX=cx-btnW/2,btnY=cy+90;
+                ctx.fillStyle='rgba(46,204,113,0.9)'; ctx.fillRect(btnX,btnY,btnW,btnH);
+                ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.strokeRect(btnX,btnY,btnW,btnH);
+                ctx.fillStyle='#fff'; ctx.font='bold 22px'; ctx.fillText('RESPAWN',cx,btnY+34);
+                window._respawnBtn={x:btnX,y:btnY,w:btnW,h:btnH};
+                const homeBtnW=100, homeBtnH=40, homeBtnX=20, homeBtnY=20;
+                ctx.fillStyle='#e74c3c'; ctx.fillRect(homeBtnX, homeBtnY, homeBtnW, homeBtnH);
+                ctx.fillStyle='#fff'; ctx.font='bold 18px'; ctx.textAlign='center'; ctx.fillText('HOME', homeBtnX+homeBtnW/2, homeBtnY+28);
+                window._deathHomeBtn = {x:homeBtnX, y:homeBtnY, w:homeBtnW, h:homeBtnH};
+                ctx.textAlign='start';
+            }
+            function drawGameOverScreen(){
+                ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(0,0,W,H);
+                const cx=W/2,cy=H/2; ctx.textAlign='center';
+                if(winnerTeam>=0){ ctx.fillStyle=TEAM_COLORS[winnerTeam]; ctx.font='bold 40px'; ctx.fillText(`${TEAM_NAMES[winnerTeam]} TEAM WINS!`,cx,cy-50); }
+                else { ctx.fillStyle='#fff'; ctx.font='bold 40px'; ctx.fillText('DRAW!',cx,cy-50); }
+                const tk=[0,0,0,0]; for(const p of players) tk[p.team]+=p.kills;
+                for(let t=0;t<4;t++){ ctx.fillStyle=TEAM_COLORS[t]; ctx.font='20px'; ctx.fillText(`${TEAM_NAMES[t]}: ${tk[t]} kills`,cx,cy-10+t*28); }
+                const elapsed = performance.now() - gameEndTime;
+                const remaining = Math.ceil((3000 - elapsed) / 1000);
+                if (elapsed < 3000) {
+                    ctx.fillStyle = '#fff'; ctx.font = '18px';
+                    ctx.fillText(`Next round in ${remaining}s...`, cx, cy+110);
+                } else {
+                    ctx.fillStyle = '#fff'; ctx.font = '18px';
+                    ctx.fillText('Click or R to restart', cx, cy+110);
+                }
+                const homeBtnW=120, homeBtnH=40, homeBtnX=20, homeBtnY=20;
+                ctx.fillStyle='#e74c3c'; ctx.fillRect(homeBtnX, homeBtnY, homeBtnW, homeBtnH);
+                ctx.fillStyle='#fff'; ctx.font='bold 18px'; ctx.textAlign='center'; ctx.fillText('HOME', homeBtnX+homeBtnW/2, homeBtnY+28);
+                window._gameoverHomeBtn = {x:homeBtnX, y:homeBtnY, w:homeBtnW, h:homeBtnH};
+                ctx.textAlign='start';
+            }
+
+            function render(){
+                ctx.clearRect(0,0,W,H);
+                if(homeScreen) {
+                    drawHomeScreen();
+                    return;
+                }
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.font = 'bold 16px "Segoe UI", sans-serif';
+                ctx.fillText('RIOT ARENA', 20, 35);
+
+                if (player) {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 14px "Segoe UI", sans-serif';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(`K: ${player.kills}  D: ${player.deaths}`, W - 20, 30);
+                    ctx.textAlign = 'start';
+                }
+
+                ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=1; const gs=60,sgx=-(camera.x%gs),sgy=-(camera.y%gs);
+                for(let gx=sgx;gx<W;gx+=gs){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
+                for(let gy=sgy;gy<H;gy+=gs){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
+
+                for(const b of buildings){ if(!b.alive) continue; const sx=b.x-camera.x,sy=b.y-camera.y; if(sx+b.w<-10||sx>W+10||sy+b.h<-10||sy>H+10) continue;
+                    if(b.isPlaced){ ctx.fillStyle='rgba(74,144,226,0.8)'; ctx.fillRect(sx,sy,b.w,b.h); ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.strokeRect(sx,sy,b.w,b.h); }
+                    else if(b.isEnterable){ ctx.fillStyle='rgba(40,35,30,0.5)'; ctx.fillRect(sx,sy,b.w,b.h); for(const w of b.walls){ const wx=w.x-camera.x,wy=w.y-camera.y; ctx.fillStyle='#6b5e4e'; ctx.fillRect(wx,wy,w.w,w.h); ctx.strokeStyle='#3a3228'; ctx.lineWidth=1.5; ctx.strokeRect(wx,wy,w.w,w.h); } }
+                    else { ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fillRect(sx+4,sy+4,b.w,b.h); const alpha=b.hp/b.maxHp; const r=parseInt(b.color.slice(1,3),16),g=parseInt(b.color.slice(3,5),16),bc=parseInt(b.color.slice(5,7),16); ctx.fillStyle=`rgb(${Math.floor(r*alpha+30*(1-alpha))},${Math.floor(g*alpha+20*(1-alpha))},${Math.floor(bc*alpha+15*(1-alpha))})`; ctx.fillRect(sx,sy,b.w,b.h); if(b.flashAlpha!==0){ ctx.fillStyle=`rgba(255,255,255,${Math.abs(b.flashAlpha)})`; ctx.fillRect(sx,sy,b.w,b.h); } ctx.strokeStyle='rgba(0,0,0,0.5)'; ctx.lineWidth=2; ctx.strokeRect(sx,sy,b.w,b.h); if(b.hp<b.maxHp*0.6){ ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=1; for(let c=0;c<Math.floor((1-b.hp/b.maxHp)*5);c++){ ctx.beginPath(); ctx.moveTo(sx+rand(5,b.w-5),sy+rand(5,b.h-5)); ctx.lineTo(sx+rand(-20,20)+rand(5,b.w-5),sy+rand(-20,20)+rand(5,b.h-5)); ctx.stroke(); } } }
+                }
+
+                for(const w of walls) w.draw(ctx,camera);
+                for(const d of disruptorProjectiles) d.draw(ctx,camera);
+                for(const c of cars) if(c.alive) { c.draw(ctx,camera); if(player && player.alive && !player.inCar && dist(player,c)<60 && (c.team===null||c.team===player.team) && (c.seats[0]==null||c.seats[1]==null)) { const sx=c.x-camera.x, sy=c.y-camera.y; ctx.fillStyle='#fff'; ctx.font='bold 13px'; ctx.textAlign='center'; ctx.fillText('Press E to enter', sx, sy - c.h/2 - 6); ctx.textAlign='start'; } }
+                for(const rem of destroyedCarRemains){ const sx=rem.x-camera.x,sy=rem.y-camera.y; ctx.save(); ctx.translate(sx,sy); ctx.rotate(rem.angle); ctx.fillStyle='#333'; ctx.fillRect(-30,-17,60,35); ctx.fillStyle='#aa3333'; ctx.globalAlpha=0.5; ctx.fillRect(-30,-17,60,35); ctx.globalAlpha=1; ctx.restore(); }
+                for(const cloud of smokeClouds){ const sx=cloud.x-camera.x,sy=cloud.y-camera.y,a=cloud.life/cloud.maxLife; if(cloud.isSmoke) ctx.fillStyle=`rgba(180,180,180,${a*0.5})`; else ctx.fillStyle=`rgba(255,100,20,${a*0.35})`; ctx.beginPath(); ctx.arc(sx,sy,cloud.radius,0,Math.PI*2); ctx.fill(); if(!cloud.isSmoke) for(let i=0;i<8;i++){ const aa=Math.random()*Math.PI*2,rr=rand(10,cloud.radius*0.8); ctx.fillStyle=`rgba(255,${rand(80,200)},0,${a*0.7})`; ctx.beginPath(); ctx.arc(sx+Math.cos(aa)*rr,sy+Math.sin(aa)*rr,rand(3,8),0,Math.PI*2); ctx.fill(); } }
+                for(const p of particles){ const sx=p.x-camera.x,sy=p.y-camera.y; ctx.globalAlpha=p.alpha; ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(sx,sy,p.size,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
+                for(const exp of explosives) if(!exp.dead){ const sx=exp.x-camera.x,sy=exp.y-camera.y; ctx.fillStyle='#333'; ctx.beginPath(); ctx.arc(sx,sy,7,0,Math.PI*2); ctx.fill(); ctx.fillStyle=exp.def.name==='Molotov'?'#ff6600':'#555'; ctx.beginPath(); ctx.arc(sx,sy,4,0,Math.PI*2); ctx.fill(); if(exp.fuse<0.6&&Math.floor(exp.fuse*20)%2===0){ ctx.fillStyle='#ff0'; ctx.beginPath(); ctx.arc(sx,sy,9,0,Math.PI*2); ctx.fill(); } }
+                for(const bullet of bullets){ const sx=bullet.x-camera.x,sy=bullet.y-camera.y; if(bullet.trail.length>1){ ctx.strokeStyle=bullet.color+'88'; ctx.lineWidth=bullet.size*0.7; ctx.beginPath(); ctx.moveTo(bullet.trail[0].x-camera.x,bullet.trail[0].y-camera.y); for(const t of bullet.trail) ctx.lineTo(t.x-camera.x,t.y-camera.y); ctx.lineTo(sx,sy); ctx.stroke(); } ctx.fillStyle=bullet.color; ctx.beginPath(); ctx.arc(sx,sy,bullet.size,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(sx,sy,bullet.size*0.4,0,Math.PI*2); ctx.fill(); }
+                const sortedPlayers=[...players].filter(p=>p.alive&&!p.inCar).sort((a,b)=>a.y-b.y);
+                for(const p of sortedPlayers){ const sx=p.x-camera.x,sy=p.y-camera.y; if(sx<-30||sx>W+30||sy<-30||sy>H+30) continue;
+                    if(p.isShieldBot){ ctx.fillStyle=TEAM_COLORS[p.team]+'aa'; ctx.beginPath(); ctx.arc(sx,sy,p.radius+4,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); }
+                    if(p.disruptorImmune>0){
+                        ctx.fillStyle=`rgba(100,180,255,${0.3+Math.sin(performance.now()*10)*0.2})`;
+                        ctx.beginPath(); ctx.arc(sx,sy,p.radius+6,0,Math.PI*2); ctx.fill();
+                    }
+                    if(p.spawnImmunity>0){ ctx.fillStyle=`rgba(255,255,255,${0.4+Math.sin(p.spawnImmunity*15)*0.3})`; ctx.beginPath(); ctx.arc(sx,sy,p.radius+5,0,Math.PI*2); ctx.fill(); }
+                    ctx.fillStyle=TEAM_COLORS[p.team]; ctx.beginPath(); ctx.arc(sx,sy,p.radius,0,Math.PI*2); ctx.fill();
+                    ctx.strokeStyle=p.isHuman?'#fff':'rgba(0,0,0,0.6)'; ctx.lineWidth=p.isHuman?3:2; ctx.stroke();
+                    if(p.flashAlpha>0){ ctx.fillStyle=`rgba(255,255,255,${p.flashAlpha})`; ctx.beginPath(); ctx.arc(sx,sy,p.radius,0,Math.PI*2); ctx.fill(); }
+                    if(p.explosiveLocked>0){
+                        const pulse = Math.sin(performance.now() * 0.02) * 0.3 + 0.6;
+                        ctx.fillStyle = `rgba(255,68,255,${pulse})`;
+                        ctx.beginPath(); ctx.arc(sx, sy, p.radius+4, 0, Math.PI*2); ctx.fill();
+                        ctx.strokeStyle = '#ff44ff'; ctx.lineWidth = 2; ctx.stroke();
+                        ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('🔒', sx, sy - p.radius - 20);
+                        ctx.textAlign = 'start';
+                    }
+                    const barrelLen=p.radius+8,bx=sx+Math.cos(p.angle)*barrelLen,by=sy+Math.sin(p.angle)*barrelLen;
+                    ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(sx+Math.cos(p.angle)*(p.radius-2),sy+Math.sin(p.angle)*(p.radius-2)); ctx.lineTo(bx,by); ctx.stroke();
+                    if(p.meleeActive&&p.slots[2]){ const def=p.slots[2]; ctx.strokeStyle='rgba(255,255,200,0.7)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(sx,sy,def.range,p.meleeAngle-def.arc,p.meleeAngle+def.arc); ctx.stroke(); ctx.fillStyle='rgba(255,255,200,0.25)'; ctx.beginPath(); ctx.moveTo(sx,sy); ctx.arc(sx,sy,def.range,p.meleeAngle-def.arc,p.meleeAngle+def.arc); ctx.closePath(); ctx.fill(); }
+                    const hpBarW=p.radius*2,hpBarH=4,hpBarY=sy-p.radius-10; ctx.fillStyle='#333'; ctx.fillRect(sx-hpBarW/2,hpBarY,hpBarW,hpBarH);
+                    const hpPct=p.hp/p.maxHp,hpColor=hpPct>0.5?'#4f4':hpPct>0.25?'#ff0':'#f22'; ctx.fillStyle=hpColor; ctx.fillRect(sx-hpBarW/2,hpBarY,hpBarW*hpPct,hpBarH);
+                    if(p.isHuman){ ctx.fillStyle='#fff'; ctx.font='bold 11px'; ctx.textAlign='center'; ctx.fillText('YOU',sx,sy-p.radius-14); ctx.textAlign='start'; }
+                    if(p.isShieldBot){ ctx.fillStyle='#fff'; ctx.font='bold 10px'; ctx.fillText('SHIELD',sx,sy-p.radius-14); }
+                    if(p.slotReloading[p.currentSlot]){ ctx.fillStyle='#fff'; ctx.font='10px'; ctx.fillText('⟳',sx,sy+p.radius+14); }
+                    if(p.stunned>0){ ctx.fillStyle='#ff0'; ctx.font='bold 12px'; ctx.fillText('★',sx,sy-p.radius-16); }
+                }
+                if(player&&player.alive&&!showRespawnScreen&&player.currentSlot<=1&&!player.inCar){
+                    const def=player.slots[player.currentSlot]; if(def&&def.range&&player.slotCooldown[player.currentSlot]<=0.2){ const sx=player.x-camera.x,sy=player.y-camera.y; ctx.beginPath(); ctx.arc(sx,sy,def.range,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=2; ctx.stroke(); }
+                }
+                let kfY=25; ctx.textAlign='center'; for(const kf of killFeed){ const a=Math.min(1,kf.timer); ctx.fillStyle=`rgba(255,255,255,${a})`; ctx.font='bold 14px'; ctx.fillText(kf.text,W/2,kfY); kfY+=22; } ctx.textAlign='start';
+
+                drawMinimap(); drawScoreboard(); drawHotbar();
+                drawPlayerHealthBar();
+                if(gameOver) drawGameOverScreen();
+                if(showRespawnScreen) drawRespawnScreen();
+                if(!gameOver&&!showRespawnScreen&&player&&player.alive){ ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(mouseX,mouseY,12,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(mouseX-16,mouseY); ctx.lineTo(mouseX-8,mouseY); ctx.moveTo(mouseX+8,mouseY); ctx.lineTo(mouseX+16,mouseY); ctx.moveTo(mouseX,mouseY-16); ctx.lineTo(mouseX,mouseY-8); ctx.moveTo(mouseX,mouseY+8); ctx.lineTo(mouseX,mouseY+16); ctx.stroke(); }
+            }
+
+            function gameLoop(ts){ let dt=(ts-lastTime)/1000; if(dt<=0) dt=0.016; lastTime=ts; update(dt); render(); requestAnimationFrame(gameLoop); }
+
+            canvas.addEventListener('mousemove',e=>{ const rect=canvas.getBoundingClientRect(); mouseX=e.clientX-rect.left; mouseY=e.clientY-rect.top; canvas.style.cursor=(homeScreen||showRespawnScreen||gameOver)?'pointer':'crosshair'; });
+            canvas.addEventListener('mousedown',e=>{
+                if(e.button===0){
+                    initAudio();
+                    const rect = canvas.getBoundingClientRect();
+                    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+                    if(homeScreen){
+                        const btn = window._homeStartBtn;
+                        if(btn && cx>=btn.x && cx<=btn.x+btn.w && cy>=btn.y && cy<=btn.y+btn.h){
+                            homeScreen = false;
+                            playerRallyPoint = null;
+                            initCars(); generateMap(); initPlayers();
+                            if(player){ camera.x=player.x-W/2; camera.y=player.y-H/2; }
+                            lastTime=performance.now();
+                            canvas.style.cursor = 'crosshair';
+                        }
+                        return;
+                    }
+                    if(gameOver){
+                        const homeBtn = window._gameoverHomeBtn;
+                        if(homeBtn && cx>=homeBtn.x && cx<=homeBtn.x+homeBtn.w && cy>=homeBtn.y && cy<=homeBtn.y+homeBtn.h){
+                            homeScreen = true;
+                            gameOver = false;
+                            showRespawnScreen = false;
+                            canvas.style.cursor = 'pointer';
+                            return;
+                        }
+                        restartGame();
+                        return;
+                    }
+                    if(showRespawnScreen && player){
+                        const homeBtn = window._deathHomeBtn;
+                        if(homeBtn && cx>=homeBtn.x && cx<=homeBtn.x+homeBtn.w && cy>=homeBtn.y && cy<=homeBtn.y+homeBtn.h){
+                            homeScreen = true;
+                            showRespawnScreen = false;
+                            gameOver = false;
+                            canvas.style.cursor = 'pointer';
+                            return;
+                        }
+                        const btn = window._respawnBtn;
+                        if(btn && cx>=btn.x && cx<=btn.x+btn.w && cy>=btn.y && cy<=btn.y+btn.h){
+                            player.respawn();
+                            showRespawnScreen=false;
+                            canvas.style.cursor='crosshair';
+                        }
+                        return;
+                    }
+                    mouseDown=true; mouseClicked=true;
+                }
+            });
+            canvas.addEventListener('mouseup',e=>{ if(e.button===0) mouseDown=false; });
+            canvas.addEventListener('contextmenu',e=>{
+                e.preventDefault();
+                if (homeScreen || gameOver || showRespawnScreen) return;
+                if (playerRallyPoint) {
+                    playerRallyPoint = null;
+                } else {
+                    playerRallyPoint = {x: mouseWorldX, y: mouseWorldY};
+                }
+            });
+            canvas.addEventListener('wheel', e => {
+                if (homeScreen || gameOver || showRespawnScreen) return;
+                if (!player || !player.alive) return;
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? 1 : -1;
+                let newSlot = player.currentSlot + delta;
+                if (newSlot < 0) newSlot = 4;
+                else if (newSlot > 4) newSlot = 0;
+                player.switchSlot(newSlot);
+            }, { passive: false });
+            window.addEventListener('keydown',e=>{ keys[e.key.toLowerCase()]=true; initAudio(); if(!keyJustPressed[e.key.toLowerCase()]) keyJustPressed[e.key.toLowerCase()]=true; if(e.key==='r'||e.key==='R'){ if(gameOver){ restartGame(); return; } if(player&&player.alive&&player.currentSlot<=1&&!player.slotReloading[player.currentSlot]&&player.slotAmmo[player.currentSlot]<player.slots[player.currentSlot].magSize) player.startReload(player.currentSlot); } if(e.key>='1'&&e.key<='5'){ const slot=parseInt(e.key)-1; if(player&&player.alive&&!showRespawnScreen) player.switchSlot(slot); } });
+            window.addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+
+            function init(){ lastTime=performance.now(); requestAnimationFrame(gameLoop); }
+            init();
+        })();
+    </script>
+</body>
+</html>
