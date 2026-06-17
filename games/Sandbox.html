@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Sandbox – Faster Acid & Persistent Line Preview</title>
+    <title>Pixel Sandbox – Bombs with Fuse Delay</title>
     <style>
         :root {
             --bg: #1a1a2e;
@@ -59,6 +59,8 @@
         .btn-pause.paused { background: #4a3a10; color: #ffeeaa; }
         .btn-selective { background: #3a1a2a; color: #ffccdd; }
         .btn-selective.active { background: #5a2a3a; color: #ffffff; border-color: #ff88aa; }
+        .btn-wood { background: #2a1a10; color: #ffccaa; }
+        .btn-wood.off { background: #4a3a2a; color: #ffeecc; border-color: #ccaa88; }
         .brush-control, .speed-control {
             display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 0.8rem;
             font-weight: 500; background: var(--button-bg); padding: 4px 10px; border-radius: 8px;
@@ -96,6 +98,7 @@
         <button class="btn btn-selective" id="btnSelectiveErase">🎯 Erase <span id="selectiveTarget">Sand</span></button>
         <button class="btn btn-clear" id="btnClear">💥 Clear</button>
         <button class="btn btn-pause" id="btnPause">⏯️ Pause</button>
+        <button class="btn btn-wood" id="btnWoodToggle">🪵 Wood: ON</button>
         <div class="brush-control">
             <span>Brush:</span>
             <input type="range" id="brushSize" min="1" max="20" value="1">
@@ -108,11 +111,11 @@
         </div>
     </div>
     <div class="info-bar">
-        <span>🔥 Acid destroys faster (25% × 3 neighbors) | 🐛 Bugs die to fire/lava/acid instantly</span>
-        <span><kbd>Shift</kbd> + drag = straight lines (preview stays outside canvas)</span>
-        <span><kbd>E</kbd> erase all</span>
-        <span><kbd>R</kbd> selective erase</span>
-        <span><kbd>Space</kbd> pause</span>
+        <span>💣 Bombs: fall, 10‑frame fuse when lit, radius‑7 fire</span>
+        <span><kbd>X</kbd> bomb</span>
+        <span><kbd>U</kbd> unbreakable wall</span>
+        <span><kbd>W</kbd> wood toggle</span>
+        <span><kbd>Shift</kbd> + drag = straight lines</span>
     </div>
 </div>
 <script>
@@ -132,32 +135,38 @@
     const ELEMENTS = {
         EMPTY: 0, SAND: 1, WATER: 2, STONE: 3, FIRE: 4, WOOD: 5,
         SMOKE: 6, LAVA: 7, STEAM: 8, SEED: 9, PLANT: 10, CLONER: 11,
-        DIRT: 12, BUG: 13, ACID: 14
+        DIRT: 12, BUG: 13, ACID: 14, EXPLOSIVE: 15, UNBREAKABLE: 16
     };
     const NAMES = {
         [ELEMENTS.EMPTY]: 'Empty', [ELEMENTS.SAND]: 'Sand', [ELEMENTS.WATER]: 'Water',
         [ELEMENTS.STONE]: 'Stone', [ELEMENTS.FIRE]: 'Fire', [ELEMENTS.WOOD]: 'Wood',
         [ELEMENTS.SMOKE]: 'Smoke', [ELEMENTS.LAVA]: 'Lava', [ELEMENTS.STEAM]: 'Steam',
         [ELEMENTS.SEED]: 'Seed', [ELEMENTS.PLANT]: 'Plant', [ELEMENTS.CLONER]: 'Cloner',
-        [ELEMENTS.DIRT]: 'Dirt', [ELEMENTS.BUG]: 'Bug', [ELEMENTS.ACID]: 'Acid'
+        [ELEMENTS.DIRT]: 'Dirt', [ELEMENTS.BUG]: 'Bug', [ELEMENTS.ACID]: 'Acid',
+        [ELEMENTS.EXPLOSIVE]: 'Bomb', [ELEMENTS.UNBREAKABLE]: 'Wall'
     };
     const COLORS = {
         [ELEMENTS.EMPTY]: [10,10,20], [ELEMENTS.SAND]: [232,193,112], [ELEMENTS.WATER]: [50,120,255],
         [ELEMENTS.STONE]: [130,130,140], [ELEMENTS.FIRE]: [255,80,10], [ELEMENTS.WOOD]: [139,90,55],
         [ELEMENTS.SMOKE]: [90,85,80], [ELEMENTS.LAVA]: [255,110,20], [ELEMENTS.STEAM]: [190,190,200],
         [ELEMENTS.SEED]: [120,80,30], [ELEMENTS.CLONER]: [100,100,180],
-        [ELEMENTS.DIRT]: [80,45,20], [ELEMENTS.BUG]: [160,100,160], [ELEMENTS.ACID]: [180,255,0]
+        [ELEMENTS.DIRT]: [80,45,20], [ELEMENTS.BUG]: [160,100,160], [ELEMENTS.ACID]: [180,255,0],
+        [ELEMENTS.EXPLOSIVE]: [255,200,50], [ELEMENTS.UNBREAKABLE]: [80,80,80]
     };
     const SWATCH = {
         [ELEMENTS.SAND]: '#e8c170', [ELEMENTS.WATER]: '#4488ff', [ELEMENTS.STONE]: '#888890',
         [ELEMENTS.FIRE]: '#ff5010', [ELEMENTS.WOOD]: '#8b5a37', [ELEMENTS.SMOKE]: '#5a5550',
         [ELEMENTS.LAVA]: '#ff6e14', [ELEMENTS.STEAM]: '#bebec8', [ELEMENTS.SEED]: '#78501e',
         [ELEMENTS.PLANT]: '#1eb428', [ELEMENTS.CLONER]: '#6464b4', [ELEMENTS.DIRT]: '#502d14',
-        [ELEMENTS.BUG]: '#a064a0', [ELEMENTS.ACID]: '#b4ff00'
+        [ELEMENTS.BUG]: '#a064a0', [ELEMENTS.ACID]: '#b4ff00', [ELEMENTS.EXPLOSIVE]: '#ffc832',
+        [ELEMENTS.UNBREAKABLE]: '#505050'
     };
 
     const grid = new Uint8Array(COLS * ROWS);
     const plantColor = new Uint8Array(COLS * ROWS);
+    const fuse = new Uint8Array(COLS * ROWS); // Bomb fuse timer (0 = unlit)
+    const EXPLOSIVE_FUSE = 10; // frames of delay
+
     let selected = ELEMENTS.SAND;
     let brushSize = 1;
     let mouseDown = false, mouseCol = -1, mouseRow = -1;
@@ -170,6 +179,7 @@
     let lineMode = false;
     let lineStartCol = -1, lineStartRow = -1;
     let lineEndCol = -1, lineEndRow = -1;
+    let woodConversion = true;
 
     function idx(c,r) { return r*COLS + c; }
     function inBounds(c,r) { return c>=0 && c<COLS && r>=0 && r<ROWS; }
@@ -179,6 +189,8 @@
             grid[idx(c,r)] = v; 
             if(v === ELEMENTS.PLANT) plantColor[idx(c,r)] = Math.floor(Math.random()*256);
             else if(v === ELEMENTS.EMPTY) plantColor[idx(c,r)] = 0;
+            if(v === ELEMENTS.EXPLOSIVE) fuse[idx(c,r)] = 0;
+            else if(v !== ELEMENTS.EXPLOSIVE) fuse[idx(c,r)] = 0;
         }
     }
     function isEmpty(c,r) { return get(c,r) === ELEMENTS.EMPTY; }
@@ -189,6 +201,7 @@
         const i1=idx(c1,r1), i2=idx(c2,r2);
         [grid[i1], grid[i2]] = [grid[i2], grid[i1]];
         [plantColor[i1], plantColor[i2]] = [plantColor[i2], plantColor[i1]];
+        [fuse[i1], fuse[i2]] = [fuse[i2], fuse[i1]];
         return true;
     }
 
@@ -208,9 +221,7 @@
     }
 
     function paintLine(x0, y0, x1, y1) {
-        forEachLinePoint(x0, y0, x1, y1, (c, r) => {
-            paintAt(c, r);
-        });
+        forEachLinePoint(x0, y0, x1, y1, (c, r) => { paintAt(c, r); });
     }
 
     function getBrushCells(centerCol, centerRow) {
@@ -223,8 +234,7 @@
             for (let dr = -radius; dr <= radius; dr++) {
                 for (let dc = -radius; dc <= radius; dc++) {
                     if (dc * dc + dr * dr <= radiusSq) {
-                        const pc = centerCol + dc, pr = centerRow + dr;
-                        cells.push([pc, pr]);
+                        cells.push([centerCol + dc, centerRow + dr]);
                     }
                 }
             }
@@ -233,13 +243,9 @@
     }
 
     function getPreviewColor() {
-        if (eraseMode || selectiveEraseActive) {
-            return 'rgba(255, 100, 100, 0.35)';
-        }
+        if (eraseMode || selectiveEraseActive) return 'rgba(255, 100, 100, 0.35)';
         const bc = COLORS[selected];
-        if (bc) {
-            return `rgba(${bc[0]}, ${bc[1]}, ${bc[2]}, 0.35)`;
-        }
+        if (bc) return `rgba(${bc[0]}, ${bc[1]}, ${bc[2]}, 0.35)`;
         return 'rgba(255,255,255,0.35)';
     }
 
@@ -324,16 +330,13 @@
         ctx.clearRect(0,0,DISPLAY_WIDTH,DISPLAY_HEIGHT);
         ctx.drawImage(offCanvas,0,0,DISPLAY_WIDTH,DISPLAY_HEIGHT);
 
-        if(lineMode) {
-            drawLinePreview(lineStartCol, lineStartRow, lineEndCol, lineEndRow);
-        }
+        if(lineMode) drawLinePreview(lineStartCol, lineStartRow, lineEndCol, lineEndRow);
         else if(mouseCol !== -1 && mouseRow !== -1 && inBounds(mouseCol, mouseRow)) {
             ctx.strokeStyle = selectiveEraseActive || eraseMode ? '#ff88aa' : '#ffffff';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            if(brushSize === 1) {
-                ctx.rect(mouseCol * CELL_SCALE, mouseRow * CELL_SCALE, CELL_SCALE, CELL_SCALE);
-            } else {
+            if(brushSize === 1) ctx.rect(mouseCol * CELL_SCALE, mouseRow * CELL_SCALE, CELL_SCALE, CELL_SCALE);
+            else {
                 const radius = (brushSize - 1) * CELL_SCALE;
                 ctx.arc(mouseCol * CELL_SCALE + CELL_SCALE/2, mouseRow * CELL_SCALE + CELL_SCALE/2, radius, 0, Math.PI*2);
             }
@@ -363,6 +366,8 @@
                     case ELEMENTS.CLONER: updateCloner(col,row); break;
                     case ELEMENTS.BUG: updateBug(col,row); break;
                     case ELEMENTS.ACID: updateAcid(col,row); break;
+                    case ELEMENTS.EXPLOSIVE: updateExplosive(col,row); break;
+                    case ELEMENTS.UNBREAKABLE: break;
                     case ELEMENTS.STONE: break;
                     case ELEMENTS.WOOD: checkWoodIgnition(col,row); break;
                 }
@@ -457,11 +462,7 @@
                 if(dc===0 && dr===0) continue;
                 const nc = c+dc, nr = r+dr;
                 if(inBounds(nc,nr)) {
-                    const neighbor = get(nc,nr);
-                    if(neighbor === ELEMENTS.DIRT || neighbor === ELEMENTS.SAND) {
-                        nearSoil = true;
-                        break;
-                    }
+                    if(get(nc,nr) === ELEMENTS.DIRT || get(nc,nr) === ELEMENTS.SAND) { nearSoil = true; break; }
                 }
             }
             if(nearSoil) break;
@@ -485,8 +486,7 @@
         }
         if(Math.random()<growthChance*0.7) {
             const sideDir = Math.random()<0.5 ? -1 : 1;
-            const sideCell = get(c+sideDir, r);
-            if(sideCell === ELEMENTS.EMPTY || sideCell === ELEMENTS.WATER) {
+            if(get(c+sideDir,r)===ELEMENTS.EMPTY || get(c+sideDir,r)===ELEMENTS.WATER) {
                 set(c+sideDir, r, ELEMENTS.PLANT);
                 plantColor[idx(c+sideDir, r)] = currentShade;
             }
@@ -498,26 +498,13 @@
             }
         }
 
-        if(frameCount % 30 === 0 && Math.random() < 0.01) {
+        if (woodConversion && frameCount % 30 === 0 && Math.random() < 0.01) {
             let plant11 = 0;
-            for(let dc=-5; dc<=5; dc++) {
-                for(let dr=-5; dr<=5; dr++) {
-                    if(get(c+dc, r+dr) === ELEMENTS.PLANT) plant11++;
-                }
-            }
-            if(plant11 >= 100) {
-                set(c,r, ELEMENTS.WOOD);
-                return;
-            }
+            for(let dc=-5; dc<=5; dc++) for(let dr=-5; dr<=5; dr++) if(get(c+dc, r+dr)===ELEMENTS.PLANT) plant11++;
+            if(plant11 >= 100) { set(c,r, ELEMENTS.WOOD); return; }
             let wood5 = 0;
-            for(let dc=-2; dc<=2; dc++) {
-                for(let dr=-2; dr<=2; dr++) {
-                    if(get(c+dc, r+dr) === ELEMENTS.WOOD) wood5++;
-                }
-            }
-            if(wood5 >= 10) {
-                set(c,r, ELEMENTS.WOOD);
-            }
+            for(let dc=-2; dc<=2; dc++) for(let dr=-2; dr<=2; dr++) if(get(c+dc, r+dr)===ELEMENTS.WOOD) wood5++;
+            if(wood5 >= 10) set(c,r, ELEMENTS.WOOD);
         }
 
         checkPlantIgnition(c,r);
@@ -526,133 +513,120 @@
     function updateCloner(c,r) {
         if(Math.random() >= 0.2) return;
         let aboveR = r-1, aboveCell = get(c, aboveR);
-        while(aboveCell === ELEMENTS.CLONER && aboveR > 0) {
-            aboveR--;
-            aboveCell = get(c, aboveR);
-        }
+        while(aboveCell === ELEMENTS.CLONER && aboveR > 0) { aboveR--; aboveCell = get(c, aboveR); }
         if(aboveCell === ELEMENTS.EMPTY || aboveCell === ELEMENTS.CLONER) return;
         const dirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,-1],[1,-1],[-1,1]];
-        for(let i = dirs.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
-        }
-        for(const [dx,dy] of dirs) {
-            const nc = c+dx, nr = r+dy;
-            if(isEmpty(nc,nr)) {
-                set(nc,nr, aboveCell);
-                return;
-            }
-        }
+        for(let i = dirs.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [dirs[i], dirs[j]] = [dirs[j], dirs[i]]; }
+        for(const [dx,dy] of dirs) if(isEmpty(c+dx, r+dy)) { set(c+dx, r+dy, aboveCell); return; }
     }
 
     function updateAcid(c,r) {
         const below = get(c, r+1);
-        if(below === ELEMENTS.EMPTY || below === ELEMENTS.WATER || below === ELEMENTS.BUG) {
-            swap(c,r, c,r+1);
-            return;
-        }
+        if(below === ELEMENTS.EMPTY || below === ELEMENTS.WATER || below === ELEMENTS.BUG) { swap(c,r,c,r+1); return; }
         const dirs = Math.random()<0.5 ? [-1,1] : [1,-1];
         for(const dx of dirs) {
             const belowDiag = get(c+dx, r+1);
-            if(belowDiag === ELEMENTS.EMPTY || belowDiag === ELEMENTS.WATER || belowDiag === ELEMENTS.BUG) {
-                swap(c,r, c+dx, r+1);
-                return;
+            if(belowDiag === ELEMENTS.EMPTY || belowDiag === ELEMENTS.WATER || belowDiag === ELEMENTS.BUG) { swap(c,r,c+dx,r+1); return; }
+        }
+        if(Math.random() < 0.25) {
+            for (let i=0; i<3; i++) {
+                const arr = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+                const [dx,dy] = arr[Math.floor(Math.random()*arr.length)];
+                const target = get(c+dx, r+dy);
+                if(target !== ELEMENTS.EMPTY && target !== ELEMENTS.CLONER && target !== ELEMENTS.ACID && target !== ELEMENTS.UNBREAKABLE) {
+                    set(c+dx, r+dy, ELEMENTS.EMPTY);
+                }
             }
         }
-        // Faster destruction: 25% chance, try up to 3 random neighbors
-        if(Math.random() < 0.25) {
-            const attempts = 3;
-            for (let i = 0; i < attempts; i++) {
-                const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
-                const [dx,dy] = dirs[Math.floor(Math.random() * dirs.length)];
-                const nc = c+dx, nr = r+dy;
-                const target = get(nc,nr);
-                if(target !== ELEMENTS.EMPTY && target !== ELEMENTS.CLONER && target !== ELEMENTS.ACID) {
-                    set(nc,nr, ELEMENTS.EMPTY);
+    }
+
+    function updateExplosive(c,r) {
+        const i = idx(c,r);
+        // Gravity first
+        if (fallThroughLiquids(c,r, ELEMENTS.EXPLOSIVE)) return;
+
+        // Fuse countdown
+        if (fuse[i] > 0) {
+            fuse[i]--;
+            if (fuse[i] === 0) {
+                // Explode
+                const radius = 7;
+                for(let dr = -radius; dr <= radius; dr++) {
+                    for(let dc = -radius; dc <= radius; dc++) {
+                        if(dc*dc + dr*dr <= radius*radius) {
+                            const nc = c+dc, nr = r+dr;
+                            if(!inBounds(nc,nr)) continue;
+                            const cell = get(nc,nr);
+                            if(cell !== ELEMENTS.UNBREAKABLE && cell !== ELEMENTS.EMPTY) {
+                                set(nc,nr, ELEMENTS.FIRE);
+                            }
+                        }
+                    }
                 }
+                set(c,r, ELEMENTS.FIRE);
+                fuse[i] = 0;
+                return;
+            }
+            return;
+        }
+
+        // Light the fuse if touching fire or lava
+        for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
+            const n = get(nc,nr);
+            if(n === ELEMENTS.FIRE || n === ELEMENTS.LAVA) {
+                fuse[i] = EXPLOSIVE_FUSE;
+                return;
             }
         }
     }
 
     function updateBug(c,r) {
         for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
-            const neighbor = get(nc,nr);
-            if(neighbor === ELEMENTS.ACID || neighbor === ELEMENTS.FIRE || neighbor === ELEMENTS.LAVA) {
-                set(c,r, ELEMENTS.EMPTY);
-                return;
-            }
+            const n = get(nc,nr);
+            if(n === ELEMENTS.ACID || n === ELEMENTS.FIRE || n === ELEMENTS.LAVA) { set(c,r,ELEMENTS.EMPTY); return; }
         }
-        if(Math.random() < 0.001) {
-            set(c,r, ELEMENTS.EMPTY);
-            return;
-        }
+        if(Math.random() < 0.001) { set(c,r,ELEMENTS.EMPTY); return; }
         if(get(c,r+1) === ELEMENTS.WATER) { set(c,r, ELEMENTS.SAND); return; }
         if(isEmpty(c,r+1)) { swap(c,r,c,r+1); return; }
-        
         if(Math.random() < 0.08) return;
-        
         if(Math.random() < 0.03) {
             for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1]]) {
                 if(get(nc,nr) === ELEMENTS.PLANT) {
                     set(nc,nr, ELEMENTS.EMPTY);
-                    const options = [];
-                    if(isEmpty(c,r+1)) options.push([c,r+1]);
-                    if(isEmpty(c-1,r)) options.push([c-1,r]);
-                    if(isEmpty(c+1,r)) options.push([c+1,r]);
-                    if(isEmpty(c,r-1)) options.push([c,r-1]);
-                    if(options.length>0) {
-                        const [bc,br] = options[Math.floor(Math.random()*options.length)];
-                        set(bc,br, ELEMENTS.BUG);
-                    }
+                    const opts = []; if(isEmpty(c,r+1)) opts.push([c,r+1]); if(isEmpty(c-1,r)) opts.push([c-1,r]); if(isEmpty(c+1,r)) opts.push([c+1,r]); if(isEmpty(c,r-1)) opts.push([c,r-1]);
+                    if(opts.length>0) { const [bc,br] = opts[Math.floor(Math.random()*opts.length)]; set(bc,br, ELEMENTS.BUG); }
                     return;
                 }
             }
         }
-        
         if(Math.random() < 0.005) {
             for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1]]) {
                 if(get(nc,nr) === ELEMENTS.WOOD) {
                     set(nc,nr, ELEMENTS.EMPTY);
-                    const options = [];
-                    if(isEmpty(c,r+1)) options.push([c,r+1]);
-                    if(isEmpty(c-1,r)) options.push([c-1,r]);
-                    if(isEmpty(c+1,r)) options.push([c+1,r]);
-                    if(isEmpty(c,r-1)) options.push([c,r-1]);
-                    if(options.length>0) {
-                        const [bc,br] = options[Math.floor(Math.random()*options.length)];
-                        set(bc,br, ELEMENTS.BUG);
-                    }
+                    const opts = []; if(isEmpty(c,r+1)) opts.push([c,r+1]); if(isEmpty(c-1,r)) opts.push([c-1,r]); if(isEmpty(c+1,r)) opts.push([c+1,r]); if(isEmpty(c,r-1)) opts.push([c,r-1]);
+                    if(opts.length>0) { const [bc,br] = opts[Math.floor(Math.random()*opts.length)]; set(bc,br, ELEMENTS.BUG); }
                     return;
                 }
             }
         }
-        
         const stepDirs = Math.random()<0.5 ? [-1,1] : [1,-1];
         for(const dx of stepDirs) {
             const nx = c+dx, ny = r-1;
-            if(inBounds(nx, ny) && isEmpty(nx, ny) && isSolid(nx, ny+1)) {
-                swap(c,r, nx, ny);
-                return;
-            }
+            if(inBounds(nx,ny) && isEmpty(nx,ny) && isSolid(nx, ny+1)) { swap(c,r, nx, ny); return; }
         }
         const moveDirs = Math.random()<0.5 ? [-1,1] : [1,-1];
         for(const dx of moveDirs) {
-            if(isEmpty(c+dx, r) && isSolid(c+dx, r+1)) {
-                swap(c,r, c+dx, r);
-                return;
-            }
+            if(isEmpty(c+dx,r) && isSolid(c+dx, r+1)) { swap(c,r, c+dx, r); return; }
         }
     }
 
     function checkWoodIgnition(c,r) {
         for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]])
-            if(get(nc,nr)===ELEMENTS.FIRE||get(nc,nr)===ELEMENTS.LAVA)
-                if(Math.random()<0.2) { set(c,r,ELEMENTS.FIRE); return; }
+            if(get(nc,nr)===ELEMENTS.FIRE||get(nc,nr)===ELEMENTS.LAVA) if(Math.random()<0.2) { set(c,r,ELEMENTS.FIRE); return; }
     }
     function checkPlantIgnition(c,r) {
         for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]])
-            if(get(nc,nr)===ELEMENTS.FIRE||get(nc,nr)===ELEMENTS.LAVA)
-                if(Math.random()<0.25) { set(c,r,ELEMENTS.FIRE); return; }
+            if(get(nc,nr)===ELEMENTS.FIRE||get(nc,nr)===ELEMENTS.LAVA) if(Math.random()<0.25) { set(c,r,ELEMENTS.FIRE); return; }
     }
     function checkWaterLava(c,r) {
         for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]])
@@ -666,116 +640,72 @@
     function paintAt(col,row) {
         if(!inBounds(col,row)) return;
         if (brushSize === 1) {
-            if (eraseMode) {
-                set(col, row, ELEMENTS.EMPTY);
-            } else if (selectiveEraseActive && get(col, row) === selected) {
-                set(col, row, ELEMENTS.EMPTY);
-            } else if (!eraseMode && !selectiveEraseActive && isEmpty(col, row)) {
-                set(col, row, selected);
-                if (selected === ELEMENTS.PLANT) plantColor[idx(col, row)] = Math.floor(Math.random() * 256);
+            if (eraseMode) set(col,row,ELEMENTS.EMPTY);
+            else if (selectiveEraseActive && get(col,row) === selected) set(col,row,ELEMENTS.EMPTY);
+            else if (!eraseMode && !selectiveEraseActive && isEmpty(col,row)) {
+                set(col,row,selected);
+                if(selected === ELEMENTS.PLANT) plantColor[idx(col,row)] = Math.floor(Math.random()*256);
             }
         } else {
             const radius = brushSize - 1;
             const radiusSq = radius * radius;
-            for (let dr = -radius; dr <= radius; dr++) {
-                for (let dc = -radius; dc <= radius; dc++) {
-                    if (dc * dc + dr * dr <= radiusSq) {
-                        const pc = col + dc, pr = row + dr;
-                        if (!inBounds(pc, pr)) continue;
-                        if (eraseMode) {
-                            set(pc, pr, ELEMENTS.EMPTY);
-                        } else if (selectiveEraseActive && get(pc, pr) === selected) {
-                            set(pc, pr, ELEMENTS.EMPTY);
-                        } else if (!eraseMode && !selectiveEraseActive && isEmpty(pc, pr)) {
-                            set(pc, pr, selected);
-                            if (selected === ELEMENTS.PLANT) plantColor[idx(pc, pr)] = Math.floor(Math.random() * 256);
+            for(let dr = -radius; dr <= radius; dr++) {
+                for(let dc = -radius; dc <= radius; dc++) {
+                    if(dc*dc + dr*dr <= radiusSq) {
+                        const pc = col+dc, pr = row+dr;
+                        if(!inBounds(pc,pr)) continue;
+                        if (eraseMode) set(pc,pr,ELEMENTS.EMPTY);
+                        else if (selectiveEraseActive && get(pc,pr) === selected) set(pc,pr,ELEMENTS.EMPTY);
+                        else if (!eraseMode && !selectiveEraseActive && isEmpty(pc,pr)) {
+                            set(pc,pr,selected);
+                            if(selected === ELEMENTS.PLANT) plantColor[idx(pc,pr)] = Math.floor(Math.random()*256);
                         }
                     }
                 }
             }
         }
     }
-
-    function clearAll() { grid.fill(ELEMENTS.EMPTY); plantColor.fill(0); }
+    function clearAll() { grid.fill(ELEMENTS.EMPTY); plantColor.fill(0); fuse.fill(0); }
 
     function gridPos(e) {
         const rect = canvas.getBoundingClientRect();
         const sx = DISPLAY_WIDTH / rect.width, sy = DISPLAY_HEIGHT / rect.height;
-        return {
-            col: Math.floor((e.clientX-rect.left)*sx / CELL_SCALE),
-            row: Math.floor((e.clientY-rect.top)*sy / CELL_SCALE)
-        };
+        return { col: Math.floor((e.clientX-rect.left)*sx / CELL_SCALE), row: Math.floor((e.clientY-rect.top)*sy / CELL_SCALE) };
     }
 
-    // Use window-level events for line preview so it works outside canvas
     canvas.addEventListener('mousedown', e => {
         if(e.button === 0) {
             const p = gridPos(e);
             mouseCol = p.col; mouseRow = p.row;
             if(shiftHeld) {
                 lineMode = true;
-                lineStartCol = p.col;
-                lineStartRow = p.row;
-                lineEndCol = p.col;
-                lineEndRow = p.row;
+                lineStartCol = p.col; lineStartRow = p.row;
+                lineEndCol = p.col; lineEndRow = p.row;
                 mouseDown = true;
-            } else {
-                mouseDown = true;
-                paintAt(p.col, p.row);
-            }
+            } else { mouseDown = true; paintAt(p.col, p.row); }
             e.preventDefault();
         }
     });
-
     window.addEventListener('mousemove', e => {
         const p = gridPos(e);
         mouseCol = p.col; mouseRow = p.row;
-        if(lineMode) {
-            lineEndCol = p.col;
-            lineEndRow = p.row;
-        } else if(mouseDown) {
-            paintAt(p.col, p.row);
-        }
+        if(lineMode) { lineEndCol = p.col; lineEndRow = p.row; }
+        else if(mouseDown) paintAt(p.col, p.row);
     });
-
     window.addEventListener('mouseup', e => {
-        if(lineMode) {
-            paintLine(lineStartCol, lineStartRow, lineEndCol, lineEndRow);
-            lineMode = false;
-            lineStartCol = -1; lineStartRow = -1;
-            lineEndCol = -1; lineEndRow = -1;
-        }
+        if(lineMode) { paintLine(lineStartCol, lineStartRow, lineEndCol, lineEndRow); lineMode = false; }
         mouseDown = false;
     });
-
-    canvas.addEventListener('mouseleave', () => {
-        // Don't cancel line mode; only reset mouseCol/Row if not in line mode
-        if (!lineMode) {
-            mouseCol = -1; mouseRow = -1;
-        }
-    });
-
-    canvas.addEventListener('mouseenter', () => {
-        // Just to be safe; mousemove will update position anyway
-    });
-
+    canvas.addEventListener('mouseleave', () => { if(!lineMode) { mouseCol = -1; mouseRow = -1; } });
     canvas.addEventListener('touchstart', e => {
-        e.preventDefault();
-        const p = gridPos(e.touches[0]);
-        mouseCol = p.col; mouseRow = p.row;
-        mouseDown = true;
-        paintAt(p.col, p.row);
+        e.preventDefault(); mouseDown = true;
+        const p = gridPos(e.touches[0]); mouseCol = p.col; mouseRow = p.row; paintAt(p.col, p.row);
     });
     canvas.addEventListener('touchmove', e => {
-        e.preventDefault();
-        const p = gridPos(e.touches[0]);
-        mouseCol = p.col; mouseRow = p.row;
+        e.preventDefault(); const p = gridPos(e.touches[0]); mouseCol = p.col; mouseRow = p.row;
         if(mouseDown) paintAt(p.col, p.row);
     });
-    canvas.addEventListener('touchend', e => {
-        e.preventDefault();
-        mouseDown = false;
-    });
+    canvas.addEventListener('touchend', e => { e.preventDefault(); mouseDown = false; });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
 
     // ── UI ─────────────────────────────────────
@@ -785,6 +715,7 @@
     const selectiveTargetSpan = document.getElementById('selectiveTarget');
     const btnClear = document.getElementById('btnClear');
     const btnPause = document.getElementById('btnPause');
+    const btnWoodToggle = document.getElementById('btnWoodToggle');
     const brushSlider = document.getElementById('brushSize');
     const brushDisplay = document.getElementById('brushDisplay');
     const speedSlider = document.getElementById('speedSlider');
@@ -794,7 +725,7 @@
         ELEMENTS.SAND, ELEMENTS.WATER, ELEMENTS.STONE, ELEMENTS.WOOD,
         ELEMENTS.FIRE, ELEMENTS.LAVA, ELEMENTS.SMOKE, ELEMENTS.STEAM,
         ELEMENTS.SEED, ELEMENTS.PLANT, ELEMENTS.DIRT, ELEMENTS.BUG,
-        ELEMENTS.CLONER, ELEMENTS.ACID
+        ELEMENTS.CLONER, ELEMENTS.ACID, ELEMENTS.EXPLOSIVE, ELEMENTS.UNBREAKABLE
     ];
     const materialBtns = {};
     materialOrder.forEach(type => {
@@ -806,33 +737,13 @@
         materialBtns[type] = btn;
     });
 
-    function selectElement(type) {
-        selected = type;
-        eraseMode = false;
-        updateButtons();
-        updateSelectiveEraseButton();
-    }
-    function selectErase() {
-        eraseMode = true;
-        selectiveEraseActive = false;
-        updateButtons();
-        updateSelectiveEraseButton();
-    }
-    function toggleSelectiveErase() {
-        selectiveEraseActive = !selectiveEraseActive;
-        eraseMode = false;
-        updateButtons();
-        updateSelectiveEraseButton();
-    }
-    function togglePause() {
-        paused = !paused;
-        btnPause.textContent = paused ? '▶️ Resume' : '⏯️ Pause';
-        btnPause.classList.toggle('paused', paused);
-    }
+    function selectElement(type) { selected=type; eraseMode=false; updateButtons(); updateSelectiveEraseButton(); }
+    function selectErase() { eraseMode=true; selectiveEraseActive=false; updateButtons(); updateSelectiveEraseButton(); }
+    function toggleSelectiveErase() { selectiveEraseActive=!selectiveEraseActive; eraseMode=false; updateButtons(); updateSelectiveEraseButton(); }
+    function togglePause() { paused=!paused; btnPause.textContent = paused ? '▶️ Resume' : '⏯️ Pause'; btnPause.classList.toggle('paused', paused); }
+    function toggleWoodConversion() { woodConversion=!woodConversion; btnWoodToggle.textContent = woodConversion ? '🪵 Wood: ON' : '🪵 Wood: OFF'; btnWoodToggle.classList.toggle('off', !woodConversion); }
     function updateButtons() {
-        Object.entries(materialBtns).forEach(([t,btn])=> {
-            btn.classList.toggle('selected', !eraseMode && !selectiveEraseActive && parseInt(t)===selected);
-        });
+        Object.entries(materialBtns).forEach(([t,btn])=> btn.classList.toggle('selected', !eraseMode && !selectiveEraseActive && parseInt(t)===selected));
         btnErase.classList.toggle('selected', eraseMode);
     }
     function updateSelectiveEraseButton() {
@@ -844,68 +755,33 @@
     btnSelectiveErase.addEventListener('click', toggleSelectiveErase);
     btnClear.addEventListener('click', clearAll);
     btnPause.addEventListener('click', togglePause);
-    brushSlider.addEventListener('input', ()=>{
-        brushSize = parseInt(brushSlider.value);
-        brushDisplay.textContent = brushSize;
-    });
-    speedSlider.addEventListener('input', ()=>{
-        const val = parseInt(speedSlider.value);
-        simSpeed = val/100;
-        speedDisplay.textContent = val+'%';
-    });
+    btnWoodToggle.addEventListener('click', toggleWoodConversion);
+    brushSlider.addEventListener('input', ()=>{ brushSize=parseInt(brushSlider.value); brushDisplay.textContent=brushSize; });
+    speedSlider.addEventListener('input', ()=>{ const val=parseInt(speedSlider.value); simSpeed=val/100; speedDisplay.textContent=val+'%'; });
     speedDisplay.textContent = '50%';
 
     window.addEventListener('keydown', e => {
         const key = e.key.toLowerCase();
-        if(e.key === 'Shift') {
-            shiftHeld = true;
-            e.preventDefault();
-        } else if(key === 'e') {
-            selectErase();
-        } else if(key === 'r') {
-            toggleSelectiveErase();
-        } else if(key === 'c') {
-            clearAll();
-        } else if(key === ' ') {
-            e.preventDefault();
-            togglePause();
-        } else if(key === '[' || key === '-') {
-            brushSize = Math.max(1, brushSize-1);
-            brushSlider.value = brushSize;
-            brushDisplay.textContent = brushSize;
-        } else if(key === ']' || key === '=') {
-            brushSize = Math.min(20, brushSize+1);
-            brushSlider.value = brushSize;
-            brushDisplay.textContent = brushSize;
-        } else if(key === 'l') {
-            selectElement(ELEMENTS.CLONER);
-        } else if(key === 'd') {
-            selectElement(ELEMENTS.DIRT);
-        } else if(key === 'b') {
-            selectElement(ELEMENTS.BUG);
-        } else if(key === 'a') {
-            selectElement(ELEMENTS.ACID);
-        } else if(key === '9') {
-            selectElement(ELEMENTS.SEED);
-        } else if(key === '0') {
-            selectElement(ELEMENTS.PLANT);
-        } else if(key >= '1' && key <= '8') {
-            const idx = parseInt(key)-1;
-            if(idx < 8) selectElement(materialOrder[idx]);
-        }
+        if(e.key === 'Shift') { shiftHeld=true; e.preventDefault(); }
+        else if(key==='e') selectErase();
+        else if(key==='r') toggleSelectiveErase();
+        else if(key==='w') toggleWoodConversion();
+        else if(key==='c') clearAll();
+        else if(key===' ') { e.preventDefault(); togglePause(); }
+        else if(key==='['||key==='-') { brushSize=Math.max(1,brushSize-1); brushSlider.value=brushSize; brushDisplay.textContent=brushSize; }
+        else if(key===']'||key==='=') { brushSize=Math.min(20,brushSize+1); brushSlider.value=brushSize; brushDisplay.textContent=brushSize; }
+        else if(key==='x') selectElement(ELEMENTS.EXPLOSIVE);
+        else if(key==='u') selectElement(ELEMENTS.UNBREAKABLE);
+        else if(key==='l') selectElement(ELEMENTS.CLONER);
+        else if(key==='d') selectElement(ELEMENTS.DIRT);
+        else if(key==='b') selectElement(ELEMENTS.BUG);
+        else if(key==='a') selectElement(ELEMENTS.ACID);
+        else if(key==='9') selectElement(ELEMENTS.SEED);
+        else if(key==='0') selectElement(ELEMENTS.PLANT);
+        else if(key>='1'&&key<='8') { const idx=parseInt(key)-1; if(idx<8) selectElement(materialOrder[idx]); }
     });
-
     window.addEventListener('keyup', e => {
-        if(e.key === 'Shift') {
-            shiftHeld = false;
-            if(lineMode) {
-                lineMode = false;
-                lineStartCol = -1; lineStartRow = -1;
-                lineEndCol = -1; lineEndRow = -1;
-                mouseDown = false;
-            }
-            e.preventDefault();
-        }
+        if(e.key === 'Shift') { shiftHeld=false; if(lineMode){ lineMode=false; mouseDown=false; } e.preventDefault(); }
     });
 
     updateButtons();
@@ -916,32 +792,17 @@
     (function addTerrain() {
         const ground = ROWS-8;
         for(let c=0;c<COLS;c++) for(let r=ground;r<ROWS;r++) set(c,r,ELEMENTS.STONE);
-        for(let c=0;c<COLS;c++) {
-            const h = ground - Math.floor(Math.random()*6);
-            for(let r=h;r<ground;r++) set(c,r, Math.random()<0.7?ELEMENTS.STONE:ELEMENTS.SAND);
-        }
+        for(let c=0;c<COLS;c++) { const h = ground - Math.floor(Math.random()*6); for(let r=h;r<ground;r++) set(c,r, Math.random()<0.7?ELEMENTS.STONE:ELEMENTS.SAND); }
         const basinS=60, basinE=140;
-        for(let c=basinS;c<basinE;c++) {
-            const depth = Math.floor(Math.sin((c-basinS)/(basinE-basinS)*Math.PI)*25);
-            for(let r=ground-depth; r<ground; r++) if(isEmpty(c,r)) set(c,r,ELEMENTS.EMPTY);
-        }
-        for(let c=20;c<35;c++) for(let r=ground-15;r<ground;r++)
-            if(c===20||c===34||r===ground-1) set(c,r,ELEMENTS.WOOD);
-        set(45,ground-1,ELEMENTS.SEED);
-        set(47,ground-1,ELEMENTS.SEED);
-        set(150,ground-1,ELEMENTS.SEED);
-        set(180,ground-1,ELEMENTS.CLONER);
+        for(let c=basinS;c<basinE;c++) { const depth = Math.floor(Math.sin((c-basinS)/(basinE-basinS)*Math.PI)*25); for(let r=ground-depth; r<ground; r++) if(isEmpty(c,r)) set(c,r,ELEMENTS.EMPTY); }
+        for(let c=20;c<35;c++) for(let r=ground-15;r<ground;r++) if(c===20||c===34||r===ground-1) set(c,r,ELEMENTS.WOOD);
+        set(45,ground-1,ELEMENTS.SEED); set(47,ground-1,ELEMENTS.SEED); set(150,ground-1,ELEMENTS.SEED); set(180,ground-1,ELEMENTS.CLONER);
     })();
 
     function loop() {
         frameCount++;
-        if(!paused) {
-            simAcc += simSpeed;
-            while(simAcc >= 1) { simulate(); simAcc--; }
-        }
-        if(mouseDown && !lineMode && inBounds(mouseCol, mouseRow)) {
-            paintAt(mouseCol, mouseRow);
-        }
+        if(!paused) { simAcc += simSpeed; while(simAcc >= 1) { simulate(); simAcc--; } }
+        if(mouseDown && !lineMode && inBounds(mouseCol, mouseRow)) paintAt(mouseCol, mouseRow);
         render();
         requestAnimationFrame(loop);
     }
