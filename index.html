@@ -43,7 +43,7 @@
             min-height: 100vh;
         }
 
-        /* ── Particle Canvas ── */
+        /* Particle Canvas */
         #particles {
             position: fixed;
             top: 0;
@@ -54,7 +54,7 @@
             z-index: 0;
         }
 
-        /* ── Scanline overlay ── */
+        /* Scanline overlay */
         .scanlines {
             position: fixed;
             top: 0;
@@ -70,7 +70,6 @@
                     rgba(0, 0, 0, 0.03) 4px);
         }
 
-        /* ── Main container ── */
         .container {
             position: relative;
             z-index: 1;
@@ -79,7 +78,7 @@
             padding: 0 24px;
         }
 
-        /* ── Navigation ── */
+        /* Navigation */
         nav {
             position: relative;
             z-index: 10;
@@ -98,18 +97,12 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            text-shadow: none;
             filter: drop-shadow(0 0 12px rgba(179, 71, 234, 0.6));
             animation: logoGlow 3s ease-in-out infinite;
         }
         @keyframes logoGlow {
-            0%,
-            100% {
-                filter: drop-shadow(0 0 12px rgba(179, 71, 234, 0.6));
-            }
-            50% {
-                filter: drop-shadow(0 0 24px rgba(0, 229, 255, 0.8));
-            }
+            0%, 100% { filter: drop-shadow(0 0 12px rgba(179, 71, 234, 0.6)); }
+            50% { filter: drop-shadow(0 0 24px rgba(0, 229, 255, 0.8)); }
         }
         .nav-links {
             display: flex;
@@ -146,7 +139,7 @@
             width: 100%;
         }
 
-        /* ── Hero ── */
+        /* Hero */
         .hero {
             text-align: center;
             padding: 80px 20px 60px;
@@ -167,13 +160,8 @@
             animation: pulseBadge 2s ease-in-out infinite;
         }
         @keyframes pulseBadge {
-            0%,
-            100% {
-                box-shadow: 0 0 0px rgba(255, 45, 117, 0);
-            }
-            50% {
-                box-shadow: 0 0 25px rgba(255, 45, 117, 0.4);
-            }
+            0%, 100% { box-shadow: 0 0 0px rgba(255, 45, 117, 0); }
+            50% { box-shadow: 0 0 25px rgba(255, 45, 117, 0.4); }
         }
         .hero h1 {
             font-size: clamp(2.5rem, 6vw, 5rem);
@@ -194,13 +182,8 @@
             animation: accentShift 4s ease-in-out infinite;
         }
         @keyframes accentShift {
-            0%,
-            100% {
-                filter: hue-rotate(0deg);
-            }
-            50% {
-                filter: hue-rotate(25deg);
-            }
+            0%, 100% { filter: hue-rotate(0deg); }
+            50% { filter: hue-rotate(25deg); }
         }
         .hero p {
             font-size: 1.15rem;
@@ -251,7 +234,7 @@
             transform: translateY(-3px);
         }
 
-        /* ── Section Titles ── */
+        /* Section Titles */
         .section-title {
             text-align: center;
             margin-bottom: 48px;
@@ -272,7 +255,7 @@
             box-shadow: var(--glow-cyan);
         }
 
-        /* ── Games Grid ── */
+        /* Games Grid */
         .games-section {
             padding: 40px 0 80px;
         }
@@ -321,18 +304,6 @@
             justify-content: center;
             font-size: 5rem;
             border-bottom: 1px solid var(--border);
-        }
-        .game-thumb .thumb-bg {
-            position: absolute;
-            inset: 0;
-            opacity: 0.25;
-            background-size: cover;
-            background-position: center;
-            transition: transform 0.5s, opacity 0.5s;
-        }
-        .game-card:hover .thumb-bg {
-            transform: scale(1.08);
-            opacity: 0.4;
         }
         .game-thumb .emoji-icon {
             position: relative;
@@ -393,6 +364,10 @@
             color: var(--neon-yellow);
             font-weight: 700;
             font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
         .play-btn {
             padding: 9px 20px;
@@ -414,7 +389,7 @@
             transform: scale(1.05);
         }
 
-        /* ── About Section ── */
+        /* About Section */
         .about-section {
             padding: 60px 0 80px;
             text-align: center;
@@ -432,7 +407,7 @@
             font-weight: 600;
         }
 
-        /* ── Footer ── */
+        /* Footer */
         footer {
             text-align: center;
             padding: 32px 0 40px;
@@ -446,22 +421,11 @@
             animation: heartbeat 1.2s ease-in-out infinite;
         }
         @keyframes heartbeat {
-            0%,
-            100% {
-                transform: scale(1);
-            }
-            15% {
-                transform: scale(1.25);
-            }
-            30% {
-                transform: scale(1);
-            }
-            45% {
-                transform: scale(1.2);
-            }
-            60% {
-                transform: scale(1);
-            }
+            0%, 100% { transform: scale(1); }
+            15% { transform: scale(1.25); }
+            30% { transform: scale(1); }
+            45% { transform: scale(1.2); }
+            60% { transform: scale(1); }
         }
         .social-links {
             display: flex;
@@ -481,7 +445,7 @@
             color: var(--neon-cyan);
         }
 
-        /* ── Hit Counter fixed bottom‑right ── */
+        /* Hit Counter */
         .hit-counter {
             position: fixed;
             bottom: 16px;
@@ -489,11 +453,8 @@
             z-index: 1000;
             opacity: 0.6;
             transition: opacity 0.3s;
-            pointer-events: auto; /* so the link is clickable */
         }
-        .hit-counter:hover {
-            opacity: 1;
-        }
+        .hit-counter:hover { opacity: 1; }
         .hit-counter img {
             display: block;
             border-radius: 8px;
@@ -501,55 +462,158 @@
             padding: 2px 4px;
         }
 
-        /* ── Responsive ── */
+        /* ── RATING MODAL ── */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(6px);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 28px;
+            position: relative;
+            color: var(--text);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(179,71,234,0.3);
+        }
+        .modal-close {
+            position: absolute;
+            top: 16px; right: 20px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.8rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .modal-close:hover { color: var(--neon-pink); }
+        .modal h2 {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+        }
+        .modal .game-description {
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+        .rating-section {
+            margin: 20px 0;
+        }
+        .stars {
+            display: flex;
+            gap: 6px;
+            margin: 8px 0;
+        }
+        .star {
+            font-size: 2rem;
+            color: #444;
+            cursor: pointer;
+            transition: color 0.1s, transform 0.1s;
+        }
+        .star.active {
+            color: var(--neon-yellow);
+            text-shadow: 0 0 10px var(--neon-yellow);
+        }
+        .star:hover { transform: scale(1.2); }
+        .rating-display {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+        }
+        .comment-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .comment-form textarea {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            color: var(--text);
+            font-family: inherit;
+            resize: vertical;
+            min-height: 80px;
+        }
+        .comment-form button {
+            align-self: flex-end;
+            padding: 10px 24px;
+            border-radius: 50px;
+            background: var(--neon-purple);
+            border: none;
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            transition: box-shadow 0.3s;
+        }
+        .comment-form button:hover {
+            box-shadow: 0 0 20px rgba(179,71,234,0.6);
+        }
+        .comments-list {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            border-top: 1px solid var(--border);
+            padding-top: 16px;
+        }
+        .comment-item {
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+        }
+        .comment-item .comment-text {
+            color: #ddd;
+        }
+        .comment-item .comment-date {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Responsive */
         @media (max-width: 768px) {
-            .hero {
-                padding: 50px 16px 40px;
-            }
-            .games-grid {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-            .nav-links {
-                gap: 16px;
-            }
-            .nav-logo {
-                font-size: 1.4rem;
-            }
-            .game-thumb {
-                height: 160px;
-                font-size: 3.5rem;
-            }
-            .hit-counter {
-                bottom: 10px;
-                right: 10px;
-            }
+            .hero { padding: 50px 16px 40px; }
+            .games-grid { grid-template-columns: 1fr; gap: 20px; }
+            .nav-links { gap: 16px; }
+            .nav-logo { font-size: 1.4rem; }
+            .game-thumb { height: 160px; font-size: 3.5rem; }
+            .hit-counter { bottom: 10px; right: 10px; }
+            .modal { padding: 20px; }
         }
         @media (max-width: 400px) {
-            .hero h1 {
-                font-size: 2rem;
-            }
-            .btn {
-                padding: 12px 20px;
-                font-size: 0.85rem;
-            }
-            .game-card {
-                border-radius: 16px;
-            }
+            .hero h1 { font-size: 2rem; }
+            .btn { padding: 12px 20px; font-size: 0.85rem; }
+            .game-card { border-radius: 16px; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Particle canvas -->
     <canvas id="particles"></canvas>
-
-    <!-- Subtle scanlines -->
     <div class="scanlines"></div>
 
-    <!-- Main Content -->
     <div class="container">
-        <!-- Navigation -->
         <nav>
             <div class="nav-logo">🎮 GameVault</div>
             <ul class="nav-links">
@@ -559,32 +623,24 @@
             </ul>
         </nav>
 
-        <!-- Hero -->
         <section class="hero">
             <div class="hero-badge">🚀 Indie Game Developer</div>
             <h1>My <span class="accent">Game</span> Collection</h1>
-            <p>
-                A curated showcase of games I've built with passion, pixels, and code.
-                Each one is a little world waiting to be explored. Scroll down to play!
-            </p>
+            <p>A curated showcase of games I've built with passion, pixels, and code. Each one is a little world waiting to be explored. Scroll down to play!</p>
             <div class="hero-buttons">
                 <a href="#games" class="btn btn-primary">🎯 Browse Games</a>
                 <a href="#about" class="btn btn-secondary">👋 About Me</a>
             </div>
         </section>
 
-        <!-- Games Section -->
         <section class="games-section" id="games">
             <div class="section-title">
                 <h2>🕹️ My Games</h2>
                 <span class="line"></span>
             </div>
-            <div class="games-grid" id="gamesGrid">
-                <!-- Game cards injected by JS -->
-            </div>
+            <div class="games-grid" id="gamesGrid"></div>
         </section>
 
-        <!-- About Section -->
         <section class="about-section" id="about">
             <div class="section-title">
                 <h2>👾 About the Creator</h2>
@@ -598,7 +654,6 @@
             </p>
         </section>
 
-        <!-- Footer -->
         <footer id="contact">
             <p>Built with <span class="heart">❤️</span> and lots of late nights</p>
             <div class="social-links">
@@ -612,19 +667,25 @@
         </footer>
     </div>
 
-    <!-- Hit counter fixed to bottom‑right corner -->
+    <!-- Hit counter -->
     <div class="hit-counter">
-        <!-- hitwebcounter Code START -->
         <a href="https://www.hitwebcounter.com/" target="_blank" rel="noopener" title="https://www.hitwebcounter.com/">
-            <img src="https://www.hitwebcounter.com/counter/counter.php?page=21504440&amp;style=0036&amp;nbdigits=4&amp;type=page" alt="https://www.hitwebcounter.com/" decoding="async" style="border:0;max-width:100%;height:auto;" />
+            <img src="https://www.hitwebcounter.com/counter/counter.php?page=21504440&amp;style=0036&amp;nbdigits=4&amp;type=page" alt="hit web counter" decoding="async" style="border:0;max-width:100%;height:auto;" />
         </a>
-        <!-- hitwebcounter Code END -->
+    </div>
+
+    <!-- Rating Modal -->
+    <div class="modal-overlay" id="ratingModal">
+        <div class="modal">
+            <button class="modal-close" id="closeModal">&times;</button>
+            <div id="modalContent"></div>
+        </div>
     </div>
 
     <script>
-        // ─────────────────────────────────────
-        //  PARTICLE SYSTEM (Synthwave vibes)
-        // ─────────────────────────────────────
+        // ────────────────────────────────
+        //  PARTICLE SYSTEM
+        // ────────────────────────────────
         const canvas = document.getElementById('particles');
         const ctx = canvas.getContext('2d');
         let particles = [];
@@ -648,7 +709,7 @@
         class Particle {
             constructor() {
                 this.reset();
-                this.y = Math.random() * canvas.height; // start scattered
+                this.y = Math.random() * canvas.height;
             }
             reset() {
                 this.x = Math.random() * canvas.width;
@@ -657,14 +718,13 @@
                 this.speedY = Math.random() * 0.8 + 0.3;
                 this.speedX = (Math.random() - 0.5) * 0.4;
                 this.opacity = Math.random() * 0.6 + 0.2;
-                this.hue = Math.random() < 0.5 ? 195 : 285; // cyan or purple
+                this.hue = Math.random() < 0.5 ? 195 : 285;
                 this.twinkleSpeed = Math.random() * 0.02 + 0.005;
                 this.twinkleOffset = Math.random() * Math.PI * 2;
             }
             update() {
                 this.y += this.speedY;
                 this.x += this.speedX;
-                // Gentle sway toward mouse
                 const dx = mouse.x - this.x;
                 const dy = mouse.y - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -682,8 +742,7 @@
                 const alpha = this.opacity * twinkle;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                const color =
-                    this.hue === 195 ?
+                const color = this.hue === 195 ?
                     `hsla(195, 100%, 65%, ${alpha})` :
                     `hsla(285, 90%, 65%, ${alpha})`;
                 ctx.fillStyle = color;
@@ -694,27 +753,19 @@
             }
         }
 
-        const PARTICLE_COUNT = 100;
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-            particles.push(new Particle());
-        }
-
+        for (let i = 0; i < 100; i++) particles.push(new Particle());
         let frame = 0;
-
         function animateParticles() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            particles.forEach(p => {
-                p.update();
-                p.draw(ctx, frame);
-            });
+            particles.forEach(p => { p.update(); p.draw(ctx, frame); });
             frame++;
             requestAnimationFrame(animateParticles);
         }
         animateParticles();
 
-        // ─────────────────────────────────────
-        //  GAME DATA — Edit this to add your games!
-        // ─────────────────────────────────────
+        // ────────────────────────────────
+        //  GAME DATA
+        // ────────────────────────────────
         const games = [{
             id: 1,
             title: "Anti-Platformer",
@@ -722,7 +773,6 @@
             thumbBg: "linear-gradient(135deg, #1a1a3e, #2d1b4e)",
             description: "Anti‑Platformer is a chaotic 2D platformer where the level itself actively works against you. Your goal is simple: reach the glowing door at the end of each level to win. But everything – the ground, the walls, the platforms, even the exit door itself – will try to stop you.",
             tags: ["Platformer", "Single Player"],
-            rating: "⭐ 4.8",
             link: "games/Anti-Platformer.html",
             highlightTag: "Platformer",
         }, {
@@ -732,7 +782,6 @@
             thumbBg: "linear-gradient(135deg, #1e1a30, #2a1040)",
             description: "Blast through waves of enemies with your ship and an army of loyal drones! Stack crazy power‑ups, defeat colossal bosses, and spend your loot to become unstoppable.",
             tags: ["2D", "Space Shooter", "Arcade"],
-            rating: "⭐ 4.6",
             link: "games/Galaxy-Drone-Force.html",
             highlightTag: "Space Shooter",
         }, {
@@ -740,9 +789,8 @@
             title: "Riot Arena",
             emoji: "🎮",
             thumbBg: "linear-gradient(135deg, #1a2025, #1a0a2e)",
-            description: "A chaotic top‑down team shooter where you battle alongside AI bots in a destructible city. Drive cars, wield a variety of guns (from pistols to sniper rifles), throw grenades, and place walls – all while healing teammates with your bullets and ramming through obstacles. The arena is alive with explosions, disruptor shields, and unpredictable bot behavior, making every match a frantic fight for survival.",
+            description: "A chaotic top‑down team shooter where you battle alongside AI bots in a destructible city. Drive cars, wield a variety of guns, throw grenades, and place walls – all while healing teammates with your bullets.",
             tags: ["Shooter", "Arena", "Singleplayer"],
-            rating: "⭐ 4.9",
             link: "games/Riot Arena.html",
             highlightTag: "Shooter",
         }, {
@@ -752,7 +800,6 @@
             thumbBg: "linear-gradient(135deg, #0d0d18, #1a0f0f)",
             description: "A moody dungeon crawler where light is your only weapon. Explore procedurally generated caves filled with eerie creatures.",
             tags: ["Roguelike", "Horror", "Dungeon Crawl"],
-            rating: "⭐ 4.7",
             link: "#play-shadow-depths",
             highlightTag: "Roguelike",
         }, {
@@ -762,7 +809,6 @@
             thumbBg: "linear-gradient(135deg, #1a2a1a, #1e1a30)",
             description: "A cozy gardening sim where you cultivate magical plants, befriend forest spirits, and restore a forgotten sanctuary.",
             tags: ["Simulation", "Cozy", "Relaxing"],
-            rating: "⭐ 4.5",
             link: "#play-bloom-garden",
             highlightTag: "Cozy",
         }, {
@@ -770,58 +816,186 @@
             title: "ShroomForge",
             emoji: "🍄",
             thumbBg: "linear-gradient(135deg, #1a1025, #200a20)",
-            description: "ShroomForge is a floaty 2D platformer where you play as a mushroom, stomping enemies and bumping lucky blocks to grow big or earn extra lives. Build your own worlds with the built-in editor—paint bricks, place infinite lucky blocks, and spawn enemies directly onto the canvas—then playtest your creation instantly. Crouch to squeeze under tight spaces, race to the finish flag, and restart with a fresh random level anytime.",
+            description: "ShroomForge is a floaty 2D platformer where you play as a mushroom, stomping enemies and bumping lucky blocks. Build your own worlds with the built-in editor!",
             tags: ["Platformer", "level-Editor", "Mushroom"],
-            rating: "⭐ 4.5",
             link: "games/ShroomForge.html",
             highlightTag: "Platformer",
-        }, ];
+        }];
 
-        // ─────────────────────────────────────
+        // ────────────────────────────────
+        //  LOCAL STORAGE RATINGS & COMMENTS
+        // ────────────────────────────────
+        function getGameData(gameId) {
+            const key = `game_${gameId}`;
+            const stored = localStorage.getItem(key);
+            if (stored) {
+                try { return JSON.parse(stored); } catch(e) { return { ratings: [], comments: [] }; }
+            }
+            return { ratings: [], comments: [] };
+        }
+
+        function saveGameData(gameId, data) {
+            localStorage.setItem(`game_${gameId}`, JSON.stringify(data));
+        }
+
+        function getAverageRating(gameId) {
+            const data = getGameData(gameId);
+            if (data.ratings.length === 0) return 0;
+            const sum = data.ratings.reduce((a, b) => a + b, 0);
+            return (sum / data.ratings.length).toFixed(1);
+        }
+
+        function getCommentCount(gameId) {
+            return getGameData(gameId).comments.length;
+        }
+
+        // ────────────────────────────────
         //  RENDER GAME CARDS
-        // ─────────────────────────────────────
+        // ────────────────────────────────
         const gamesGrid = document.getElementById('gamesGrid');
 
         function renderGames() {
             gamesGrid.innerHTML = '';
             games.forEach((game) => {
+                const avgRating = getAverageRating(game.id);
+                const commentCount = getCommentCount(game.id);
                 const card = document.createElement('div');
                 card.className = 'game-card';
                 card.innerHTML = `
-                <div class="card-glow"></div>
-                <div class="game-thumb" style="background: ${game.thumbBg};">
-                  <span class="emoji-icon">${game.emoji}</span>
-                </div>
-                <div class="game-info">
-                  <h3>${game.title}</h3>
-                  <div class="game-tags">
-                    ${game.tags.map(t => {
-                      const isHighlight = t === game.highlightTag;
-                      return `<span class="tag${isHighlight ? ' highlight' : ''}">${t}</span>`;
-                    }).join('')}
-                  </div>
-                  <p>${game.description}</p>
-                  <div class="game-meta">
-                    <span class="game-rating">${game.rating}</span>
-                    <a href="${game.link}" class="play-btn" onclick="alert('🔜 This would launch: ${game.title}!\\n\\nReplace the link in the games array with your actual game URL.')">▶ Play</a>
-                  </div>
-                </div>
-              `;
-                // Card click (except when clicking the play button)
+                    <div class="card-glow"></div>
+                    <div class="game-thumb" style="background: ${game.thumbBg};">
+                        <span class="emoji-icon">${game.emoji}</span>
+                    </div>
+                    <div class="game-info">
+                        <h3>${game.title}</h3>
+                        <div class="game-tags">
+                            ${game.tags.map(t => {
+                                const isHighlight = t === game.highlightTag;
+                                return `<span class="tag${isHighlight ? ' highlight' : ''}">${t}</span>`;
+                            }).join('')}
+                        </div>
+                        <p>${game.description}</p>
+                        <div class="game-meta">
+                            <span class="game-rating" data-gameid="${game.id}">
+                                ⭐ ${avgRating} (${commentCount})
+                            </span>
+                            <a href="${game.link}" class="play-btn">▶ Play</a>
+                        </div>
+                    </div>`;
+                // Open modal on card click (except play button)
                 card.addEventListener('click', (e) => {
                     if (e.target.closest('.play-btn')) return;
-                    alert(
-                        `🎮 "${game.title}"\n\n${game.description}\n\nTags: ${game.tags.join(', ')}\nRating: ${game.rating}\n\n🔗 Update the "link" field in the games array to point to your actual game!`
-                        );
+                    openRatingModal(game.id);
                 });
                 gamesGrid.appendChild(card);
             });
         }
         renderGames();
 
-        // ─────────────────────────────────────
-        //  SMOOTH SCROLL FOR NAV LINKS
-        // ─────────────────────────────────────
+        // ────────────────────────────────
+        //  RATING MODAL
+        // ────────────────────────────────
+        const modalOverlay = document.getElementById('ratingModal');
+        const modalContent = document.getElementById('modalContent');
+        const closeModalBtn = document.getElementById('closeModal');
+
+        closeModalBtn.addEventListener('click', () => {
+            modalOverlay.classList.remove('active');
+        });
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) modalOverlay.classList.remove('active');
+        });
+
+        function openRatingModal(gameId) {
+            const game = games.find(g => g.id === gameId);
+            if (!game) return;
+
+            const data = getGameData(gameId);
+            const avgRating = getAverageRating(gameId);
+
+            // Build modal HTML
+            let html = `
+                <h2>${game.emoji} ${game.title}</h2>
+                <p class="game-description">${game.description}</p>
+                <div class="rating-display">
+                    <strong>Average Rating:</strong> ⭐ ${avgRating} (${data.ratings.length} votes)
+                </div>
+                <div class="rating-section">
+                    <p><strong>Your Rating:</strong></p>
+                    <div class="stars" id="starsContainer">
+                        ${[1,2,3,4,5].map(i => `<span class="star" data-value="${i}">★</span>`).join('')}
+                    </div>
+                </div>
+                <div class="comment-form">
+                    <textarea id="commentText" placeholder="Write a comment..."></textarea>
+                    <button id="submitCommentBtn">Submit Comment</button>
+                </div>
+                <div class="comments-list" id="commentsList">
+                    ${data.comments.length === 0 ? '<p style="color:var(--text-muted)">No comments yet. Be the first!</p>' : ''}
+                    ${data.comments.map(c => `
+                        <div class="comment-item">
+                            <div class="comment-text">${c.text}</div>
+                            <div class="comment-date">${new Date(c.date).toLocaleString()}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            modalContent.innerHTML = html;
+            modalOverlay.classList.add('active');
+
+            // Star rating logic
+            const stars = document.querySelectorAll('#starsContainer .star');
+            let selectedRating = 0;
+            stars.forEach(star => {
+                star.addEventListener('click', () => {
+                    selectedRating = parseInt(star.dataset.value);
+                    updateStarDisplay(selectedRating);
+                });
+                star.addEventListener('mouseenter', () => {
+                    const val = parseInt(star.dataset.value);
+                    highlightStars(val);
+                });
+                star.addEventListener('mouseleave', () => {
+                    highlightStars(selectedRating);
+                });
+            });
+
+            function highlightStars(value) {
+                stars.forEach(s => {
+                    const starVal = parseInt(s.dataset.value);
+                    s.classList.toggle('active', starVal <= value);
+                });
+            }
+            function updateStarDisplay(value) {
+                highlightStars(value);
+            }
+
+            // Submit comment
+            document.getElementById('submitCommentBtn').addEventListener('click', () => {
+                const commentText = document.getElementById('commentText').value.trim();
+                if (!commentText) return;
+
+                const newData = getGameData(gameId);
+                // If a rating was selected, add it
+                if (selectedRating > 0) {
+                    newData.ratings.push(selectedRating);
+                }
+                newData.comments.push({
+                    text: commentText,
+                    date: Date.now()
+                });
+                saveGameData(gameId, newData);
+
+                // Refresh modal and cards
+                openRatingModal(gameId); // re-render modal with new data
+                renderGames(); // update card rating display
+            });
+        }
+
+        // ────────────────────────────────
+        //  SMOOTH SCROLL
+        // ────────────────────────────────
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
                 const href = this.getAttribute('href');
@@ -834,10 +1008,7 @@
             });
         });
 
-        console.log('%c🎮 GameVault Ready! %cEdit the `games` array to add your own games.',
-            'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
-        console.log('%c💡 Tip: Replace each game\'s `link` with your actual game URL (itch.io, GitHub Pages, etc.)',
-            'color:#00e5ff;');
+        console.log('%c🎮 GameVault Ready! %cRatings and comments enabled.', 'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
     </script>
 </body>
 </html>
