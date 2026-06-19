@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Sandbox – Fire Extinguished by Water & Lava</title>
+    <title>Pixel Sandbox – Acid Dies on Water/Lava</title>
     <style>
         :root {
             --bg: #1a1a2e;
@@ -111,7 +111,7 @@
         </div>
     </div>
     <div class="info-bar">
-        <span>💧💥 Fire, smoke & steam extinguished by water/lava</span>
+        <span>🧪 Acid dies on water/lava (erases both)</span>
         <span><kbd>X</kbd> bomb</span>
         <span><kbd>U</kbd> unbreakable wall</span>
         <span><kbd>Shift</kbd> + drag = straight lines</span>
@@ -414,13 +414,11 @@
     function updateLava(c,r) { flowToLowest(c,r, ELEMENTS.LAVA); checkLavaWater(c,r); }
 
     function updateFire(c,r) {
-        // Instant extinguishing by water or lava
         for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
             const n = get(nc,nr);
             if(n === ELEMENTS.WATER) { set(c,r,ELEMENTS.STEAM); return; }
             if(n === ELEMENTS.LAVA) { set(c,r,ELEMENTS.EMPTY); return; }
         }
-        // Normal fire behavior with reduced smoke
         if(Math.random()<0.04) { set(c,r,ELEMENTS.SMOKE); return; }
         if(Math.random()<0.05 && isEmpty(c,r-1)) set(c,r-1,ELEMENTS.SMOKE);
         const neigh = [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]];
@@ -527,6 +525,16 @@
     }
 
     function updateAcid(c,r) {
+        // Self-destruct on contact with water or lava
+        for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
+            const n = get(nc,nr);
+            if(n === ELEMENTS.WATER || n === ELEMENTS.LAVA) {
+                set(nc,nr, ELEMENTS.EMPTY);  // destroy liquid
+                set(c,r, ELEMENTS.EMPTY);    // acid dies
+                return;
+            }
+        }
+        // gravity
         const below = get(c, r+1);
         if(below === ELEMENTS.EMPTY || below === ELEMENTS.WATER || below === ELEMENTS.BUG) { swap(c,r,c,r+1); return; }
         const dirs = Math.random()<0.5 ? [-1,1] : [1,-1];
@@ -534,6 +542,7 @@
             const belowDiag = get(c+dx, r+1);
             if(belowDiag === ELEMENTS.EMPTY || belowDiag === ELEMENTS.WATER || belowDiag === ELEMENTS.BUG) { swap(c,r,c+dx,r+1); return; }
         }
+        // random destruction (only if not near water/lava, which already returned)
         if(Math.random() < 0.25) {
             for (let i=0; i<3; i++) {
                 const arr = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
