@@ -270,7 +270,7 @@
             box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(179, 71, 234, 0.3);
         }
         .game-card:hover .card-glow {
-            opacity: 0.15;   /* soft glow */
+            opacity: 0.15;
         }
         .card-glow {
             position: absolute;
@@ -426,6 +426,38 @@
         }
         .owner-reset-btn:hover { opacity: 1; background: #ff2d75; color: #fff; }
 
+        /* Password Overlay */
+        .password-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 20000;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .password-overlay.active { opacity: 1; pointer-events: auto; }
+        .password-box {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+            padding: 28px; text-align: center; max-width: 360px; width: 90%;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+        }
+        .password-box h4 { margin-bottom: 16px; color: #fff; }
+        .password-box input[type="password"] {
+            width: 100%; padding: 12px; border-radius: 12px;
+            border: 1px solid var(--border); background: var(--card-bg);
+            color: var(--text); font-size: 1rem; outline: none; margin-bottom: 16px;
+        }
+        .password-box button {
+            padding: 10px 24px; border-radius: 50px; border: none; font-weight: 700;
+            cursor: pointer; margin: 0 6px; transition: box-shadow 0.3s;
+        }
+        .password-box .confirm-btn {
+            background: var(--neon-purple); color: #fff;
+        }
+        .password-box .cancel-btn {
+            background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+        }
+        .password-box .confirm-btn:hover { box-shadow: 0 0 20px rgba(179,71,234,0.6); }
+        .password-box .cancel-btn:hover { border-color: var(--neon-cyan); }
+
         @media (max-width: 768px) {
             .hero { padding: 50px 16px 40px; }
             .games-grid { grid-template-columns: 1fr; gap: 20px; }
@@ -501,13 +533,11 @@
         </footer>
     </div>
 
-    <!-- NEW Hit counter -->
+    <!-- Hit counter -->
     <div class="hit-counter">
-        <!-- hitwebcounter Code START -->
         <a href="https://www.hitwebcounter.com/" target="_blank" rel="noopener" title="Website Stats">
             <img src="https://www.hitwebcounter.com/counter/counter.php?page=21504479&amp;style=0036&amp;nbdigits=5&amp;type=page" alt="Website Stats" decoding="async" style="border:0;max-width:100%;height:auto;" />
         </a>
-        <!-- hitwebcounter Code END -->
     </div>
 
     <!-- Rating Modal -->
@@ -515,6 +545,18 @@
         <div class="modal">
             <button class="modal-close" id="closeModal">&times;</button>
             <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <!-- Password Overlay -->
+    <div class="password-overlay" id="passwordOverlay">
+        <div class="password-box">
+            <h4>🔐 Admin Password</h4>
+            <input type="password" id="passwordInput" placeholder="Enter password" />
+            <div>
+                <button class="cancel-btn" id="cancelPasswordBtn">Cancel</button>
+                <button class="confirm-btn" id="confirmPasswordBtn">Confirm</button>
+            </div>
         </div>
     </div>
 
@@ -536,7 +578,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        const ADMIN_PASSWORD = '132';   // change this
+        const ADMIN_PASSWORD = '1320';   // 👈 change this to your own secret
 
         // ── Particle system ──
         const canvas = document.getElementById('particles');
@@ -580,7 +622,7 @@
         }
         animateParticles();
 
-        // ── Game data (Mobile tags added to first two games) ──
+        // ── Game data (Mobile tags added) ──
         const games = [
             { id:1, title:"Anti-Platformer", emoji:"😈", thumbBg:"linear-gradient(135deg, #1a1a3e, #2d1b4e)", description:"A chaotic 2D platformer where the level itself actively works against you...", tags:["Platformer","Single Player","Mobile"], link:"games/Anti-Platformer.html", highlightTag:"Platformer" },
             { id:2, title:"Galaxy Drone Force", emoji:"🚀", thumbBg:"linear-gradient(135deg, #1e1a30, #2a1040)", description:"Blast through waves of enemies with your ship and an army of loyal drones!", tags:["2D","Space Shooter","Arcade","Mobile"], link:"games/Galaxy-Drone-Force.html", highlightTag:"Space Shooter" },
@@ -656,6 +698,38 @@
         }
         renderGames();
 
+        // ── Password helper ──
+        const passwordOverlay = document.getElementById('passwordOverlay');
+        const passwordInput = document.getElementById('passwordInput');
+        const confirmPasswordBtn = document.getElementById('confirmPasswordBtn');
+        const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
+        let currentPasswordCallback = null;
+
+        function askPassword(callback) {
+            currentPasswordCallback = callback;
+            passwordInput.value = '';
+            passwordOverlay.classList.add('active');
+            passwordInput.focus();
+        }
+
+        function hidePasswordOverlay() {
+            passwordOverlay.classList.remove('active');
+            currentPasswordCallback = null;
+        }
+
+        confirmPasswordBtn.addEventListener('click', () => {
+            const entered = passwordInput.value.trim();
+            if (currentPasswordCallback) {
+                currentPasswordCallback(entered);
+            }
+            hidePasswordOverlay();
+        });
+
+        cancelPasswordBtn.addEventListener('click', hidePasswordOverlay);
+        passwordOverlay.addEventListener('click', (e) => {
+            if (e.target === passwordOverlay) hidePasswordOverlay();
+        });
+
         // ── Modal logic ──
         const modalOverlay = document.getElementById('ratingModal');
         const modalContent = document.getElementById('modalContent');
@@ -703,12 +777,13 @@
                     ${commentsHTML}
                 </div>
                 <div style="text-align:right;">
-                    <button class="owner-reset-btn" id="ownerResetBtn">🗑️ Reset all data</button>
+                    <button class="owner-reset-btn" id="resetStarsBtn">⭐ Reset Stars Only</button>
                 </div>
             `;
             modalContent.innerHTML = html;
             modalOverlay.classList.add('active');
 
+            // Star rating
             const stars = document.querySelectorAll('#starsContainer .star');
             let selectedRating = 0;
             stars.forEach(star => {
@@ -729,6 +804,7 @@
             }
             function updateStarDisplay(value) { highlightStars(value); }
 
+            // Comment submission
             document.getElementById('submitCommentBtn').addEventListener('click', async () => {
                 const text = document.getElementById('commentText').value.trim();
                 if (!text) return;
@@ -738,48 +814,53 @@
                 renderGames();
             });
 
+            // Delete comment (self or admin)
             document.querySelectorAll('.delete-comment-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
+                btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const commentId = btn.dataset.commentId;
                     const commentAuthor = btn.dataset.author;
                     const isOwner = (commentAuthor === authorToken);
 
-                    if (isOwner) {
-                        if (confirm('Delete your comment?')) {
-                            await remove(ref(db, `games/${gameId}/comments/${commentId}`));
-                            openRatingModal(gameId);
-                            renderGames();
-                        }
-                    } else {
-                        const password = prompt('Enter admin password to delete this comment:');
-                        if (password === ADMIN_PASSWORD) {
+                    const deleteAction = async (password) => {
+                        if (isOwner || password === ADMIN_PASSWORD) {
                             await remove(ref(db, `games/${gameId}/comments/${commentId}`));
                             openRatingModal(gameId);
                             renderGames();
                         } else if (password !== null) {
                             alert('Wrong password.');
                         }
+                    };
+
+                    if (isOwner) {
+                        if (confirm('Delete your comment?')) {
+                            deleteAction(ADMIN_PASSWORD); // no password needed for self
+                        }
+                    } else {
+                        askPassword((password) => {
+                            if (password) deleteAction(password);
+                        });
                     }
                 });
             });
 
-            document.getElementById('ownerResetBtn').addEventListener('click', () => {
-                const password = prompt('Enter admin password to reset ALL data for this game:');
-                if (password === ADMIN_PASSWORD) {
-                    if (confirm(`Permanently delete all ratings and comments for "${game.title}"?`)) {
-                        set(ref(db, `games/${gameId}`), null).then(() => {
-                            alert('Data reset successfully!');
-                            modalOverlay.classList.remove('active');
+            // Reset stars only (with password)
+            document.getElementById('resetStarsBtn').addEventListener('click', () => {
+                askPassword(async (password) => {
+                    if (password === ADMIN_PASSWORD) {
+                        if (confirm(`Delete all star ratings for "${game.title}"?`)) {
+                            await set(gameRef(gameId, 'ratings'), null);
+                            openRatingModal(gameId);
                             renderGames();
-                        });
+                        }
+                    } else {
+                        alert('Wrong password.');
                     }
-                } else if (password !== null) {
-                    alert('Wrong password.');
-                }
+                });
             });
         }
 
+        // Smooth scroll
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
                 const href = this.getAttribute('href');
@@ -790,7 +871,7 @@
             });
         });
 
-        console.log('%c🎮 GameVault Ready! %cMobile tags added to first two games.', 'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
+        console.log('%c🎮 GameVault Ready! %cPassword-protected star reset only.', 'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
     </script>
 </body>
 </html>
