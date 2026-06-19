@@ -269,7 +269,9 @@
             border-color: rgba(255, 255, 255, 0.25);
             box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(179, 71, 234, 0.3);
         }
-        .game-card:hover .card-glow { opacity: 1; }
+        .game-card:hover .card-glow {
+            opacity: 0.15;   /* soft glow */
+        }
         .card-glow {
             position: absolute;
             inset: -2px;
@@ -278,8 +280,14 @@
             opacity: 0;
             transition: opacity 0.4s;
             z-index: -1;
-            background: linear-gradient(135deg, var(--neon-purple), var(--neon-cyan), var(--neon-pink));
+            background: linear-gradient(135deg, #1a1025, #1a1a3e, #2d1b4e);
             filter: blur(20px);
+        }
+        .game-card:hover .game-info h3,
+        .game-card:hover .game-info p,
+        .game-card:hover .game-meta,
+        .game-card:hover .game-rating {
+            text-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
         }
         .game-thumb {
             width: 100%;
@@ -349,11 +357,16 @@
         .social-links a { color: var(--text-muted); text-decoration: none; font-weight: 600; transition: color 0.3s; }
         .social-links a:hover { color: var(--neon-cyan); }
 
+        /* Hit Counter */
         .hit-counter {
-            position: fixed; bottom: 16px; right: 16px; z-index: 1000; opacity: 0.6; transition: opacity 0.3s;
+            position: fixed; bottom: 16px; right: 16px; z-index: 1000;
+            opacity: 0.7; transition: opacity 0.3s;
         }
         .hit-counter:hover { opacity: 1; }
-        .hit-counter img { display: block; border-radius: 8px; background: rgba(0,0,0,0.4); padding: 2px 4px; }
+        .hit-counter img {
+            display: block; border-radius: 8px;
+            background: rgba(0,0,0,0.5); padding: 4px 8px;
+        }
 
         /* Rating modal */
         .modal-overlay {
@@ -366,7 +379,8 @@
         .modal {
             background: var(--surface); border: 1px solid var(--border); border-radius: 24px;
             max-width: 650px; width: 90%; max-height: 80vh; overflow-y: auto; padding: 28px;
-            position: relative; color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(179,71,234,0.3);
+            position: relative; color: var(--text);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(179,71,234,0.3);
         }
         .modal-close {
             position: absolute; top: 16px; right: 20px; background: none; border: none;
@@ -405,7 +419,6 @@
         }
         .delete-comment-btn:hover { background: #ff2d75; color: #fff; }
 
-        /* Owner reset button */
         .owner-reset-btn {
             background: none; border: 1px solid #ff2d75; color: #ff2d75;
             padding: 4px 12px; border-radius: 50px; font-size: 0.7rem; cursor: pointer;
@@ -488,11 +501,13 @@
         </footer>
     </div>
 
-    <!-- Hit counter -->
+    <!-- NEW Hit counter -->
     <div class="hit-counter">
-        <a href="https://www.hitwebcounter.com/" target="_blank" rel="noopener" title="https://www.hitwebcounter.com/">
-            <img src="https://www.hitwebcounter.com/counter/counter.php?page=21504440&amp;style=0036&amp;nbdigits=4&amp;type=page" alt="hit web counter" decoding="async" style="border:0;max-width:100%;height:auto;" />
+        <!-- hitwebcounter Code START -->
+        <a href="https://www.hitwebcounter.com/" target="_blank" rel="noopener" title="Website Stats">
+            <img src="https://www.hitwebcounter.com/counter/counter.php?page=21504479&amp;style=0036&amp;nbdigits=5&amp;type=page" alt="Website Stats" decoding="async" style="border:0;max-width:100%;height:auto;" />
         </a>
+        <!-- hitwebcounter Code END -->
     </div>
 
     <!-- Rating Modal -->
@@ -508,7 +523,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
         import { getDatabase, ref, get, child, push, set, remove } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
 
-        // 🔥 Replace with your Firebase config if needed
         const firebaseConfig = {
           apiKey: "AIzaSyDzJQeMOfXarw5sfCjs9cPc1cRs8J_wo6M",
           authDomain: "games-f4f3f.firebaseapp.com",
@@ -522,12 +536,9 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // 👇 CHANGE THIS TO YOUR SECRET ADMIN PASSWORD
-        const ADMIN_PASSWORD = '132456';
+        const ADMIN_PASSWORD = 'reset123';   // change this
 
-        // ────────────────────────────────
-        //  Particle system (unchanged)
-        // ────────────────────────────────
+        // ── Particle system ──
         const canvas = document.getElementById('particles');
         const ctx = canvas.getContext('2d');
         let particles = [];
@@ -569,12 +580,10 @@
         }
         animateParticles();
 
-        // ────────────────────────────────
-        //  Game data (your games)
-        // ────────────────────────────────
+        // ── Game data (Mobile tags added to first two games) ──
         const games = [
-            { id:1, title:"Anti-Platformer", emoji:"😈", thumbBg:"linear-gradient(135deg, #1a1a3e, #2d1b4e)", description:"A chaotic 2D platformer where the level itself actively works against you...", tags:["Platformer","Single Player"], link:"games/Anti-Platformer.html", highlightTag:"Platformer" },
-            { id:2, title:"Galaxy Drone Force", emoji:"🚀", thumbBg:"linear-gradient(135deg, #1e1a30, #2a1040)", description:"Blast through waves of enemies with your ship and an army of loyal drones!", tags:["2D","Space Shooter","Arcade"], link:"games/Galaxy-Drone-Force.html", highlightTag:"Space Shooter" },
+            { id:1, title:"Anti-Platformer", emoji:"😈", thumbBg:"linear-gradient(135deg, #1a1a3e, #2d1b4e)", description:"A chaotic 2D platformer where the level itself actively works against you...", tags:["Platformer","Single Player","Mobile"], link:"games/Anti-Platformer.html", highlightTag:"Platformer" },
+            { id:2, title:"Galaxy Drone Force", emoji:"🚀", thumbBg:"linear-gradient(135deg, #1e1a30, #2a1040)", description:"Blast through waves of enemies with your ship and an army of loyal drones!", tags:["2D","Space Shooter","Arcade","Mobile"], link:"games/Galaxy-Drone-Force.html", highlightTag:"Space Shooter" },
             { id:3, title:"Riot Arena", emoji:"🎮", thumbBg:"linear-gradient(135deg, #1a2025, #1a0a2e)", description:"A chaotic top‑down team shooter where you battle alongside AI bots in a destructible city.", tags:["Shooter","Arena","Singleplayer"], link:"games/Riot Arena.html", highlightTag:"Shooter" },
             { id:4, title:"Sandbox", emoji:"🏜️", thumbBg:"linear-gradient(135deg, #0d0d18, #1a0f0f)", description:"A tiny, chaotic world where every pixel has a mind of its own.", tags:["Sandbox","falling-Sand","Pixel Simulation"], link:"games/Sandbox.html", highlightTag:"Sandbox" },
             { id:5, title:"Riot Arena 10v10", emoji:"🎮", thumbBg:"linear-gradient(135deg, #1a2025, #1a0a2e)", description:"A chaotic top‑down team shooter where you battle alongside AI bots in a destructible city.", tags:["Shooter","Arena","Singleplayer"], link:"games/Riot Arena 10v10.html", highlightTag:"Shooter" },
@@ -582,9 +591,6 @@
             { id:7, title:"ShroomForge", emoji:"🍄", thumbBg:"linear-gradient(135deg, #1a1025, #200a20)", description:"A floaty 2D platformer with a built-in level editor.", tags:["Platformer","level-Editor","Mushroom"], link:"games/ShroomForge.html", highlightTag:"Platformer" }
         ];
 
-        // ────────────────────────────────
-        //  Unique author token for self-delete
-        // ────────────────────────────────
         function getAuthorToken() {
             let token = localStorage.getItem('commentAuthorToken');
             if (!token) {
@@ -594,22 +600,13 @@
             return token;
         }
 
-        // Firebase references
-        function gameRef(gameId, path) {
-            return ref(db, `games/${gameId}/${path}`);
-        }
+        function gameRef(gameId, path) { return ref(db, `games/${gameId}/${path}`); }
 
-        // Fetch ratings for a game
         async function fetchRatings(gameId) {
             const snapshot = await get(child(ref(db), `games/${gameId}/ratings`));
-            if (snapshot.exists()) {
-                const vals = snapshot.val();
-                return Object.values(vals);
-            }
-            return [];
+            return snapshot.exists() ? Object.values(snapshot.val()) : [];
         }
 
-        // Fetch comments for a game
         async function fetchComments(gameId) {
             const snapshot = await get(child(ref(db), `games/${gameId}/comments`));
             if (snapshot.exists()) {
@@ -619,15 +616,10 @@
             return [];
         }
 
-        // Calculate average
         function average(arr) {
-            if (arr.length === 0) return 0;
-            return (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1);
+            return arr.length === 0 ? 0 : (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1);
         }
 
-        // ────────────────────────────────
-        //  Render game cards with live data
-        // ────────────────────────────────
         const gamesGrid = document.getElementById('gamesGrid');
         async function renderGames() {
             gamesGrid.innerHTML = '';
@@ -664,9 +656,7 @@
         }
         renderGames();
 
-        // ────────────────────────────────
-        //  Modal logic
-        // ────────────────────────────────
+        // ── Modal logic ──
         const modalOverlay = document.getElementById('ratingModal');
         const modalContent = document.getElementById('modalContent');
         document.getElementById('closeModal').addEventListener('click', () => modalOverlay.classList.remove('active'));
@@ -681,20 +671,17 @@
             const comments = await fetchComments(gameId);
             const authorToken = getAuthorToken();
 
-            // Build comments list – EVERY comment shows a delete button
             const commentsHTML = comments.length === 0
                 ? '<p style="color:var(--text-muted)">No comments yet.</p>'
-                : comments.map(c => {
-                    return `
-                        <div class="comment-item">
-                            <div class="comment-text">${c.text}</div>
-                            <div class="comment-date">
-                                ${new Date(c.date).toLocaleString()}
-                                <button class="delete-comment-btn" data-comment-id="${c.id}" data-author="${c.authorToken || ''}">🗑️</button>
-                            </div>
+                : comments.map(c => `
+                    <div class="comment-item">
+                        <div class="comment-text">${c.text}</div>
+                        <div class="comment-date">
+                            ${new Date(c.date).toLocaleString()}
+                            <button class="delete-comment-btn" data-comment-id="${c.id}" data-author="${c.authorToken || ''}">🗑️</button>
                         </div>
-                    `;
-                }).join('');
+                    </div>
+                `).join('');
 
             let html = `
                 <h2>${game.emoji} ${game.title}</h2>
@@ -715,7 +702,6 @@
                 <div class="comments-list" id="commentsList">
                     ${commentsHTML}
                 </div>
-                <!-- Owner reset button -->
                 <div style="text-align:right;">
                     <button class="owner-reset-btn" id="ownerResetBtn">🗑️ Reset all data</button>
                 </div>
@@ -723,7 +709,6 @@
             modalContent.innerHTML = html;
             modalOverlay.classList.add('active');
 
-            // ── Star rating logic ──
             const stars = document.querySelectorAll('#starsContainer .star');
             let selectedRating = 0;
             stars.forEach(star => {
@@ -744,21 +729,15 @@
             }
             function updateStarDisplay(value) { highlightStars(value); }
 
-            // ── Comment submission ──
             document.getElementById('submitCommentBtn').addEventListener('click', async () => {
                 const text = document.getElementById('commentText').value.trim();
                 if (!text) return;
                 const newCommentRef = push(gameRef(gameId, 'comments'));
-                await set(newCommentRef, {
-                    text: text,
-                    date: Date.now(),
-                    authorToken: authorToken
-                });
+                await set(newCommentRef, { text: text, date: Date.now(), authorToken: authorToken });
                 openRatingModal(gameId);
                 renderGames();
             });
 
-            // ── Delete comment (self-delete or admin delete) ──
             document.querySelectorAll('.delete-comment-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
@@ -767,14 +746,12 @@
                     const isOwner = (commentAuthor === authorToken);
 
                     if (isOwner) {
-                        // Self delete – just confirm
                         if (confirm('Delete your comment?')) {
                             await remove(ref(db, `games/${gameId}/comments/${commentId}`));
                             openRatingModal(gameId);
                             renderGames();
                         }
                     } else {
-                        // Admin delete – ask for password
                         const password = prompt('Enter admin password to delete this comment:');
                         if (password === ADMIN_PASSWORD) {
                             await remove(ref(db, `games/${gameId}/comments/${commentId}`));
@@ -787,7 +764,6 @@
                 });
             });
 
-            // ── Owner reset button (delete all game data) ──
             document.getElementById('ownerResetBtn').addEventListener('click', () => {
                 const password = prompt('Enter admin password to reset ALL data for this game:');
                 if (password === ADMIN_PASSWORD) {
@@ -804,7 +780,6 @@
             });
         }
 
-        // Smooth scroll
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
                 const href = this.getAttribute('href');
@@ -815,7 +790,7 @@
             });
         });
 
-        console.log('%c🎮 GameVault Ready! %cAdmin delete for any comment enabled.', 'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
+        console.log('%c🎮 GameVault Ready! %cMobile tags added to first two games.', 'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
     </script>
 </body>
 </html>
