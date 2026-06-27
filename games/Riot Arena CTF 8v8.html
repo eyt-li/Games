@@ -330,9 +330,10 @@
     class ExplosiveProjectile {
         constructor(x,y,vx,vy,def,throwerId,team){ this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.def=def;this.throwerId=throwerId;this.team=team; this.fuse=def.fuse;this.stuck=false;this.stuckTo=null;this.alive=true; this.proximity=def.proximity||false;this.armed=false; }
         update(dt){
-            // 🛡️ Shields absorb explosives completely (old behaviour)
+            // Shields absorb explosives completely, but NOT from teammates
             for (const p of players) {
                 if (!p.alive || !p.shields || p.shields.length === 0) continue;
+                if (this.team === p.team) continue; // friendly explosives pass through shields
                 for (let i = p.shields.length-1; i >= 0; i--) {
                     const shield = p.shields[i];
                     const shieldAngle = shield.angle + p.angle;
@@ -340,19 +341,18 @@
                     const shieldY = p.y + Math.sin(shieldAngle) * 30;
                     const d = dist({x: shieldX, y: shieldY}, this);
                     if (d < SHIELD_RADIUS + 6) {
-                        shield.hp -= this.def.damage;   // shield takes full damage
+                        shield.hp -= this.def.damage;
                         sfxShieldHit();
                         if (shield.hp <= 0) {
                             p.shields.splice(i, 1);
                             for (let j=0;j<10;j++) particles.push(new Particle(shieldX, shieldY, rand(-50,50), rand(-50,50), 0.4, '#00ffff', 3));
                         }
-                        this.alive = false;   // explosive is destroyed, no explosion
+                        this.alive = false;
                         return;
                     }
                 }
             }
 
-            // ... rest of the update logic unchanged ...
             if(this.stuck){
                 if(this.stuckTo&&this.stuckTo.alive){ this.x=this.stuckTo.x; this.y=this.stuckTo.y; }
                 if(this.proximity){
@@ -643,7 +643,7 @@
                     else { const cx=b.x+b.w/2,cy=b.y+b.h/2,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(b.w,b.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); }
                 }
                 for(const c of cars) if(c.alive){ const cx=c.x,cy=c.y,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(c.w,c.h)/2){ const angleToCar=angleBetween(this,{x:cx,y:cy}); let diff=Math.abs(angleToCar-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(diff<arc) c.takeDamage(15); } }
-                // damage placed walls (slot 4/5)
+                // damage placed walls
                 for(const w of walls){ if(!w.alive) continue; const dx=w.x2-w.x1,dy=w.y2-w.y1,lenSq=dx*dx+dy*dy; let t=0; if(lenSq>0) t=clamp(((this.x-w.x1)*dx+(this.y-w.y1)*dy)/lenSq,0,1); const cx=w.x1+t*dx,cy=w.y1+t*dy,d=dist(this,{x:cx,y:cy}); if(d<range+10){ const angTo=angleBetween(this,{x:cx,y:cy}); let diff=Math.abs(angTo-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(diff<arc) w.takeDamage(def.damage*3); } }
                 sfxMelee();
                 return;
@@ -918,6 +918,22 @@
                         if(nc){ const seat=nc.seats[0]==null?0:(nc.seats[1]==null?1:-1); if(seat!==-1) player.enterCar(nc,seat); } 
                     }
                 }
+                // Unstuck key Q
+                if (keyJustPressed['q']) {
+                    let closestDist = 50;
+                    let targetWall = null;
+                    for (const w of walls) {
+                        if (!w.alive) continue;
+                        const d = pointToSegmentDist(player.x, player.y, w.x1, w.y1, w.x2, w.y2);
+                        if (d < closestDist) {
+                            closestDist = d;
+                            targetWall = w;
+                        }
+                    }
+                    if (targetWall) {
+                        targetWall.takeDamage(9999);
+                    }
+                }
                 if (keyJustPressed['f']) {
                     const enemyFlag = flags[1 - player.team];
                     if (player.hasEnemyFlag) {
@@ -974,7 +990,8 @@
         for(const bullet of bullets){
             if(bullet.dead) continue;
             for(const p of players) if(p.alive&&p.id!==bullet.shooterId&&dist(bullet,p)<p.radius+bullet.size){
-                if (p.hasEnemyFlag && p.shields && p.shields.length > 0) {
+                // Friendly bullets should not damage shields; they pass through
+                if (p.hasEnemyFlag && p.shields && p.shields.length > 0 && bullet.team !== p.team) {
                     let absorbed = false;
                     for (let i = p.shields.length-1; i >= 0; i--) {
                         const shield = p.shields[i];
@@ -996,6 +1013,7 @@
                     }
                     if (absorbed) continue;
                 }
+                // Now handle the bullet normally (friendly fire heals, enemy damages)
                 if(p.team===bullet.team){ p.hp=Math.min(p.maxHp,p.hp+bullet.damage*0.5); bullet.range=0; }
                 else { p.takeDamage(bullet.damage,bullet.shooterId,bullet.team,'bullet'); bullet.range=0; sfxHit(); break; }
             }
@@ -1040,7 +1058,7 @@
         ctx.fillStyle = '#ddd'; ctx.font = `${Math.floor(H/35)}px "Segoe UI", sans-serif`; ctx.textAlign = 'left';
         const instructions = [
             'WASD / Arrow keys — move', 'Mouse — aim & shoot (left click)', '1‑5 or scroll — switch weapons', 'R — reload', 'E — enter / exit cars', 'F — pick up / drop enemy flag',
-            'Flag carrier: speed boost, 3x30HP shields', 'Capture grants team 10s speed boost'
+            'Q — destroy nearest wall (unstuck)', 'Flag carrier: speed boost, 3x30HP shields', 'Capture grants team 10s speed boost'
         ];
         for (let i = 0; i < instructions.length; i++) ctx.fillText(instructions[i], panelX + 20, panelY + 28 + i * 20);
         const btnW = 180, btnH = 50, btnX = W/2 - btnW/2, btnY = H*2/3 + 20;
