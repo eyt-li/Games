@@ -34,6 +34,8 @@
     const TEAM_BOOST_DURATION = 10;
 
     let teamSpeedBoost = [0, 0];
+    let overtimeActive = false;
+    let explosiveLockedTimer = 0;
 
     const SPAWN_ZONES = [
         { x: 40, y: 30, w: 70, h: MAP_H - 60 },
@@ -59,8 +61,8 @@
     const STREAK_NAMES = ["", "", "Double Kill", "Triple Kill", "Quadra Kill", "Penta Kill", "Mega Kill", "Ultra Kill", "Monster Kill", "Ludicrous Kill", "Godlike!"];
 
     const CENTER_PORTAL = {
-        x: MAP_W/2,           // exactly on centre X
-        y: MAP_H/2 + rand(-250, 250),   // Y varies
+        x: MAP_W/2,
+        y: MAP_H/2 + rand(-250, 250),
         radius: 25,
         cooldown: 0
     };
@@ -101,7 +103,6 @@
             car.x = clamp(car.x, car.w/2, MAP_W - car.w/2);
             car.y = clamp(car.y, car.h/2, MAP_H - car.h/2);
             car.speed = rand(0, car.maxSpeed * 0.3);
-            // keep angle
             sfxTeleport();
             for (let i = 0; i < 15; i++) particles.push(new Particle(car.x, car.y, rand(-50,50), rand(-50,50), 0.5, '#00ffcc', rand(3,6)));
         }
@@ -138,14 +139,17 @@
         }
         drop(x, y) {
             if (this.carrier) {
+                this.carrier.currentSlot = this.carrier.previousSlot || 0;
                 this.carrier.slots[2] = this.carrier.previousMelee || MELEE_DEFS[choice(Object.keys(MELEE_DEFS).filter(k => k !== 'Flag'))];
                 this.carrier.previousMelee = null;
+                this.carrier.previousSlot = null;
             }
             this.x = x; this.y = y; this.carrier = null; this.dropped = true; this.droppedTimer = 30; this.recallTimer = 0;
         }
         pickUp(player) {
             if (player.isShieldBot) return;
             player.previousMelee = player.slots[2];
+            player.previousSlot = player.currentSlot;
             this.carrier = player;
             this.dropped = false;
             this.recallTimer = 0;
@@ -185,26 +189,37 @@
         draw(ctx, cam) {
             const sx = this.x - cam.x, sy = this.y - cam.y;
             const color = TEAM_COLORS[this.team];
-            const poleH = 38, bannerW = 20, bannerH = 15;
+            const poleH = 50, bannerW = 30, bannerH = 22;
             if (!this.carrier) {
-                const alpha = 0.2 + Math.sin(this.waveOffset) * 0.1;
-                const grd = ctx.createRadialGradient(sx, sy - poleH/2, 4, sx, sy - poleH/2, 42);
-                grd.addColorStop(0, `rgba(255,255,200,${alpha+0.25})`);
+                const alpha = 0.3 + Math.sin(this.waveOffset) * 0.15;
+                const grd = ctx.createRadialGradient(sx, sy - poleH/2, 4, sx, sy - poleH/2, 55);
+                grd.addColorStop(0, `rgba(255,255,200,${alpha+0.4})`);
                 grd.addColorStop(1, 'rgba(255,200,50,0)');
-                ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(sx, sy - poleH/2, 42, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(sx, sy - poleH/2, 55, 0, Math.PI*2); ctx.fill();
             }
             ctx.strokeStyle = '#8B7355'; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy - poleH); ctx.stroke();
-            ctx.fillStyle = '#FFD700'; ctx.beginPath(); ctx.arc(sx, sy - poleH, 4, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#FFD700'; ctx.beginPath(); ctx.arc(sx, sy - poleH, 5, 0, Math.PI*2); ctx.fill();
             const waveShift = Math.sin(this.waveOffset) * 2;
             ctx.fillStyle = color; ctx.fillRect(sx + 2, sy - poleH + 4 + waveShift, bannerW, bannerH);
-            ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.strokeRect(sx + 2, sy - poleH + 4 + waveShift, bannerW, bannerH);
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText(this.team === 0 ? 'B' : 'R', sx + bannerW/2 + 2, sy - poleH + bannerH/2 + 4 + waveShift);
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.strokeRect(sx + 2, sy - poleH + 4 + waveShift, bannerW, bannerH);
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(this.team === 0 ? 'B' : 'R', sx + bannerW/2 + 2, sy - poleH + bannerH/2 + 6 + waveShift);
             ctx.textAlign = 'start';
             if (this.carrier) {
-                ctx.fillStyle = color; ctx.fillRect(sx - 6, sy - 10, 12, 10);
-                ctx.fillStyle = '#fff'; ctx.font = 'bold 8px'; ctx.fillText(this.team === 0 ? 'B' : 'R', sx-2, sy-2);
+                ctx.fillStyle = color; ctx.fillRect(sx - 7, sy - 12, 14, 12);
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 9px'; ctx.fillText(this.team === 0 ? 'B' : 'R', sx-3, sy-3);
+            }
+            if (this.dropped && this.recallTimer > 0) {
+                const progress = this.recallTimer / FLAG_RECALL_TIME;
+                const radius = 35;
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(sx, sy, radius, -Math.PI/2, -Math.PI/2 + progress * Math.PI*2, false);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.6 + progress*0.4})`;
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                ctx.restore();
             }
         }
     }
@@ -330,10 +345,9 @@
     class ExplosiveProjectile {
         constructor(x,y,vx,vy,def,throwerId,team){ this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.def=def;this.throwerId=throwerId;this.team=team; this.fuse=def.fuse;this.stuck=false;this.stuckTo=null;this.alive=true; this.proximity=def.proximity||false;this.armed=false; }
         update(dt){
-            // Shields absorb explosives completely, but NOT from teammates
             for (const p of players) {
                 if (!p.alive || !p.shields || p.shields.length === 0) continue;
-                if (this.team === p.team) continue; // friendly explosives pass through shields
+                if (this.team === p.team) continue;
                 for (let i = p.shields.length-1; i >= 0; i--) {
                     const shield = p.shields[i];
                     const shieldAngle = shield.angle + p.angle;
@@ -352,26 +366,36 @@
                     }
                 }
             }
-
-            if(this.stuck){
-                if(this.stuckTo&&this.stuckTo.alive){ this.x=this.stuckTo.x; this.y=this.stuckTo.y; }
-                if(this.proximity){
-                    if(!this.armed){ this.fuse-=dt; if(this.fuse<=0) this.armed=true; }
-                    else if(this.armed){ for(const c of cars) if(c.alive&&dist(this,c)<this.def.radius){ this.explode(); return; } }
+            if (this.def.sticky && this.fuse < this.def.fuse * 0.7 && !this.stuck) {
+                for (const c of cars) {
+                    if (c.alive && rectCircleCollision(c.x - c.w/2, c.y - c.h/2, c.w, c.h, this.x, this.y, 8)) {
+                        this.stuck = true;
+                        this.stuckTo = c;
+                        break;
+                    }
+                }
+            }
+            if (this.stuck) {
+                if (this.stuckTo && this.stuckTo.alive) {
+                    this.x = this.stuckTo.x;
+                    this.y = this.stuckTo.y;
+                }
+                if (this.proximity) {
+                    if (!this.armed) { this.fuse -= dt; if (this.fuse <= 0) this.armed = true; }
+                    else if (this.armed) { for (const c of cars) if (c.alive && dist(this, c) < this.def.radius) { this.explode(); return; } }
                     return;
                 }
-                this.fuse-=dt; if(this.fuse<=0){ this.explode(); return; }
+                this.fuse -= dt;
+                if (this.fuse <= 0) { this.explode(); return; }
             } else {
-                this.x+=this.vx*dt; this.y+=this.vy*dt; this.fuse-=dt;
-                if(this.def.explodeOnImpact){
-                    for(const b of buildings) if(b.alive){ if(b.isEnterable){ for(const w of b.walls) if(rectCircleCollision(w.x,w.y,w.w,w.h,this.x,this.y,6)){ this.explode(); return; } } else if(rectCircleCollision(b.x,b.y,b.w,b.h,this.x,this.y,6)){ this.explode(); return; } }
-                    for(const p of players) if(p.hp>0&&p.id!==this.throwerId&&dist(this,p)<20){ this.explode(); return; }
+                this.x += this.vx * dt;
+                this.y += this.vy * dt;
+                this.fuse -= dt;
+                if (this.def.explodeOnImpact) {
+                    for (const b of buildings) if (b.alive) { if (b.isEnterable) { for (const w of b.walls) if (rectCircleCollision(w.x, w.y, w.w, w.h, this.x, this.y, 6)) { this.explode(); return; } } else if (rectCircleCollision(b.x, b.y, b.w, b.h, this.x, this.y, 6)) { this.explode(); return; } }
+                    for (const p of players) if (p.hp > 0 && p.id !== this.throwerId && dist(this, p) < 20) { this.explode(); return; }
                 }
-                if(this.fuse<=0){ this.explode(); return; }
-                if(this.def.sticky&&this.fuse<this.def.fuse*0.7){
-                    for(const c of cars) if(c.alive&&rectCircleCollision(c.x-c.w/2,c.y-c.h/2,c.w,c.h,this.x,this.y,8)){ this.stuck=true; this.stuckTo=c; break; }
-                    for(const b of buildings) if(b.alive){ if(b.isEnterable){ for(const w of b.walls) if(rectCircleCollision(w.x,w.y,w.w,w.h,this.x,this.y,8)){ this.stuck=true; this.stuckTo=b; break; } } else if(rectCircleCollision(b.x,b.y,b.w,b.h,this.x,this.y,8)){ this.stuck=true; this.stuckTo=b; break; } }
-                }
+                if (this.fuse <= 0) { this.explode(); return; }
             }
         }
         explode(){
@@ -445,6 +469,7 @@
             this.hasEnemyFlag = false;
             this.shields = [];
             this.previousMelee = null;
+            this.previousSlot = null;
             const zone=SPAWN_ZONES[team];
             this.x=rand(zone.x+5, zone.x+zone.w-5);
             this.y=rand(zone.y+5, zone.y+zone.h-5);
@@ -483,6 +508,7 @@
             const meleeKeys = Object.keys(MELEE_DEFS).filter(k => k !== 'Flag');
             this.setupWeapons(p, s, choice(meleeKeys), choice(Object.keys(EXPLOSIVE_DEFS)));
             this.previousMelee = this.slots[2];
+            this.previousSlot = this.currentSlot;
         }
         setupWeapons(gun1,gun2,melee,explosive){
             this.slots[0]=GUN_DEFS[gun1]; this.slots[1]=GUN_DEFS[gun2];
@@ -503,7 +529,6 @@
             this.hp-=dmg; this.flashAlpha=0.25;
             this.lastDamageTime=performance.now()/1000; this.regenAccumulator=0;
 
-            // Bot retaliation
             if (!this.isHuman && sourceId !== null && sourceId !== this.id && this.alive) {
                 const attacker = players.find(p => p.id === sourceId);
                 if (attacker && attacker.alive && attacker.team !== this.team) {
@@ -618,6 +643,16 @@
                 if (movedDist < 3) {
                     this.botStuckTimer += dt;
                     if (this.botStuckTimer > 5) {
+                        if (this.hasEnemyFlag) {
+                            const enemyFlag = flags[1 - this.team];
+                            enemyFlag.drop(this.x, this.y);
+                            this.hasEnemyFlag = false;
+                            this.shields = [];
+                            this.currentSlot = this.previousSlot || 0;
+                            this.slots[2] = this.previousMelee || MELEE_DEFS[choice(Object.keys(MELEE_DEFS).filter(k => k !== 'Flag'))];
+                            this.previousMelee = null;
+                            this.previousSlot = null;
+                        }
                         const randAngle = rand(0, Math.PI*2);
                         this.vx += Math.cos(randAngle) * this.speed * 0.5;
                         this.vy += Math.sin(randAngle) * this.speed * 0.5;
@@ -637,13 +672,11 @@
                 const def = MELEE_DEFS['Flag'];
                 const range = def.range, arc = def.arc;
                 for(const p of players) if(p.id!==this.id&&p.hp>0){ const d=dist(this,p), ang=angleBetween(this,p); let diff=Math.abs(ang-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(d<range&&diff<arc){ if(p.team!==this.team) p.takeDamage(def.damage,this.id,this.team,'melee'); else p.hp=Math.min(p.maxHp,p.hp+def.damage*0.5); } }
-                // damage all buildings (including placed)
                 for(const b of buildings) if(b.alive){
                     if(b.isEnterable){ for(const w of b.walls){ const cx=w.x+w.w/2,cy=w.y+w.h/2,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(w.w,w.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); } }
                     else { const cx=b.x+b.w/2,cy=b.y+b.h/2,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(b.w,b.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); }
                 }
                 for(const c of cars) if(c.alive){ const cx=c.x,cy=c.y,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(c.w,c.h)/2){ const angleToCar=angleBetween(this,{x:cx,y:cy}); let diff=Math.abs(angleToCar-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(diff<arc) c.takeDamage(15); } }
-                // damage placed walls
                 for(const w of walls){ if(!w.alive) continue; const dx=w.x2-w.x1,dy=w.y2-w.y1,lenSq=dx*dx+dy*dy; let t=0; if(lenSq>0) t=clamp(((this.x-w.x1)*dx+(this.y-w.y1)*dy)/lenSq,0,1); const cx=w.x1+t*dx,cy=w.y1+t*dy,d=dist(this,{x:cx,y:cy}); if(d<range+10){ const angTo=angleBetween(this,{x:cx,y:cy}); let diff=Math.abs(angTo-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(diff<arc) w.takeDamage(def.damage*3); } }
                 sfxMelee();
                 return;
@@ -674,7 +707,6 @@
                 this.meleeActive=true; this.meleeTimer=0.2; this.meleeAngle=angleBetween(this,{x:worldMX,y:worldMY}); this.slotCooldown[slot]=def.cooldown;
                 const range = def.range, arc = def.arc;
                 for(const p of players) if(p.id!==this.id&&p.hp>0){ const d=dist(this,p), ang=angleBetween(this,p); let diff=Math.abs(ang-this.meleeAngle); if(diff>Math.PI) diff=Math.PI*2-diff; if(d<range&&diff<arc){ if(p.team!==this.team) p.takeDamage(def.damage,this.id,this.team,'melee'); else p.hp=Math.min(p.maxHp,p.hp+def.damage*0.5); } }
-                // melee damages all buildings (including placed)
                 for(const b of buildings) if(b.alive){
                     if(b.isEnterable){ for(const w of b.walls){ const cx=w.x+w.w/2,cy=w.y+w.h/2,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(w.w,w.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); } }
                     else { const cx=b.x+b.w/2,cy=b.y+b.h/2,d=dist(this,{x:cx,y:cy}); if(d<range+Math.max(b.w,b.h)/2) b.takeDamage(def.damage*0.7,this.id,this.team); }
@@ -723,6 +755,15 @@
     }
 
     function updateAI(dt,walls,cars){
+        // Determine which team currently has its enemy flag carried (so teammates can defend)
+        const teamFlagCarrier = [null, null];
+        for (const p of players) {
+            if (p.alive && p.hasEnemyFlag) {
+                teamFlagCarrier[p.team] = p;
+                break; // only one carrier per team
+            }
+        }
+
         for(const bot of players){
             if(bot.isHuman||!bot.alive) continue;
             if(bot.stunned>0){ bot.vx*=0.5; bot.vy*=0.5; continue; }
@@ -732,35 +773,81 @@
             if (bot.inCar && bot.car && bot.car.alive && bot.carSeat === 1 && !bot.car.seats[0]) {
                 bot.exitCar();
             }
-            if (bot.isShieldBot) {
-                let nearestEnemy = null, nearestDist = 400;
+
+            // 🆕 Teammate has flag → aggressive escort
+            if (teamFlagCarrier[bot.team] && bot !== teamFlagCarrier[bot.team] && !bot.hasEnemyFlag) {
+                // Find nearest enemy
+                let nearestEnemy = null, nearestDist = Infinity;
                 for (const p of players) {
-                    if (p.team === bot.team || !p.alive) continue;
+                    if (p.id === bot.id || !p.alive || p.team === bot.team) continue;
                     const d = dist(bot, p);
-                    if (d < nearestDist && lineOfSightClear(bot.x,bot.y,p.x,p.y,buildings,walls)) {
-                        nearestDist = d; nearestEnemy = p;
+                    if (d < nearestDist) {
+                        nearestDist = d;
+                        nearestEnemy = p;
                     }
                 }
                 if (nearestEnemy) {
                     bot.aiTarget = nearestEnemy;
                     bot.aiState = 'combat';
-                    if (bot.slotCooldown[4] <= 0) {
-                        const a = angleBetween(bot, nearestEnemy);
-                        bot.shoot(nearestEnemy.x, nearestEnemy.y, walls, cars);
-                        bot.switchSlot(4);
-                    }
+                    // Skip wander/flag logic, go directly to combat movement below
+                    // We'll place the combat code after this block.
                 } else {
+                    // No enemies? Keep wandering
                     bot.aiState = 'wander';
                     bot.aiWanderTarget = { x: MAP_W/2 + rand(-200,200), y: MAP_H/2 + rand(-150,150) };
                 }
+            }
+
+            // Rest of AI unchanged (shield bot, wall, flag carrier, etc.)
+            if (bot.isShieldBot) {
+                if (bot.aiState === 'combat' && bot.aiTarget) {
+                    // Shield bot already has target, skip further AI
+                } else {
+                    let nearestEnemy = null, nearestDist = 400;
+                    for (const p of players) {
+                        if (p.team === bot.team || !p.alive) continue;
+                        const d = dist(bot, p);
+                        if (d < nearestDist && lineOfSightClear(bot.x,bot.y,p.x,p.y,buildings,walls)) {
+                            nearestDist = d; nearestEnemy = p;
+                        }
+                    }
+                    if (nearestEnemy) {
+                        bot.aiTarget = nearestEnemy;
+                        bot.aiState = 'combat';
+                        if (bot.slotCooldown[4] <= 0) {
+                            const a = angleBetween(bot, nearestEnemy);
+                            bot.shoot(nearestEnemy.x, nearestEnemy.y, walls, cars);
+                            bot.switchSlot(4);
+                        }
+                    } else {
+                        bot.aiState = 'wander';
+                        bot.aiWanderTarget = { x: MAP_W/2 + rand(-200,200), y: MAP_H/2 + rand(-150,150) };
+                    }
+                }
                 if (bot.aiWanderTarget) {
-                    const wa = angleBetween(bot, bot.aiWanderTarget);
+                    let avoidX = 0, avoidY = 0;
+                    for (const other of players) {
+                        if (other.id === bot.id || !other.alive || other.team !== bot.team) continue;
+                        if (!other.isShieldBot) continue;
+                        const d = dist(bot, other);
+                        if (d < 100) {
+                            const ang = angleBetween(bot, other);
+                            avoidX -= Math.cos(ang) * (100 - d) / 100 * 0.5;
+                            avoidY -= Math.sin(ang) * (100 - d) / 100 * 0.5;
+                        }
+                    }
+                    let wa = angleBetween(bot, bot.aiWanderTarget);
+                    if (avoidX !== 0 || avoidY !== 0) {
+                        wa = Math.atan2(Math.sin(wa) + avoidY, Math.cos(wa) + avoidX);
+                    }
                     bot.angle = wa;
                     bot.vx += Math.cos(wa) * bot.speed * 0.4 * dt;
                     bot.vy += Math.sin(wa) * bot.speed * 0.4 * dt;
                 }
                 continue;
             }
+
+            // Normal bot logic
             if (!bot.inCar && !bot.hasEnemyFlag && bot.hp <= bot.maxHp * 0.1 && bot.slots[4] && bot.slotCooldown[4] <= 0) {
                 const placeX = bot.x + Math.cos(bot.angle) * 60;
                 const placeY = bot.y + Math.sin(bot.angle) * 60;
@@ -887,9 +974,34 @@
     let lastTime=performance.now();
     function update(dt){
         if(gameOver||homeScreen) return;
-        dt=Math.min(dt,0.1); gameTime-=dt;
+        dt=Math.min(dt,0.1);
+        if (!overtimeActive) {
+            gameTime -= dt;
+            if (gameTime <= 0) {
+                let allFlagsHome = true;
+                for (const flag of flags) {
+                    if (flag.carrier || flag.dropped) { allFlagsHome = false; break; }
+                }
+                if (allFlagsHome) {
+                    gameTime = 0;
+                    gameOver = true;
+                    endGame();
+                } else {
+                    overtimeActive = true;
+                    gameTime = 0;
+                }
+            }
+        } else {
+            let allFlagsHome = true;
+            for (const flag of flags) {
+                if (flag.carrier || flag.dropped) { allFlagsHome = false; break; }
+            }
+            if (allFlagsHome) {
+                gameOver = true;
+                endGame();
+            }
+        }
         for(let t=0;t<NUM_TEAMS;t++) if(teamSpeedBoost[t]>0) teamSpeedBoost[t]-=dt;
-        if(gameTime<=0){ gameTime=0; gameOver=true; endGame(); }
         if (CENTER_PORTAL.cooldown > 0) CENTER_PORTAL.cooldown -= dt;
         for (const p of players) {
             if (!p.alive || p.inCar) continue;
@@ -902,6 +1014,7 @@
             }
         }
         if(player&&player.alive&&!showRespawnScreen){
+            explosiveLockedTimer = player.explosiveLocked;
             if(!player.inCar){
                 let mx=0,my=0;
                 if(keys['w']||keys['arrowup']) my-=1; if(keys['s']||keys['arrowdown']) my+=1;
@@ -918,7 +1031,6 @@
                         if(nc){ const seat=nc.seats[0]==null?0:(nc.seats[1]==null?1:-1); if(seat!==-1) player.enterCar(nc,seat); } 
                     }
                 }
-                // Unstuck key Q
                 if (keyJustPressed['q']) {
                     let closestDist = 50;
                     let targetWall = null;
@@ -954,7 +1066,6 @@
                 }
             }
         }
-        // Scoring
         for (const p of players) {
             if (!p.alive || !p.hasEnemyFlag) continue;
             const zone = SPAWN_ZONES[p.team];
@@ -963,11 +1074,18 @@
                 flags[1 - p.team].returnToBase();
                 p.hasEnemyFlag = false;
                 p.shields = [];
+                p.currentSlot = p.previousSlot || 0;
                 p.slots[2] = p.previousMelee || MELEE_DEFS[choice(Object.keys(MELEE_DEFS).filter(k => k !== 'Flag'))];
                 p.previousMelee = null;
+                p.previousSlot = null;
                 teamSpeedBoost[p.team] = TEAM_BOOST_DURATION;
                 sfxFlagScore();
-                if (captures[p.team] >= MAX_CAPTURES) {
+                if (overtimeActive) {
+                    gameOver = true;
+                    winnerTeam = p.team;
+                    gameTime = 0;
+                    overtimeActive = false;
+                } else if (captures[p.team] >= MAX_CAPTURES) {
                     gameOver = true;
                     winnerTeam = p.team;
                     gameTime = 0;
@@ -990,7 +1108,6 @@
         for(const bullet of bullets){
             if(bullet.dead) continue;
             for(const p of players) if(p.alive&&p.id!==bullet.shooterId&&dist(bullet,p)<p.radius+bullet.size){
-                // Friendly bullets should not damage shields; they pass through
                 if (p.hasEnemyFlag && p.shields && p.shields.length > 0 && bullet.team !== p.team) {
                     let absorbed = false;
                     for (let i = p.shields.length-1; i >= 0; i--) {
@@ -1013,7 +1130,6 @@
                     }
                     if (absorbed) continue;
                 }
-                // Now handle the bullet normally (friendly fire heals, enemy damages)
                 if(p.team===bullet.team){ p.hp=Math.min(p.maxHp,p.hp+bullet.damage*0.5); bullet.range=0; }
                 else { p.takeDamage(bullet.damage,bullet.shooterId,bullet.team,'bullet'); bullet.range=0; sfxHit(); break; }
             }
@@ -1027,10 +1143,12 @@
         gameOver=true; gameEndTime=performance.now(); 
         if (captures[0] !== captures[1]) winnerTeam = captures[0] > captures[1] ? 0 : 1;
         else winnerTeam = -1;
+        overtimeActive = false;
     }
     function restartGame(){ 
         if(gameOver&&performance.now()-gameEndTime<3000) return; 
         gameTime=GAME_DURATION; gameOver=false; winnerTeam=-1; 
+        overtimeActive = false;
         bullets=[]; particles=[]; explosives=[]; smokeClouds=[]; killFeed=[]; showRespawnScreen=false; 
         buildings=[]; walls=[]; disruptorProjectiles=[]; destroyedCarRemains=[]; 
         cars.forEach(c=>c.reset()); 
@@ -1044,7 +1162,7 @@
         gameEndTime=0; 
     }
 
-    // ---------- DRAWING ----------
+    // ---------- DRAWING (unchanged from last version) ----------
     function drawHomeScreen(){
         const grad = ctx.createLinearGradient(0, 0, 0, H);
         grad.addColorStop(0, '#0a0a2e'); grad.addColorStop(1, '#000015');
@@ -1053,7 +1171,7 @@
         ctx.fillStyle = '#ffffff'; ctx.font = `bold ${Math.floor(H/18)}px "Segoe UI", sans-serif`; ctx.textAlign = 'center'; ctx.fillText('RIOT ARENA', W/2, H/3 - 20); ctx.restore();
         ctx.fillStyle = '#aaa'; ctx.font = `${Math.floor(H/30)}px "Segoe UI", sans-serif`; ctx.fillText('capture the flag', W/2, H/3 + 15);
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.strokeStyle = '#444'; ctx.lineWidth = 2;
-        const panelX = W/2 - 300, panelY = H/3 + 40, panelW = 600, panelH = 180;
+        const panelX = W/2 - 300, panelY = H/3 + 40, panelW = 600, panelH = 210;
         ctx.beginPath(); ctx.roundRect(panelX, panelY, panelW, panelH, 12); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#ddd'; ctx.font = `${Math.floor(H/35)}px "Segoe UI", sans-serif`; ctx.textAlign = 'left';
         const instructions = [
@@ -1061,7 +1179,7 @@
             'Q — destroy nearest wall (unstuck)', 'Flag carrier: speed boost, 3x30HP shields', 'Capture grants team 10s speed boost'
         ];
         for (let i = 0; i < instructions.length; i++) ctx.fillText(instructions[i], panelX + 20, panelY + 28 + i * 20);
-        const btnW = 180, btnH = 50, btnX = W/2 - btnW/2, btnY = H*2/3 + 20;
+        const btnW = 180, btnH = 50, btnX = W/2 - btnW/2, btnY = panelY + panelH + 30;
         ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.roundRect(btnX, btnY, btnW, btnH, 8); ctx.fill();
         ctx.fillStyle = '#fff'; ctx.font = 'bold 22px "Segoe UI", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('START', W/2, btnY + 34);
         window._homeStartBtn = {x:btnX, y:btnY, w:btnW, h:btnH};
@@ -1086,8 +1204,12 @@
             ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(mmX + p.x*sx, mmY + p.y*sy); ctx.lineTo(mmX + p.x*sx + Math.cos(p.angle)*6, mmY + p.y*sy + Math.sin(p.angle)*6); ctx.stroke();
         }
         for (const flag of flags) {
-            ctx.fillStyle = TEAM_COLORS[flag.team]; ctx.beginPath(); ctx.arc(mmX + flag.x*sx, mmY + flag.y*sy, 4, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+            const fx = mmX + flag.x * sx, fy = mmY + flag.y * sy;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(fx, fy, 4.5, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = TEAM_COLORS[flag.team];
+            ctx.lineWidth = 2;
+            ctx.stroke();
         }
         ctx.fillStyle = '#00ffff'; ctx.beginPath(); ctx.arc(mmX + CENTER_PORTAL.x*sx, mmY + CENTER_PORTAL.y*sy, 3, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(mmX+camera.x*sx,mmY+camera.y*sy,W*sx,H*sy);
@@ -1096,8 +1218,12 @@
     function drawScoreboard(){ 
         const sbW=170,sbH=130,sbX=15,sbY=H-sbH-15;
         ctx.globalAlpha=0.7; ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(sbX-2,sbY-2,sbW+4,sbH+4); ctx.strokeStyle='#555'; ctx.lineWidth=2; ctx.strokeRect(sbX-2,sbY-2,sbW+4,sbH+4);
-        const mins=Math.floor(gameTime/60),secs=Math.floor(gameTime%60); 
-        ctx.fillStyle='#fff'; ctx.font='bold 18px'; ctx.fillText(`${mins}:${secs.toString().padStart(2,'0')}`,sbX+sbW/2-25,sbY+22);
+        if (overtimeActive) {
+            ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 22px'; ctx.fillText('OVERTIME', sbX + sbW/2 - 40, sbY + 22);
+        } else {
+            const mins=Math.floor(gameTime/60),secs=Math.floor(gameTime%60); 
+            ctx.fillStyle='#fff'; ctx.font='bold 18px'; ctx.fillText(`${mins}:${secs.toString().padStart(2,'0')}`,sbX+sbW/2-25,sbY+22);
+        }
         for(let t=0; t<NUM_TEAMS; t++){
             const y=sbY+44+t*20;
             ctx.fillStyle=TEAM_COLORS[t]; ctx.fillRect(sbX+8,y-2,10,10);
@@ -1137,7 +1263,16 @@
         const barWidth=200,barHeight=16,x=W/2-150,y=H-50; 
         ctx.globalAlpha=0.7; ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(x-2,y-2,barWidth+4,barHeight+4); ctx.strokeStyle='#555'; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,barWidth+4,barHeight+4); 
         const hpPct=player.hp/player.maxHp,fillColor=hpPct>0.5?'#4f4':hpPct>0.25?'#ff0':'#f22'; ctx.fillStyle=fillColor; ctx.fillRect(x,y,barWidth*hpPct,barHeight); 
-        ctx.fillStyle='#fff'; ctx.font='bold 12px "Segoe UI"'; ctx.textAlign='center'; ctx.fillText(`${Math.ceil(player.hp)} / ${player.maxHp}`,x+barWidth/2,y+12); ctx.textAlign='start'; ctx.globalAlpha=1; 
+        ctx.fillStyle='#fff'; ctx.font='bold 12px "Segoe UI"'; ctx.textAlign='center'; ctx.fillText(`${Math.ceil(player.hp)} / ${player.maxHp}`,x+barWidth/2,y+12); ctx.textAlign='start';
+        if (player.explosiveLocked > 0) {
+            const pinkX = x + barWidth + 15, pinkY = y, pinkW = 120, pinkH = 16;
+            ctx.fillStyle = '#333'; ctx.fillRect(pinkX-2, pinkY-2, pinkW+4, pinkH+4);
+            ctx.strokeStyle = '#555'; ctx.lineWidth = 2; ctx.strokeRect(pinkX-2, pinkY-2, pinkW+4, pinkH+4);
+            const pct = player.explosiveLocked / 5;
+            ctx.fillStyle = '#ff44ff'; ctx.fillRect(pinkX, pinkY, pinkW * pct, pinkH);
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 11px'; ctx.fillText(`🔒 ${player.explosiveLocked.toFixed(1)}s`, pinkX + 4, pinkY + 12);
+        }
+        ctx.globalAlpha=1; 
     }
     function drawRespawnScreen(){ 
         if(!showRespawnScreen||!player) return; 
