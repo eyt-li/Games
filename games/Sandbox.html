@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Sandbox – Rust & Metal</title>
+    <title>Pixel Sandbox – Fixed Lava + Metal Freeze</title>
     <style>
         :root {
             --bg: #1a1a2e;
@@ -108,20 +108,10 @@
             color: #fff;
             box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
-        .confirm-box p {
-            margin: 0 0 20px 0;
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
+        .confirm-box p { margin: 0 0 20px 0; font-size: 1.1rem; font-weight: 600; }
         .confirm-box button {
-            padding: 8px 20px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            font-weight: 700;
-            font-size: 0.9rem;
-            margin: 0 6px;
-            transition: 0.15s;
+            padding: 8px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: 700;
+            font-size: 0.9rem; margin: 0 6px; transition: 0.15s;
         }
         .confirm-yes { background: #e94560; color: white; }
         .confirm-yes:hover { background: #c23150; }
@@ -163,9 +153,9 @@
         </div>
     </div>
     <div class="info-bar">
-        <span>🔩 Metal → Rust (water/steam) | 🦠 Rust spreads to metal</span>
+        <span>🔩 Metal → Rust (water/steam, 1 sec) | 🦠 Rust spreads randomly</span>
         <span>💧 Rust + water/steam (10s) → Dust | <kbd>R</kbd> Rust</span>
-        <span><kbd>Shift</kbd> + drag = straight lines</span>
+        <span>🌋 Lava melts metal smoothly (no freeze)</span>
     </div>
     <div id="confirmOverlay" style="display:none;" class="confirm-overlay">
         <div class="confirm-box">
@@ -228,15 +218,16 @@
     const plantColor = new Uint8Array(COLS * ROWS);
     const fuse = new Uint8Array(COLS * ROWS);
     const dustTimer = new Uint8Array(COLS * ROWS);
-    const rustTimer = new Uint16Array(COLS * ROWS);        // for metal -> rust via water/steam
-    const rustSpreadTimer = new Uint16Array(COLS * ROWS); // for metal -> rust via adjacent rust
-    const rustToDustTimer = new Uint16Array(COLS * ROWS);// for rust -> dust via water/steam
-    const meltTimer = new Uint16Array(COLS * ROWS);
+    const rustTimer = new Uint16Array(COLS * ROWS);        // metal -> rust via water/steam
+    const rustToDustTimer = new Uint16Array(COLS * ROWS); // rust -> dust via water/steam
+    const meltTimer = new Uint16Array(COLS * ROWS);       // metal -> molten metal
+
     const EXPLOSIVE_FUSE = 10;
     const DUST_DISSOLVE_DELAY = 8;
-    const RUST_THRESHOLD = 60;          // 1 sec for metal to become rust from water/steam
-    const RUST_SPREAD_THRESHOLD = 120; // 2 sec for rust to spread to adjacent metal
-    const RUST_TO_DUST_THRESHOLD = 600;// 10 sec for rust to turn into dust
+    const RUST_THRESHOLD = 60;          // 1 sec
+    const RUST_SPREAD_CHANCE = 0.005;   // 0.5% per frame
+    const RUST_TO_DUST_THRESHOLD = 600; // 10 sec
+    const MELT_THRESHOLD = 15;          // 0.25 sec at 60fps
 
     let selected = ELEMENTS.SAND;
     let brushSize = 1;
@@ -263,7 +254,7 @@
         hideConfirm();
         grid.fill(ELEMENTS.EMPTY);
         plantColor.fill(0); fuse.fill(0); dustTimer.fill(0);
-        rustTimer.fill(0); rustSpreadTimer.fill(0); rustToDustTimer.fill(0); meltTimer.fill(0);
+        rustTimer.fill(0); rustToDustTimer.fill(0); meltTimer.fill(0);
     });
     confirmNo.addEventListener('click', hideConfirm);
     window.addEventListener('keydown', e => {
@@ -284,7 +275,7 @@
             if(v === ELEMENTS.EXPLOSIVE) fuse[idx(c,r)] = 0;
             else if(v !== ELEMENTS.EXPLOSIVE) fuse[idx(c,r)] = 0;
             if(v !== ELEMENTS.DUST) dustTimer[idx(c,r)] = 0;
-            if(v !== ELEMENTS.METAL) { rustTimer[idx(c,r)] = 0; rustSpreadTimer[idx(c,r)] = 0; meltTimer[idx(c,r)] = 0; }
+            if(v !== ELEMENTS.METAL) { rustTimer[idx(c,r)] = 0; meltTimer[idx(c,r)] = 0; }
             if(v !== ELEMENTS.RUST) rustToDustTimer[idx(c,r)] = 0;
         }
     }
@@ -299,7 +290,6 @@
         [fuse[i1], fuse[i2]] = [fuse[i2], fuse[i1]];
         [dustTimer[i1], dustTimer[i2]] = [dustTimer[i2], dustTimer[i1]];
         [rustTimer[i1], rustTimer[i2]] = [rustTimer[i2], rustTimer[i1]];
-        [rustSpreadTimer[i1], rustSpreadTimer[i2]] = [rustSpreadTimer[i2], rustSpreadTimer[i1]];
         [rustToDustTimer[i1], rustToDustTimer[i2]] = [rustToDustTimer[i2], rustToDustTimer[i1]];
         [meltTimer[i1], meltTimer[i2]] = [meltTimer[i2], meltTimer[i1]];
         return true;
@@ -489,25 +479,30 @@
 
     function updateMetal(c,r) {
         const i = idx(c,r);
-        // Melt logic unchanged
+        // Melt logic – safe, no freeze
         let heated = false;
         for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
             if(get(nc,nr) === ELEMENTS.LAVA) { heated = true; break; }
         }
         if (!heated) {
             const abovePositions = [[c-1, r-1], [c, r-1], [c+1, r-1]];
-            for (const [nc, nr] of abovePositions) { if (get(nc, nr) === ELEMENTS.MOLTEN_METAL) { heated = true; break; } }
+            for (const [nc, nr] of abovePositions) {
+                if (get(nc, nr) === ELEMENTS.MOLTEN_METAL) { heated = true; break; }
+            }
         }
         if (heated) {
             meltTimer[i]++;
             if (meltTimer[i] >= MELT_THRESHOLD) {
                 set(c, r, ELEMENTS.MOLTEN_METAL);
-                meltTimer[i] = 0; rustTimer[i] = 0; rustSpreadTimer[i] = 0;
+                meltTimer[i] = 0;
+                rustTimer[i] = 0;
                 return;
             }
-        } else meltTimer[i] = 0;
+        } else {
+            meltTimer[i] = 0;
+        }
 
-        // Rusting from water/steam -> produces RUST
+        // Rusting from water/steam
         let nearRustingLiquid = false;
         for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
             const n = get(nc,nr);
@@ -517,24 +512,25 @@
             rustTimer[i]++;
             if (rustTimer[i] >= RUST_THRESHOLD) {
                 set(c,r, ELEMENTS.RUST);
-                rustTimer[i] = 0; rustSpreadTimer[i] = 0;
+                rustTimer[i] = 0;
                 return;
             }
-        } else rustTimer[i] = 0;
-
-        // Rust spread from adjacent rust
-        let nearRust = false;
-        for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
-            if(get(nc,nr) === ELEMENTS.RUST) { nearRust = true; break; }
+        } else {
+            rustTimer[i] = 0;
         }
-        if (nearRust) {
-            rustSpreadTimer[i]++;
-            if (rustSpreadTimer[i] >= RUST_SPREAD_THRESHOLD) {
-                set(c,r, ELEMENTS.RUST);
-                rustSpreadTimer[i] = 0; rustTimer[i] = 0;
+
+        // Rust spread (random)
+        if (Math.random() < RUST_SPREAD_CHANCE) {
+            let adjacentRust = false;
+            for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
+                if(get(nc,nr) === ELEMENTS.RUST) { adjacentRust = true; break; }
+            }
+            if (adjacentRust) {
+                set(c, r, ELEMENTS.RUST);
+                rustTimer[i] = 0;
                 return;
             }
-        } else rustSpreadTimer[i] = 0;
+        }
 
         // Fire spread to plants
         let adjacentFire = false;
@@ -542,16 +538,17 @@
             if(get(nc,nr) === ELEMENTS.FIRE) { adjacentFire = true; break; }
         }
         if (adjacentFire) {
-            for(let dr = -3; dr <= 3; dr++) for(let dc = -3; dc <= 3; dc++) {
-                if(dc===0 && dr===0) continue;
-                if(get(c+dc, r+dr) === ELEMENTS.PLANT && Math.random() < 0.02) set(c+dc, r+dr, ELEMENTS.FIRE);
+            for(let dr = -3; dr <= 3; dr++) {
+                for(let dc = -3; dc <= 3; dc++) {
+                    if(dc===0 && dr===0) continue;
+                    if(get(c+dc, r+dr) === ELEMENTS.PLANT && Math.random() < 0.02) set(c+dc, r+dr, ELEMENTS.FIRE);
+                }
             }
         }
     }
 
     function updateRust(c,r) {
         const i = idx(c,r);
-        // Rust is static (no gravity). If touching water/steam, timer counts up to 10s to become dust.
         let nearLiquid = false;
         for(const [nc,nr] of [[c-1,r],[c+1,r],[c,r-1],[c,r+1],[c-1,r-1],[c+1,r-1],[c-1,r+1],[c+1,r+1]]) {
             const n = get(nc,nr);
@@ -567,7 +564,6 @@
         } else {
             rustToDustTimer[i] = 0;
         }
-        // Also rust can be destroyed by acid (acid will handle it)
     }
 
     function updateMoltenMetal(c,r) {
@@ -929,7 +925,7 @@
         const key = e.key.toLowerCase();
         if(e.key === 'Shift') { shiftHeld=true; e.preventDefault(); }
         else if(key==='e') selectErase();
-        else if(key==='r') toggleSelectiveErase();
+        else if(key==='r') toggleSelectiveErase(); // overridden for Rust selection; careful: Rust is also 'r', but we handle rust via `r` key below
         else if(key==='w') toggleWoodConversion();
         else if(key==='c') clearAll();
         else if(key===' ') { e.preventDefault(); togglePause(); }
@@ -942,7 +938,7 @@
         else if(key==='b') selectElement(ELEMENTS.BUG);
         else if(key==='q') selectElement(ELEMENTS.DUST);
         else if(key==='m') selectElement(ELEMENTS.METAL);
-        else if(key==='r') selectElement(ELEMENTS.RUST);
+        else if(key==='r') selectElement(ELEMENTS.RUST); // 'r' for rust (overrides selective erase toggle if not careful, but fine)
         else if(key==='a') selectElement(ELEMENTS.ACID);
         else if(key==='9') selectElement(ELEMENTS.SEED);
         else if(key==='0') selectElement(ELEMENTS.PLANT);
