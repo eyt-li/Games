@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <title>Anti-Platformer · 2‑Player Race (Wins + Easy Mode)</title>
+    <style>
+        :root { --bg: #0a0a12; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: var(--bg); display: flex; justify-content: center; align-items: center; height: 100vh; height: 100dvh; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        .game-wrapper { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; max-width: 820px; }
+        canvas { display: block; border: 3px solid #444; border-radius: 10px; box-shadow: 0 0 40px rgba(0,0,0,0.7), 0 0 80px rgba(100,150,255,0.2); max-width: 95vw; max-height: 70vh; max-height: 70dvh; }
+        .ui-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; padding: 0 8px; }
+        button.ui-btn { background: rgba(255,255,255,0.1); color: #ddd; border: 2px solid rgba(255,255,255,0.25); padding: 10px 18px; border-radius: 24px; cursor: pointer; font-size: 0.9rem; font-weight: 600; letter-spacing: 0.03em; transition: all 0.2s; white-space: nowrap; }
+        button.ui-btn:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); color: #fff; }
+        button.ui-btn.active { background: rgba(100,200,255,0.3); border-color: rgba(130,210,255,0.8); color: #fff; box-shadow: 0 0 18px rgba(100,180,255,0.4); }
+        #impossibleBtn { background: rgba(255,80,80,0.15); border-color: rgba(255,100,100,0.5); color: #ffaaaa; display: none; }
+        #impossibleBtn:hover { background: rgba(255,80,80,0.3); }
+        #resetBtn { background: rgba(255,255,100,0.15); border-color: rgba(255,255,100,0.5); color: #ffdd88; }
+        #resetBtn:hover { background: rgba(255,255,100,0.3); }
+        #easyModeBtn { background: rgba(100,255,100,0.15); border-color: rgba(100,255,100,0.5); color: #aaffaa; }
+        #easyModeBtn.active { background: rgba(100,255,100,0.35); border-color: rgba(100,255,100,0.9); color: #fff; }
+        .mobile-controls { display: none; position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 20; width: 94vw; max-width: 800px; pointer-events: none; }
+        .mobile-controls.visible { display: flex; justify-content: space-between; align-items: flex-end; pointer-events: auto; }
+        .ctrl-group { display: flex; gap: 14px; } .ctrl-group.right { margin-left: auto; }
+        .ctrl-btn { width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,0.14); border: 2px solid rgba(255,255,255,0.4); color: #fff; font-size: 2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease; touch-action: none; pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .ctrl-btn:active, .ctrl-btn.pressed { background: rgba(255,255,255,0.4); transform: scale(0.92); border-color: rgba(255,255,255,0.8); box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+        .ctrl-btn.jump-btn { width: 80px; height: 80px; font-size: 2.4rem; background: rgba(255,200,60,0.25); border-color: rgba(255,200,60,0.55); }
+        .ctrl-btn.jump-btn:active, .ctrl-btn.jump-btn.pressed { background: rgba(255,200,60,0.5); border-color: rgba(255,220,100,0.9); }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,5,15,0.92); display: none; justify-content: center; align-items: center; flex-direction: column; z-index: 50; backdrop-filter: blur(4px); }
+        .overlay.active { display: flex; }
+        .overlay-panel { background: #1a1a2e; border: 2px solid #3a3a5a; border-radius: 24px; padding: 24px 20px; text-align: center; width: auto; max-width: 90vw; box-shadow: 0 20px 50px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .overlay-panel h1 { color: #fff; font-size: 2.2rem; margin-bottom: 10px; letter-spacing: 0.04em; line-height: 1.2; }
+        .overlay-panel p { color: #ccc; margin-bottom: 20px; font-size: 1rem; line-height: 1.5; white-space: pre-line; }
+        .menu-btn { display: block; width: 100%; margin: 8px 0; padding: 12px; font-size: 1.1rem; border-radius: 28px; background: #2a2a4a; color: #fff; border: 2px solid #5a5a8a; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .menu-btn:hover { background: #3a3a6a; border-color: #8a8aff; }
+        .level-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 16px 0; }
+        .level-btn { width: 48px; height: 48px; border-radius: 14px; background: #2a2a4a; border: 2px solid #5a5a8a; color: #fff; font-weight: bold; font-size: 1.1rem; cursor: pointer; transition: 0.15s; }
+        .level-btn:hover { background: #4a4a8a; border-color: #aaaaff; transform: scale(1.05); }
+        @media (max-width: 600px) { .overlay-panel h1 { font-size: 1.8rem; } .overlay-panel p { font-size: 0.9rem; } .menu-btn { font-size: 1rem; padding: 10px; } }
+        @media (max-width: 400px) { .overlay-panel h1 { font-size: 1.5rem; } .overlay-panel p { font-size: 0.8rem; } .menu-btn { font-size: 0.9rem; padding: 8px; } }
+    </style>
+</head>
+<body>
+<div class="game-wrapper">
+    <canvas id="gameCanvas"></canvas>
+    <div class="ui-bar">
+        <button class="ui-btn" id="homeBtn">🏠 Home</button>
+        <button class="ui-btn" id="toggleMobileBtn">📱 Mobile</button>
+        <button class="ui-btn" id="easyModeBtn">🌱 Easy</button>
+        <button class="ui-btn" id="resetBtn">↺ Reset</button>
+        <button class="ui-btn" id="impossibleBtn">⚠️ Impossible</button>
+    </div>
+</div>
+<div class="mobile-controls" id="mobileControls">
+    <div class="ctrl-group"><button class="ctrl-btn" id="btnLeft">◀</button><button class="ctrl-btn" id="btnRight">▶</button></div>
+    <div class="ctrl-group right"><button class="ctrl-btn jump-btn" id="btnJump">▲</button><button class="ctrl-btn" id="btnDown">▼</button></div>
+</div>
+<div class="overlay active" id="homeOverlay">
+    <div class="overlay-panel">
+        <h1>🕹️ Anti‑Platformer – 2‑Player Race</h1>
+        <p>Player 1: W A S D (and mobile)<br>Player 2: Arrow Keys<br>Same start spot – first to the door wins!<br>Easy mode: levels 1‑4 fixed, then moderate random levels.</p>
+        <button class="menu-btn" id="startGameBtn">▶ START GAME</button>
+        <button class="menu-btn" id="easyStartBtn">🌱 EASY MODE (1-4 then moderate)</button>
+        <button class="menu-btn" id="levelSelectBtn">📋 LEVEL SELECT</button>
+    </div>
+</div>
+<div class="overlay" id="levelSelectOverlay">
+    <div class="overlay-panel" style="max-width:500px"><h2 style="color:#fff;margin-bottom:12px">CHOOSE LEVEL</h2><div class="level-grid" id="levelGrid"></div><button class="menu-btn" id="backToHomeBtn">← BACK</button></div>
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const toggleMobileBtn = document.getElementById('toggleMobileBtn');
+    const mobileControls = document.getElementById('mobileControls');
+    const easyModeBtn = document.getElementById('easyModeBtn');
+    const btnLeft = document.getElementById('btnLeft');
+    const btnRight = document.getElementById('btnRight');
+    const btnJump = document.getElementById('btnJump');
+    const btnDown = document.getElementById('btnDown');
+    const homeBtn = document.getElementById('homeBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const impossibleBtn = document.getElementById('impossibleBtn');
+    const homeOverlay = document.getElementById('homeOverlay');
+    const levelSelectOverlay = document.getElementById('levelSelectOverlay');
+    const startGameBtn = document.getElementById('startGameBtn');
+    const easyStartBtn = document.getElementById('easyStartBtn');
+    const levelSelectBtn = document.getElementById('levelSelectBtn');
+    const backToHomeBtn = document.getElementById('backToHomeBtn');
+    const levelGrid = document.getElementById('levelGrid');
+
+    const GAME_WIDTH = 800, GAME_HEIGHT = 500;
+    const GROUND_Y = 440, GROUND_H = 60, CEILING_Y = 20;
+    const PLAYER_W = 28, PLAYER_H = 32;
+    const PLAYER_SPEED = 280, PLAYER_JUMP_VEL = -580, GRAVITY = 1400;
+    const CLIMB_SPEED = 150;
+    const MAX_FIXED_LEVELS = 8, MAX_LEVEL_SELECT = 30;
+    const PLATFORM_RESPAWN_TIME = 3.0;
+    const RESPAWN_DELAY = 0.3;
+    const INVINCIBLE_TIME = 0.3;
+    const WALL_ACTIVATE_DIST = 200;
+    const CUBE_TRIGGER_X1 = GAME_WIDTH / 3;
+    const CUBE_TRIGGER_X2 = GAME_WIDTH * 0.6;
+    const CUBE_LEVEL_CHANCE = 0.35;
+
+    canvas.width = GAME_WIDTH; canvas.height = GAME_HEIGHT;
+    function resizeCanvas() {
+        const maxW = window.innerWidth * 0.94, maxH = window.innerHeight * 0.68;
+        const scale = Math.min(maxW / GAME_WIDTH, maxH / GAME_HEIGHT);
+        canvas.style.width = (GAME_WIDTH * scale) + 'px';
+        canvas.style.height = (GAME_HEIGHT * scale) + 'px';
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('orientationchange', ()=> setTimeout(resizeCanvas,150));
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function resumeAudio() { if (audioCtx.state === 'suspended') audioCtx.resume(); }
+    document.addEventListener('click', resumeAudio, { once: true });
+    document.addEventListener('keydown', resumeAudio, { once: true });
+    function playTone(freq, duration, type='square', volume=0.1) {
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.type = type; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + duration);
+    }
+    const SFX = {
+        jump: ()=> { playTone(300,0.1,'square',0.08); playTone(500,0.1,'square',0.05); },
+        death: ()=> { playTone(120,0.3,'sawtooth',0.15); },
+        win: ()=> { playTone(600,0.1,'square',0.1); setTimeout(()=>playTone(800,0.15,'square',0.1),100); },
+        trapdoor: ()=> { playTone(80,0.25,'triangle',0.15); },
+        spring: ()=> { playTone(400,0.1,'square',0.12); playTone(600,0.15,'square',0.1); },
+        reroll: ()=> { playTone(200,0.2,'triangle',0.1); }
+    };
+
+    const keys = {};
+    let mobileLeft = false, mobileRight = false, mobileJump = false, mobileDown = false;
+    let mobileControlsVisible = false;
+    let easyMode = false;
+
+    window.addEventListener('keydown', e => {
+        keys[e.key] = true;
+        keys[e.code] = true;
+        if ([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','W','s','S','a','A','d','D'].includes(e.key)) {
+            e.preventDefault();
+        }
+    });
+    window.addEventListener('keyup', e => { keys[e.key] = false; keys[e.code] = false; });
+
+    function updateMobileUI() {
+        mobileControls.classList.toggle('visible', mobileControlsVisible);
+        toggleMobileBtn.classList.toggle('active', mobileControlsVisible);
+    }
+    toggleMobileBtn.addEventListener('click', ()=>{ mobileControlsVisible = !mobileControlsVisible; updateMobileUI(); });
+
+    easyModeBtn.addEventListener('click', () => {
+        easyMode = !easyMode;
+        easyModeBtn.classList.toggle('active', easyMode);
+        buildLevelGrid();
+        if (gameState === 'playing') loadLevel(currentLevel);
+    });
+
+    const activePointers = new Map();
+    function getButtonFromPoint(x, y) {
+        const el = document.elementFromPoint(x, y);
+        if (!el) return null;
+        if (el.id === 'btnLeft' || el.closest('#btnLeft')) return 'btnLeft';
+        if (el.id === 'btnRight' || el.closest('#btnRight')) return 'btnRight';
+        if (el.id === 'btnJump' || el.closest('#btnJump')) return 'btnJump';
+        if (el.id === 'btnDown' || el.closest('#btnDown')) return 'btnDown';
+        return null;
+    }
+    function updateMobileFlags() {
+        mobileLeft = false; mobileRight = false; mobileJump = false; mobileDown = false;
+        for (const [_, btn] of activePointers) {
+            switch (btn) {
+                case 'btnLeft': mobileLeft = true; break;
+                case 'btnRight': mobileRight = true; break;
+                case 'btnJump': mobileJump = true; break;
+                case 'btnDown': mobileDown = true; break;
+            }
+        }
+        btnLeft.classList.toggle('pressed', mobileLeft);
+        btnRight.classList.toggle('pressed', mobileRight);
+        btnJump.classList.toggle('pressed', mobileJump);
+        btnDown.classList.toggle('pressed', mobileDown);
+    }
+    function handlePointerDown(e) {
+        if (!mobileControlsVisible) return;
+        const btn = getButtonFromPoint(e.clientX, e.clientY);
+        if (btn) { e.preventDefault(); activePointers.set(e.pointerId, btn); updateMobileFlags(); }
+    }
+    function handlePointerUp(e) {
+        if (activePointers.has(e.pointerId)) { activePointers.delete(e.pointerId); updateMobileFlags(); }
+    }
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('pointercancel', handlePointerUp);
+    document.addEventListener('pointerleave', handlePointerUp);
+
+    function getPlayer1Input() {
+        return {
+            left: keys['a'] || keys['A'] || keys['KeyA'] || mobileLeft,
+            right: keys['d'] || keys['D'] || keys['KeyD'] || mobileRight,
+            jump: keys['w'] || keys['W'] || keys['KeyW'] || mobileJump,
+            down: keys['s'] || keys['S'] || keys['KeyS'] || mobileDown
+        };
+    }
+    function getPlayer2Input() {
+        return {
+            left: keys['ArrowLeft'],
+            right: keys['ArrowRight'],
+            jump: keys['ArrowUp'],
+            down: keys['ArrowDown']
+        };
+    }
+
+    function fillRoundedRect(ctx, x,y,w,h,r) {
+        if(ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x,y,w,h,r); ctx.fill(); }
+        else {
+            ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+            ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+            ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+            ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath(); ctx.fill();
+        }
+    }
+
+    let particles = [];
+    function spawnParticles(x,y,count,color,spread,life) {
+        for(let i=0;i<count;i++) {
+            const angle=Math.random()*Math.PI*2, speed=spread*(0.4+Math.random());
+            particles.push({x,y, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed-Math.random()*200,
+                           life:life*(0.6+Math.random()*0.8), maxLife:life, color, size:2+Math.random()*4});
+        }
+    }
+    function updateParticles(dt) {
+        for(let i=particles.length-1;i>=0;i--) {
+            const p=particles[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=GRAVITY*0.5*dt; p.life-=dt;
+            if(p.life<=0) particles.splice(i,1);
+        }
+    }
+    function drawParticles(ctx) {
+        for(const p of particles) {
+            const alpha=Math.max(0,p.life/p.maxLife);
+            ctx.fillStyle=p.color.replace('1)',`${alpha})`).replace('rgb','rgba');
+            ctx.beginPath(); ctx.arc(p.x,p.y,p.size*alpha,0,Math.PI*2); ctx.fill();
+        }
+    }
+    let shakeAmount=0, shakeDuration=0;
+    function triggerShake(amount,duration) { shakeAmount=Math.max(shakeAmount,amount); shakeDuration=Math.max(shakeDuration,duration); }
+    function getShakeOffset() {
+        if(shakeDuration<=0) return {x:0,y:0};
+        const intensity=shakeAmount*(shakeDuration/0.3);
+        return { x:(Math.random()-0.5)*intensity*2, y:(Math.random()-0.5)*intensity*2 };
+    }
+    function updateShake(dt) { if(shakeDuration>0) { shakeDuration-=dt; if(shakeDuration<=0){shakeAmount=0; shakeDuration=0;} } }
+
+    function getLevelColors(levelIndex) {
+        const hue = (levelIndex*47+10)%360;
+        return { bg:`hsl(${hue},20%,8%)`, bgAccent:`hsl(${hue},15%,13%)`, ground:`hsl(${hue},35%,22%)`,
+                 groundLight:`hsl(${hue},40%,30%)`, groundDark:`hsl(${hue},30%,16%)`,
+                 platform:`hsl(${hue},38%,26%)`, platformLight:`hsl(${hue},42%,34%)`,
+                 platformCrumbling:`hsl(${hue},25%,18%)`, door:`hsl(${hue},55%,50%)`,
+                 doorGlow:`hsl(${hue},70%,65%)`, doorFrame:`hsl(${hue},45%,35%)`, accent:`hsl(${hue},50%,40%)` };
+    }
+
+    // --- CLASSES (WallSaw with fixed Y) ---
+    class Wall {
+        constructor(x, y, width, height, moveAmplitude = 0, moveSpeed = 0) {
+            this.x = x; this.y = y; this.width = width; this.height = height;
+            this.baseX = x; this.moveAmplitude = moveAmplitude; this.moveSpeed = moveSpeed;
+            this.movePhase = Math.random() * Math.PI * 2; this.lastX = x; this.targetSpikeX = null;
+        }
+        update(dt, players, spikes) {
+            this.lastX = this.x;
+            if (!players || players.length === 0) return;
+            let nearestDist = Infinity;
+            for (const p of players) {
+                const dx = (this.x + this.width/2) - (p.x + p.w/2), dy = (this.y + this.height/2) - (p.y + p.h/2);
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < nearestDist) nearestDist = dist;
+            }
+            if (nearestDist < WALL_ACTIVATE_DIST && this.moveSpeed > 0) {
+                let targetX = this.baseX + Math.sin(this.movePhase) * this.moveAmplitude;
+                if (spikes.length > 0) {
+                    let closestSpikeDist = Infinity;
+                    for (const s of spikes) {
+                        const spikeCX = s.x + s.width/2; const d = Math.abs(spikeCX - this.x);
+                        if (d < closestSpikeDist) { closestSpikeDist = d; this.targetSpikeX = spikeCX; }
+                    }
+                }
+                const seekStrength = 0.4; let seekX = this.baseX;
+                if (this.targetSpikeX !== null) seekX += (this.targetSpikeX - this.baseX) * seekStrength;
+                const oscillateX = this.baseX + Math.sin(this.movePhase) * this.moveAmplitude;
+                this.x += ((oscillateX * 0.5 + seekX * 0.5) - this.x) * 0.1;
+                this.movePhase += dt * this.moveSpeed * 0.05;
+                this.x = Math.max(10, Math.min(GAME_WIDTH - this.width - 10, this.x));
+            } else { this.x += (this.baseX - this.x) * 0.1; }
+        }
+        draw(ctx, colors) {
+            const shake = getShakeOffset(), wx = this.x + shake.x, wy = this.y + shake.y;
+            ctx.fillStyle = colors.platformLight; ctx.fillRect(wx, wy, this.width, this.height);
+            ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(wx+2, wy, 2, this.height); ctx.fillRect(wx+this.width-4, wy, 2, this.height);
+            ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(wx, wy, this.width, 3);
+            if (this.moveSpeed > 0) { ctx.fillStyle = 'rgba(255,255,0,0.5)'; ctx.fillRect(wx+2, wy+4, this.width-4, 3); }
+        }
+        getVelocityX() { return this.x - this.lastX; }
+    }
+
+    class MovingPlatform {
+        constructor(x, y, width, height, moveAmplitudeX = 200, moveSpeedX = 0.45) {
+            this.x = x; this.y = y; this.width = width; this.height = height;
+            this.baseX = x; this.moveAmplitudeX = moveAmplitudeX; this.speed = moveSpeedX;
+            this.movePhaseX = Math.random() * Math.PI * 2; this.lastX = x;
+        }
+        update(dt) {
+            this.lastX = this.x;
+            if (this.moveAmplitudeX > 0 && this.speed > 0) {
+                this.movePhaseX += dt * this.speed;
+                this.x = this.baseX + Math.sin(this.movePhaseX) * this.moveAmplitudeX;
+                this.x = Math.max(10, Math.min(GAME_WIDTH - this.width - 10, this.x));
+            }
+        }
+        draw(ctx, colors) {
+            const shake = getShakeOffset(), px = this.x + shake.x, py = this.y + shake.y;
+            const grad = ctx.createLinearGradient(px, py, px, py + this.height);
+            grad.addColorStop(0, colors.platformLight); grad.addColorStop(1, colors.platform);
+            ctx.fillStyle = grad; ctx.fillRect(px, py, this.width, this.height);
+            ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(px, py, this.width, 3);
+            ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(px, py + this.height - 3, this.width, 3);
+            if (this.moveAmplitudeX > 0) { ctx.fillStyle = 'rgba(100,200,255,0.5)'; ctx.fillRect(px+2, py+4, this.width-4, 2); }
+        }
+    }
+
+    class BouncingCube {
+        constructor(direction, size, speed) {
+            this.dir = direction > 0 ? 1 : -1; this.size = size; this.speed = speed;
+            this.x = this.dir > 0 ? -size : GAME_WIDTH; this.baseY = GROUND_Y - size;
+            this.y = this.baseY; this.bouncePhase = Math.random() * Math.PI * 2;
+            this.bounceAmp = 25 + Math.random() * 20; this.rotation = 0; this.active = true;
+        }
+        update(dt) {
+            this.x += this.dir * this.speed * dt;
+            this.bouncePhase += dt * 12;
+            this.y = this.baseY - Math.abs(Math.sin(this.bouncePhase)) * this.bounceAmp;
+            this.rotation += this.dir * dt * 6;
+            if ((this.dir > 0 && this.x > GAME_WIDTH + this.size) || (this.dir < 0 && this.x < -this.size)) this.active = false;
+        }
+        draw(ctx) {
+            ctx.save(); ctx.translate(this.x + this.size/2, this.y + this.size/2); ctx.rotate(this.rotation);
+            ctx.fillStyle = '#ff4444'; ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(-this.size/2, -this.size/2, this.size, this.size);
+            ctx.restore();
+        }
+    }
+
+    class CeilingPopSpike {
+        constructor(x, width, height, triggerDistY = 100, riseTime = 0.35, stayTime = 0.8, retractTime = 0.25) {
+            this.x = x; this.width = width; this.height = height; this.y = CEILING_Y;
+            this.triggerDistY = triggerDistY; this.riseTime = riseTime; this.stayTime = stayTime; this.retractTime = retractTime;
+            this.state = 'idle'; this.timer = 0; this.currentHeight = 0;
+        }
+        isDangerous() { return this.state === 'up' || this.state === 'rising'; }
+        update(dt, players) {
+            if (!players || players.length === 0) return;
+            const minDistY = Math.min(...players.map(p => p.y + p.h/2 - CEILING_Y));
+            if (this.state === 'idle' && minDistY < this.triggerDistY) { this.state = 'rising'; this.timer = 0; }
+            if (this.state === 'rising') {
+                this.timer += dt; this.currentHeight = (this.timer / this.riseTime) * this.height;
+                if (this.timer >= this.riseTime) { this.state = 'up'; this.currentHeight = this.height; this.timer = 0; }
+            } else if (this.state === 'up') {
+                this.timer += dt; if (this.timer >= this.stayTime) { this.state = 'retracting'; this.timer = 0; }
+            } else if (this.state === 'retracting') {
+                this.timer += dt; this.currentHeight = this.height * (1 - this.timer / this.retractTime);
+                if (this.timer >= this.retractTime) { this.state = 'idle'; this.currentHeight = 0; this.timer = 0; }
+            }
+            this.y = CEILING_Y + this.currentHeight;
+        }
+        draw(ctx) {
+            if (this.currentHeight <= 0) return;
+            const sx = this.x, sy = CEILING_Y; const num = Math.floor(this.width / 14), spikeW = this.width / num;
+            for (let i = 0; i < num; i++) {
+                const bx = sx + i * spikeW;
+                ctx.fillStyle = '#c0392b'; ctx.beginPath();
+                ctx.moveTo(bx, sy); ctx.lineTo(bx + spikeW / 2, sy + this.currentHeight); ctx.lineTo(bx + spikeW, sy);
+                ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 1; ctx.stroke();
+            }
+        }
+    }
+
+    class Player {
+        constructor(x, y, color, inputFunc) {
+            this.x = x; this.y = y; this.w = PLAYER_W; this.h = PLAYER_H;
+            this.vx = 0; this.vy = 0; this.onGround = false; this.onPlatform = null;
+            this.facingRight = true; this.alive = true; this.winPose = false; this.eyeBlink = 0;
+            this.wonDirectly = false; this.onLadder = false;
+            this.droppingThrough = false; this.dropThroughPlatform = null;
+            this.invincibleTimer = INVINCIBLE_TIME;
+            this.color = color;
+            this.getInput = inputFunc;
+        }
+        update(dt, groundObjects, platforms, spikes, saws, popSpikes, ceilingPopSpikes, popSprings, ceilingSpikes, door, wallSaws, ladders, walls, bouncingCubes) {
+            if (!this.alive) return;
+            if (this.invincibleTimer > 0) this.invincibleTimer -= dt;
+            const input = this.getInput();
+            if(input.left) { this.vx = -PLAYER_SPEED; this.facingRight = false; }
+            else if(input.right) { this.vx = PLAYER_SPEED; this.facingRight = true; }
+            else { this.vx *= 0.82; if(Math.abs(this.vx) < 5) this.vx = 0; }
+
+            if (input.down && this.onPlatform && !(this.onPlatform instanceof Wall)) {
+                this.droppingThrough = true; this.dropThroughPlatform = this.onPlatform;
+            }
+
+            this.onLadder = false;
+            for(const lad of ladders) { if(this.x+this.w > lad.x && this.x < lad.x+lad.width && this.y+this.h > lad.y && this.y < lad.y+lad.height) { this.onLadder = true; break; } }
+
+            let canClimb = false;
+            if(this.onLadder) { this.vy = 0; if(input.jump) this.vy = -CLIMB_SPEED; else if(input.down) this.vy = CLIMB_SPEED; canClimb = true; }
+
+            if (!canClimb) {
+                let springJump = false;
+                if (input.jump && (this.onGround || this.onPlatform)) {
+                    for (const ps of popSprings) {
+                        if (ps.state === 'up' || ps.state === 'rising') {
+                            const topY = ps.y;
+                            if (this.x + this.w > ps.x && this.x < ps.x + ps.width && this.y + this.h >= topY - 2 && this.y + this.h <= topY + 4) {
+                                this.vy = ps.launchVel;
+                                this.y = topY - this.h;
+                                this.onGround = false;
+                                this.onPlatform = null;
+                                SFX.spring();
+                                spawnParticles(this.x+this.w/2, topY, 18, 'rgb(100,255,100,1)', 200, 0.8);
+                                ps.trigger();
+                                springJump = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!springJump) {
+                    if(input.jump && (this.onGround||this.onPlatform)) {
+                        this.vy = PLAYER_JUMP_VEL; this.onGround = false; SFX.jump();
+                        if(this.onPlatform && this.onPlatform.crumbling && !this.onPlatform.crumbleTriggered) this.onPlatform.crumbleTimer = Math.max(this.onPlatform.crumbleTimer,0.15);
+                        this.onPlatform = null;
+                    }
+                    this.vy += GRAVITY * dt;
+                }
+            }
+
+            let pushX = 0;
+            for (const w of walls) { const wallVelX = w.getVelocityX(); if (Math.abs(wallVelX) > 0.1) { if (this.x + this.w > w.x && this.x < w.x + w.width && this.y + this.h > w.y && this.y < w.y + w.height) { pushX += wallVelX; } if (this.onPlatform === w) { pushX += wallVelX; } } }
+            if (this.onPlatform instanceof MovingPlatform) { pushX += this.onPlatform.x - this.onPlatform.lastX; }
+
+            let newX = this.x + this.vx * dt + pushX;
+            const allSolid = [...walls];
+            for (const solid of allSolid) {
+                if (this.y + this.h > solid.y && this.y < solid.y + solid.height) {
+                    if (newX + this.w > solid.x && this.x < solid.x + solid.width) {
+                        if (this.vx > 0 || (pushX > 0 && this.x + this.w <= solid.x)) { newX = solid.x - this.w; this.vx = 0; }
+                        else if (this.vx < 0 || (pushX < 0 && this.x >= solid.x + solid.width)) { newX = solid.x + solid.width; this.vx = 0; }
+                    }
+                }
+            }
+            this.x = newX;
+            this.y += this.vy * dt;
+
+            if(this.y < CEILING_Y) { this.y = CEILING_Y; if(this.vy < 0) this.vy = 0; }
+            if(this.x<0) this.x=0; if(this.x+this.w>GAME_WIDTH) this.x=GAME_WIDTH-this.w;
+
+            if (!canClimb) {
+                this.onGround = false; this.onPlatform = null;
+                const footY = this.y+this.h, prevFootY = footY - this.vy*dt;
+                let landed = false;
+
+                for(const ps of popSprings) {
+                    if (ps.state === 'up' || ps.state === 'rising') {
+                        const topY = ps.y;
+                        if (this.x + this.w > ps.x && this.x < ps.x + ps.width && prevFootY <= topY && footY >= topY) {
+                            this.vy = ps.launchVel;
+                            this.y = topY - this.h;
+                            this.onGround = false;
+                            SFX.spring();
+                            spawnParticles(this.x+this.w/2, topY, 18, 'rgb(100,255,100,1)', 200, 0.8);
+                            ps.trigger(); landed = true; break;
+                        }
+                    }
+                }
+
+                if (!landed) {
+                    for(const g of groundObjects) {
+                        if(g.crumbled || (g.permanent && g.trapdoor)) continue;
+                        if(this.x+this.w > g.x+2 && this.x < g.x+g.width-2) {
+                            if(prevFootY <= g.y+4 && footY >= g.y-2) {
+                                this.y = g.y - this.h; this.vy = 0; this.onGround = true; landed = true;
+                                if(!g.permanent) {
+                                    if(g.trapdoor && !g.crumbling) { g.crumbling = true; g.crumbleTimer = 0; SFX.trapdoor(); }
+                                    else if(g.crumbling && !g.crumbleTriggered) {
+                                        g.crumbleTimer += dt * (g.crumbleSpeed || 1);
+                                        if(g.crumbleTimer > 0.9) { g.crumbled = true; spawnParticles(g.x+g.width/2, g.y+GROUND_H/2, 25,'rgb(180,140,100,1)',180,0.8); triggerShake(6,0.25); this.onGround = false; landed = false; }
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if(!landed && this.vy >= 0) {
+                    const allPlats = [...platforms, ...upperPlatforms, ...movingPlatforms];
+                    for(const plat of allPlats) {
+                        if(plat.crumbled) continue;
+                        if(this.droppingThrough && this.dropThroughPlatform === plat) continue;
+                        const platY = plat.y;
+                        if(this.x+this.w > plat.x+4 && this.x < plat.x+plat.width-4) {
+                            if(prevFootY <= platY+6 && footY >= platY-2 && this.y+this.h <= platY+plat.height+4) {
+                                this.y = platY - this.h; this.vy = 0; this.onPlatform = plat;
+                                if(plat.crumbling && !plat.crumbleTriggered) {
+                                    plat.crumbleTimer += dt; if(plat.crumbleTimer > 0.85) {
+                                        plat.crumbled = true; plat.respawnTimer = PLATFORM_RESPAWN_TIME;
+                                        spawnParticles(plat.x+plat.width/2, platY+plat.height/2, 20,'rgb(160,130,90,1)',150,0.7);
+                                        triggerShake(4,0.2); this.onPlatform = null;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if(!landed && this.vy >= 0) {
+                    for(const w of walls) {
+                        if(this.x+this.w > w.x && this.x < w.x+w.width) {
+                            if(prevFootY <= w.y + 2 && footY >= w.y - 2) { this.y = w.y - this.h; this.vy = 0; this.onPlatform = w; landed = true; break; }
+                        }
+                    }
+                }
+
+                if(this.droppingThrough && this.dropThroughPlatform) {
+                    const p = this.dropThroughPlatform;
+                    if(this.y + this.h < (p.y) || this.y > (p.y) + p.height || this.x + this.w < p.x || this.x > p.x + p.width) {
+                        this.droppingThrough = false; this.dropThroughPlatform = null;
+                    }
+                }
+                if(this.y > GAME_HEIGHT+60) this.die();
+            } else { this.onGround = false; this.onPlatform = null; }
+
+            if(this.alive && this.invincibleTimer <= 0) {
+                for(const cps of ceilingPopSpikes) { if(!cps.isDangerous()) continue; if(this.y < cps.y + cps.currentHeight && this.x + this.w > cps.x && this.x < cps.x + cps.width) { this.die(); break; } }
+                for(const sp of spikes) { if(this.x+this.w-6>sp.x+4 && this.x+6<sp.x+sp.width-4 && this.y+this.h-6>sp.y && this.y+6<sp.y+sp.height) { this.die(); break; } }
+                for(const saw of saws) { const dx=this.x+this.w/2-saw.x, dy=this.y+this.h/2-saw.y; if(Math.sqrt(dx*dx+dy*dy) < saw.getCurrentRadius()+Math.min(this.w,this.h)/2-8) { this.die(); break; } }
+                for(const ws of wallSaws) { const dx=this.x+this.w/2-ws.x, dy=this.y+this.h/2-ws.y; if(Math.sqrt(dx*dx+dy*dy) < ws.radius+Math.min(this.w,this.h)/2-8) { this.die(); break; } }
+                for(const ps of popSpikes) { if(!ps.isDangerous()) continue; if(this.x+this.w-6>ps.x+4 && this.x+6<ps.x+ps.width-4 && this.y+this.h-6>ps.y && this.y+6<ps.y+ps.height) { this.die(); break; } }
+                for(const bc of bouncingCubes) { if (this.x + this.w > bc.x && this.x < bc.x + bc.size && this.y + this.h > bc.y && this.y < bc.y + bc.size) { this.die(); break; } }
+                if(this.vy < 0) for(const cs of ceilingSpikes) { if (this.y <= cs.y + cs.height && this.x + this.w > cs.x && this.x < cs.x + cs.width) { this.die(); break; } }
+            }
+            if(this.alive && !this.winPose && this.invincibleTimer <= 0) {
+                const dx = this.x+this.w/2 - (door.x+door.width/2), dy = this.y+this.h/2 - (door.y+door.height/2);
+                if(Math.abs(dx) < (this.w+door.width)/2-4 && Math.abs(dy) < (this.h+door.height)/2-2) {
+                    this.wonDirectly = true; this.alive = false; SFX.win();
+                    spawnParticles(this.x+this.w/2, this.y+this.h/2, 40, 'rgb(255,220,80,1)', 300, 1.2);
+                }
+            }
+            this.eyeBlink -= dt; if(this.eyeBlink <= 0) this.eyeBlink = 2.5 + Math.random()*4;
+        }
+        die() {
+            if(!this.alive || this.invincibleTimer > 0) return;
+            this.alive = false; SFX.death(); spawnParticles(this.x+this.w/2,this.y+this.h/2,30,'rgb(255,80,60,1)',250,0.9);
+            triggerShake(10,0.35);
+        }
+        draw(ctx) {
+            if(!this.alive && !this.winPose) return;
+            const shake = getShakeOffset(), px = this.x+shake.x, py = this.y+shake.y;
+            ctx.save();
+            ctx.fillStyle = this.color; ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
+            fillRoundedRect(ctx, px+2, py+2, this.w-4, this.h-4, 8); ctx.stroke();
+            ctx.fillStyle = '#ffffff'; const eyeY = py+this.h*0.3, eyeSp = 6;
+            ctx.beginPath(); ctx.arc(px+this.w/2-eyeSp, eyeY, 1.5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(px+this.w/2+eyeSp, eyeY, 1.5, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    class Ladder { constructor(x,y,w,h){ this.x=x;this.y=y;this.width=w;this.height=h; } draw(ctx){ ctx.strokeStyle='#8B4513'; ctx.lineWidth=2; const step=10; for(let yy=this.y;yy<this.y+this.height;yy+=step){ ctx.beginPath(); ctx.moveTo(this.x,yy); ctx.lineTo(this.x+this.width,yy); ctx.stroke(); } ctx.beginPath(); ctx.moveTo(this.x,this.y); ctx.lineTo(this.x,this.y+this.height); ctx.moveTo(this.x+this.width,this.y); ctx.lineTo(this.x+this.width,this.y+this.height); ctx.stroke(); } }
+    class Spike { constructor(x,y,w,h){ this.x=x;this.y=y;this.width=w;this.height=h; } draw(ctx){ const shake=getShakeOffset(),sx=this.x+shake.x,sy=this.y+shake.y;const n=Math.floor(this.width/16),sw=this.width/n;for(let i=0;i<n;i++){ const bx=sx+i*sw;ctx.fillStyle='#c0392b';ctx.beginPath();ctx.moveTo(bx,sy+this.height);ctx.lineTo(bx+sw/2,sy);ctx.lineTo(bx+sw,sy+this.height);ctx.closePath();ctx.fill();ctx.strokeStyle='#e74c3c';ctx.lineWidth=1;ctx.stroke(); } } }
+    class Saw { constructor(x,y,r,a,min,max,spd){ this.homeX=x;this.homeY=y;this.x=x;this.y=y;this.baseRadius=r;this.patrolAxis=a;this.patrolMin=min;this.patrolMax=max;this.speed=spd;this.angle=0;this.patrolDir=1; } getCurrentRadius(){ return this.baseRadius; } update(dt){ this.angle+=dt*8;if(this.patrolAxis==='x'){ this.x+=this.speed*this.patrolDir*dt;if(this.x>this.patrolMax){this.x=this.patrolMax;this.patrolDir=-1;}if(this.x<this.patrolMin){this.x=this.patrolMin;this.patrolDir=1;}}else{ this.y+=this.speed*this.patrolDir*dt;if(this.y>this.patrolMax){this.y=this.patrolMax;this.patrolDir=-1;}if(this.y<this.patrolMin){this.y=this.patrolMin;this.patrolDir=1;}} } draw(ctx){ const shake=getShakeOffset(),sx=this.x+shake.x,sy=this.y+shake.y,r=this.baseRadius; ctx.beginPath(); ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1; if(this.patrolAxis==='x'){ ctx.moveTo(this.patrolMin, this.homeY); ctx.lineTo(this.patrolMax, this.homeY); }else{ ctx.moveTo(this.homeX, this.patrolMin); ctx.lineTo(this.homeX, this.patrolMax); } ctx.stroke(); ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.arc(sx+2,sy+2,r,0,Math.PI*2); ctx.fill(); const grad=ctx.createRadialGradient(sx-r*0.3,sy-r*0.3,r*0.1,sx,sy,r); grad.addColorStop(0,'#888'); grad.addColorStop(0.7,'#444'); grad.addColorStop(1,'#1a1a1a'); ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(sx,sy,r,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#666'; ctx.lineWidth=2; ctx.stroke(); for(let i=0;i<10;i++){ const a=this.angle+(i/10)*Math.PI*2; ctx.fillStyle='#555'; ctx.beginPath(); ctx.moveTo(sx+Math.cos(a-0.15)*r*0.75,sy+Math.sin(a-0.15)*r*0.75); ctx.lineTo(sx+Math.cos(a)*r*1.05,sy+Math.sin(a)*r*1.05); ctx.lineTo(sx+Math.cos(a+0.15)*r*0.75,sy+Math.sin(a+0.15)*r*0.75); ctx.closePath(); ctx.fill(); } ctx.fillStyle='#ccc'; ctx.beginPath(); ctx.arc(sx,sy,r*0.2,0,Math.PI*2); ctx.fill(); } }
+    class PopSpike { constructor(x, yBase, width, height, triggerDist=110, riseTime=0.35, stayTime=0.7, retractTime=0.25) { this.x = x; this.width = width; this.height = height; this.yBase = yBase; this.y = yBase; this.triggerDist = triggerDist; this.riseTime = riseTime; this.stayTime = stayTime; this.retractTime = retractTime; this.state = 'idle'; this.timer = 0; this.currentHeight = 0; } isDangerous() { return this.state==='up'||this.state==='rising'; } update(dt, players) { const minDist = Math.min(...players.map(p => Math.abs((p.x + p.w/2) - (this.x+this.width/2)))); if(this.state==='idle' && minDist<this.triggerDist) { this.state='rising'; this.timer=0; } if(this.state==='rising') { this.timer+=dt; this.currentHeight=(this.timer/this.riseTime)*this.height; if(this.timer>=this.riseTime){ this.state='up'; this.currentHeight=this.height; this.timer=0; } } else if(this.state==='up') { this.timer+=dt; if(this.timer>=this.stayTime){ this.state='retracting'; this.timer=0; } } else if(this.state==='retracting') { this.timer+=dt; this.currentHeight=this.height*(1-this.timer/this.retractTime); if(this.timer>=this.retractTime){ this.state='idle'; this.currentHeight=0; this.timer=0; } } this.y = this.yBase - this.currentHeight; } draw(ctx) { if(this.currentHeight<=0) return; const shake=getShakeOffset(), sx=this.x+shake.x, sy=this.y+shake.y; const num=Math.floor(this.width/14), spikeW=this.width/num; for(let i=0;i<num;i++) { const bx=sx+i*spikeW; ctx.fillStyle='#e67e22'; ctx.beginPath(); ctx.moveTo(bx, sy+this.currentHeight); ctx.lineTo(bx+spikeW/2, sy); ctx.lineTo(bx+spikeW, sy+this.currentHeight); ctx.closePath(); ctx.fill(); ctx.strokeStyle='#d35400'; ctx.lineWidth=1; ctx.stroke(); } } }
+    class CeilingSpike { constructor(x,w,h){ this.x=x;this.width=w;this.height=h;this.y=CEILING_Y; } draw(ctx){ const sx=this.x,sy=this.y;const n=Math.floor(this.width/16),sw=this.width/n;for(let i=0;i<n;i++){ const bx=sx+i*sw;ctx.fillStyle='#c0392b';ctx.beginPath();ctx.moveTo(bx,sy);ctx.lineTo(bx+sw/2,sy+this.height);ctx.lineTo(bx+sw,sy);ctx.closePath();ctx.fill();ctx.strokeStyle='#e74c3c';ctx.lineWidth=1;ctx.stroke(); } } }
+    class GapWidener { constructor(l,r,ig,meg,es,ss){ this.leftSeg=l;this.rightSeg=r;this.initialGap=ig;this.maxExtraGap=meg;this.expandSpeed=es;this.shrinkSpeed=ss;this.currentExtra=0; } update(dt,air){ if(air){ this.currentExtra+=this.expandSpeed*dt;if(this.currentExtra>this.maxExtraGap)this.currentExtra=this.maxExtraGap; }else{ this.currentExtra-=this.shrinkSpeed*dt;if(this.currentExtra<0)this.currentExtra=0; } if(this.leftSeg&&this.rightSeg){ const he=this.currentExtra/2;this.leftSeg.x=this.leftSeg.baseX-he;this.leftSeg.width=this.leftSeg.baseWidth;this.rightSeg.x=this.rightSeg.baseX+he;this.rightSeg.width=this.rightSeg.baseWidth; } } }
+    class PopSpring {
+        constructor(x, width, launchVel = -1080, triggerDist = 100, riseTime = 0.3, stayTime = 0.8, retractTime = 0.2) {
+            this.x = x; this.width = width; this.height = 32; this.yBase = GROUND_Y; this.y = GROUND_Y;
+            this.launchVel = launchVel; this.triggerDist = triggerDist;
+            this.riseTime = riseTime; this.stayTime = stayTime; this.retractTime = retractTime;
+            this.state = 'idle'; this.timer = 0; this.currentHeight = 0;
+        }
+        update(dt, players) {
+            const minDist = Math.min(...players.map(p => Math.abs((p.x + p.w/2) - (this.x + this.width/2))));
+            if (this.state === 'idle' && minDist < this.triggerDist) { this.state = 'rising'; this.timer = 0; }
+            if (this.state === 'rising') { this.timer += dt; this.currentHeight = (this.timer / this.riseTime) * this.height; if (this.timer >= this.riseTime) { this.state = 'up'; this.currentHeight = this.height; this.timer = 0; } }
+            else if (this.state === 'up') { this.timer += dt; if (this.timer >= this.stayTime) { this.state = 'retracting'; this.timer = 0; } }
+            else if (this.state === 'retracting') { this.timer += dt; this.currentHeight = this.height * (1 - this.timer / this.retractTime); if (this.timer >= this.retractTime) { this.state = 'idle'; this.currentHeight = 0; this.timer = 0; } }
+            this.y = this.yBase - this.currentHeight;
+        }
+        trigger() { if (this.state === 'up' || this.state === 'rising') { this.state = 'retracting'; this.timer = 0; } }
+        draw(ctx) {
+            if (this.currentHeight <= 0) return;
+            const sx = this.x, sy = this.y, w = this.width, h = this.currentHeight;
+            ctx.strokeStyle = '#ddd'; ctx.lineWidth = 3; ctx.beginPath(); const coils = 6;
+            for (let i = 0; i <= coils; i++) { const xOff = (i % 2 === 0 ? 2 : w - 2); ctx.lineTo(sx + xOff, sy + (i / coils) * h); }
+            ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(sx, sy - 2, w, 4);
+        }
+    }
+    class WallSaw {
+        constructor(startX, startY, targetX, speed) {
+            this.x = startX; this.y = startY; this.radius = 16; this.speed = speed;
+            this.targetX = targetX; this.active = true; this.angle = 0;
+        }
+        update(dt) {
+            this.angle += dt*12;
+            const dir = this.targetX > this.x ? 1 : -1;
+            this.x += this.speed * dir * dt;
+            if ((dir === 1 && this.x >= this.targetX) || (dir === -1 && this.x <= this.targetX)) {
+                this.active = false;
+            }
+        }
+        draw(ctx) {
+            const sx=this.x, sy=this.y, r=this.radius;
+            ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.arc(sx+2,sy+2,r,0,Math.PI*2); ctx.fill();
+            const grad=ctx.createRadialGradient(sx-r*0.3,sy-r*0.3,r*0.1,sx,sy,r);
+            grad.addColorStop(0,'#888'); grad.addColorStop(0.7,'#444'); grad.addColorStop(1,'#1a1a1a');
+            ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(sx,sy,r,0,Math.PI*2); ctx.fill();
+            ctx.strokeStyle='#666'; ctx.lineWidth=2; ctx.stroke();
+            for(let i=0;i<10;i++){
+                const a=this.angle+(i/10)*Math.PI*2;
+                ctx.fillStyle='#555';
+                ctx.beginPath();
+                ctx.moveTo(sx+Math.cos(a-0.15)*r*0.75,sy+Math.sin(a-0.15)*r*0.75);
+                ctx.lineTo(sx+Math.cos(a)*r*1.05,sy+Math.sin(a)*r*1.05);
+                ctx.lineTo(sx+Math.cos(a+0.15)*r*0.75,sy+Math.sin(a+0.15)*r*0.75);
+                ctx.closePath(); ctx.fill();
+            }
+            ctx.fillStyle='#ccc'; ctx.beginPath(); ctx.arc(sx,sy,r*0.2,0,Math.PI*2); ctx.fill();
+        }
+    }
+    class Door {
+        constructor(baseX, y, w, h, moveAmp = 40, moveFreqNormal = 0.8, moveFreqFast = 1.6, dodgeDist = 120) {
+            this.baseX = baseX; this.y = y; this.width = w; this.height = h;
+            this.moveAmp = moveAmp; this.moveFreqNormal = moveFreqNormal; this.moveFreqFast = moveFreqFast;
+            this.dodgeDist = dodgeDist; this.movePhase = Math.random() * Math.PI * 2; this.glowPhase = 0;
+            this.x = baseX; this.currentFreq = moveFreqNormal; this.dodgeOffset = 0; this.activationDelay = 0.5;
+        }
+        update(dt, players) {
+            if (this.activationDelay > 0) this.activationDelay -= dt;
+            const doorCenter = this.x + this.width / 2;
+            let combinedDodge = 0, count = 0;
+            for (const p of players) {
+                const dx = doorCenter - (p.x + p.w/2); const dist = Math.abs(dx);
+                if (dist < this.dodgeDist) {
+                    const sign = dx > 0 ? 1 : -1;
+                    combinedDodge += sign * (this.dodgeDist - dist) * 0.8;
+                    count++;
+                }
+            }
+            const dodgeTarget = count > 0 ? combinedDodge / count : 0;
+            this.dodgeOffset += (dodgeTarget - this.dodgeOffset) * 0.1;
+            const anyClose = count > 0;
+            const targetFreq = anyClose ? this.moveFreqFast : this.moveFreqNormal;
+            this.currentFreq += (targetFreq - this.currentFreq) * 0.1;
+            this.movePhase += dt * Math.PI * 2 * this.currentFreq;
+            let sineX = this.baseX + Math.sin(this.movePhase) * this.moveAmp;
+            this.x = sineX + this.dodgeOffset; this.x = Math.max(5, Math.min(GAME_WIDTH - this.width - 5, this.x));
+            this.glowPhase += dt * 2.5;
+        }
+        draw(ctx, colors) {
+            const shake = getShakeOffset(), dx = this.x + shake.x, dy = this.y + shake.y;
+            const gi = 0.4 + Math.sin(this.glowPhase) * 0.25;
+            let glowColor = colors.doorGlow;
+            if (glowColor.includes('65%')) glowColor = glowColor.replace('65%', `${65 + gi * 20}%`);
+            const gg = ctx.createRadialGradient(dx + this.width / 2, dy + this.height / 2, this.width * 0.3, dx + this.width / 2, dy + this.height / 2, this.width * 1.5);
+            gg.addColorStop(0, glowColor); gg.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = gg; ctx.fillRect(dx - this.width, dy - this.height, this.width * 3, this.height * 3);
+            ctx.fillStyle = colors.doorFrame; ctx.fillRect(dx - 3, dy - 3, this.width + 6, this.height + 6);
+            ctx.strokeStyle = colors.doorGlow; ctx.lineWidth = 2; ctx.strokeRect(dx - 3, dy - 3, this.width + 6, this.height + 6);
+            const dg = ctx.createLinearGradient(dx, dy, dx + this.width, dy);
+            dg.addColorStop(0, colors.door); dg.addColorStop(1, colors.doorGlow);
+            ctx.fillStyle = dg; ctx.fillRect(dx, dy, this.width, this.height);
+            ctx.fillStyle = colors.doorGlow; ctx.beginPath(); ctx.arc(dx + this.width / 2, dy, this.width / 2 - 2, Math.PI, 0); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(dx + this.width - 8, dy + this.height / 2, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#ccc'; ctx.stroke();
+        }
+    }
+
+    // --- LEVEL GENERATION (unchanged except easy random) ---
+    const sessionLevelCache = {};
+
+    function createGroundSegment(x,w, crumbling=false, trapdoor=false, permanent=false) {
+        return { x, y:GROUND_Y, width:w, height:GROUND_H, baseX:x, baseWidth:w, crumbling, crumbled:false, crumbleTimer:0, crumbleTriggered:false, trapdoor, permanent, crumbleSpeed:trapdoor?2:1,
+            draw(ctx,colors){ if(this.crumbled) return; const shake=getShakeOffset(), sx=this.x+shake.x, sy=this.y+shake.y; const grad=ctx.createLinearGradient(sx,sy,sx,sy+this.height); grad.addColorStop(0,colors.groundLight); grad.addColorStop(0.5,colors.ground); grad.addColorStop(1,colors.groundDark); ctx.fillStyle=grad; ctx.fillRect(sx,sy,this.width,this.height); if(this.permanent) ctx.fillStyle='rgba(255,255,255,0.25)'; else ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fillRect(sx,sy,this.width,3); } };
+    }
+    function createPlatform(x, y, w, crumbling=false) { return { x, y, width:w, height:16, crumbling, crumbled:false, crumbleTimer:0, crumbleTriggered:false, respawnTimer:0 }; }
+
+    function generateFixedLevel(lvl) {
+        const idx = lvl-1;
+        const layouts = [
+            { ground:[createGroundSegment(0,260,false,false,true), createGroundSegment(340,200), createGroundSegment(600,200)], platforms:[], upperPlatforms:[], movingPlatforms:[], ladders:[], walls:[], ceilingPopSpikes:[], spikes:[new Spike(280,GROUND_Y-16,40,16)], saws:[], popSprings:[], ceilingSpikes:[], gapWideners:[], popSpikes:[], wallSawTriggers:[], doorBaseX:720, doorY:GROUND_Y-70, playerStartX:40 },
+            { ground:[createGroundSegment(0,200,false,false,true), createGroundSegment(320,150), createGroundSegment(540,260)], platforms:[], upperPlatforms:[createPlatform(150,180,100), createPlatform(400,140,110)], movingPlatforms:[], ladders:[new Ladder(190,180,15,100)], walls:[], ceilingPopSpikes:[], spikes:[], saws:[], popSprings:[new PopSpring(450,50)], ceilingSpikes:[new CeilingSpike(200,80,30)], gapWideners:[new GapWidener(null,null,0,0,25,35)], popSpikes:[new PopSpike(300,GROUND_Y-16,45,30)], wallSawTriggers:[{triggerX:400,side:'left',speed:500}], doorBaseX:740, doorY:GROUND_Y-70, playerStartX:30 },
+            { ground:[createGroundSegment(0,180,false,false,true), createGroundSegment(330,56,false,true), createGroundSegment(440,100), createGroundSegment(600,200)], platforms:[createPlatform(250,370,100)], upperPlatforms:[createPlatform(100,220,80), createPlatform(500,200,90)], movingPlatforms:[], ladders:[new Ladder(130,200,15,80)], walls:[], ceilingPopSpikes:[new CeilingPopSpike(300,60,30)], spikes:[new Spike(400,GROUND_Y-16,35,16)], saws:[], popSprings:[new PopSpring(500,48)], ceilingSpikes:[new CeilingSpike(100,70,28)], gapWideners:[new GapWidener(null,null,0,0,30,35)], popSpikes:[new PopSpike(150,370,40,25,100,0.3,0.6)], wallSawTriggers:[{triggerX:500,side:'right',speed:-550}], doorBaseX:745, doorY:GROUND_Y-70, playerStartX:25 },
+            { ground:[createGroundSegment(0,170,false,false,true), createGroundSegment(310,140), createGroundSegment(520,160), createGroundSegment(730,70)], platforms:[], upperPlatforms:[createPlatform(200,250,90,true), createPlatform(550,210,100)], movingPlatforms:[], ladders:[new Ladder(240,250,15,100)], walls:[], ceilingPopSpikes:[], spikes:[new Spike(200,GROUND_Y-16,40,16),new Spike(600,GROUND_Y-16,35,16)], saws:[], popSprings:[new PopSpring(450,48)], ceilingSpikes:[new CeilingSpike(300,90,32)], gapWideners:[new GapWidener(null,null,0,0,25,30)], popSpikes:[new PopSpike(450,GROUND_Y-16,45,30)], wallSawTriggers:[], doorBaseX:740, doorY:GROUND_Y-70, playerStartX:20 },
+            { ground:[createGroundSegment(0,160,false,false,true), createGroundSegment(310,56,false,true), createGroundSegment(420,140), createGroundSegment(620,180)], platforms:[], upperPlatforms:[createPlatform(150,180,100), createPlatform(400,140,110), createPlatform(650,200,80)], movingPlatforms:[], ladders:[new Ladder(180,180,15,90),new Ladder(620,200,15,80)], walls:[], ceilingPopSpikes:[new CeilingPopSpike(500,50,28)], spikes:[new Spike(380,GROUND_Y-16,35,16)], saws:[new Saw(600,320,18,'y',270,370,80)], popSprings:[], ceilingSpikes:[new CeilingSpike(500,60,25),new CeilingSpike(200,70,28)], gapWideners:[], popSpikes:[new PopSpike(120,GROUND_Y-16,50,32),new PopSpike(580,140,45,28)], wallSawTriggers:[{triggerX:350,side:'left',speed:600}], doorBaseX:735, doorY:GROUND_Y-70, playerStartX:15 },
+            { ground:[createGroundSegment(0,150,false,false,true), createGroundSegment(300,120), createGroundSegment(490,140), createGroundSegment(690,110)], platforms:[], upperPlatforms:[createPlatform(250,200,90,true), createPlatform(550,180,100)], movingPlatforms:[new MovingPlatform(350, 180, 90, 16, 200, 0.375)], ladders:[new Ladder(290,200,15,80)], walls:[], ceilingPopSpikes:[], spikes:[new Spike(220,GROUND_Y-16,40,16)], saws:[new Saw(400,300,18,'x',300,500,70)], popSprings:[new PopSpring(550,50)], ceilingSpikes:[new CeilingSpike(350,100,30)], gapWideners:[new GapWidener(null,null,0,0,22,30)], popSpikes:[new PopSpike(430,GROUND_Y-16,48,30)], wallSawTriggers:[{triggerX:400,side:'right',speed:-550}], doorBaseX:740, doorY:GROUND_Y-70, playerStartX:18 },
+            { ground:[createGroundSegment(0,130,false,false,true), createGroundSegment(280,56,false,true), createGroundSegment(390,140), createGroundSegment(590,130), createGroundSegment(780,20)], platforms:[createPlatform(180,370,90)], upperPlatforms:[createPlatform(80,220,80), createPlatform(500,190,90,true)], movingPlatforms:[], ladders:[new Ladder(120,220,15,80),new Ladder(530,190,15,90)], walls:[], ceilingPopSpikes:[new CeilingPopSpike(200,55,30)], spikes:[new Spike(360,GROUND_Y-16,45,16),new Spike(600,GROUND_Y-16,40,16)], saws:[new Saw(200,330,18,'y',280,380,75)], popSprings:[], ceilingSpikes:[new CeilingSpike(100,80,32),new CeilingSpike(500,70,28)], gapWideners:[], popSpikes:[new PopSpike(80,GROUND_Y-16,50,30),new PopSpike(540,190,45,28)], wallSawTriggers:[{triggerX:300,side:'left',speed:500},{triggerX:600,side:'right',speed:-500}], doorBaseX:745, doorY:GROUND_Y-70, playerStartX:15 },
+            { ground:[createGroundSegment(0,120,false,false,true), createGroundSegment(270,110), createGroundSegment(450,56,false,true), createGroundSegment(560,100), createGroundSegment(720,80)], platforms:[], upperPlatforms:[createPlatform(150,180,100), createPlatform(400,140,110), createPlatform(650,200,80)], movingPlatforms:[new MovingPlatform(250, 160, 85, 16, 200, 0.33)], ladders:[new Ladder(180,180,15,90),new Ladder(430,140,15,100)], walls:[], ceilingPopSpikes:[new CeilingPopSpike(400,60,32),new CeilingPopSpike(600,50,28)], spikes:[new Spike(150,GROUND_Y-16,40,16),new Spike(500,GROUND_Y-16,35,16)], saws:[new Saw(620,320,16,'x',500,700,80)], popSprings:[new PopSpring(620,50), new PopSpring(200,50)], ceilingSpikes:[new CeilingSpike(50,90,34),new CeilingSpike(600,80,30)], gapWideners:[new GapWidener(null,null,0,0,20,35)], popSpikes:[new PopSpike(350,GROUND_Y-16,46,32)], wallSawTriggers:[{triggerX:450,side:'left',speed:600}], doorBaseX:748, doorY:GROUND_Y-70, playerStartX:10 }
+        ];
+        if(idx>=layouts.length) return null;
+        const data = layouts[idx];
+        data.hasCubes = false;
+        const gaps = [];
+        for(let i=0;i<data.ground.length-1;i++) { const left=data.ground[i], right=data.ground[i+1]; const gap = right.baseX - (left.baseX+left.width); gaps.push(new GapWidener(left, right, gap, gap+60, 25, 30)); }
+        return { ...data, groundSegments: data.ground, gapWideners: gaps, playerStartY: GROUND_Y-PLAYER_H };
+    }
+
+    function generateRandomLevel(lvl) {
+        const diff = Math.min(lvl - MAX_FIXED_LEVELS, 20);
+        const numGaps = Math.min(2, 1+Math.floor(diff*0.2));
+        let numSpikes = Math.min(2, Math.floor(diff*0.3));
+        let numSaws = Math.max(1, Math.floor(diff*0.3));
+        let usePopSpikes = diff>4 && Math.random()<0.3;
+        if(lvl>10) { numSaws = Math.max(2, numSaws); usePopSpikes = true; }
+
+        let segments = [], cx=10;
+        const totalGroundW = GAME_WIDTH-60, gapBase = Math.min(40+diff*2,80);
+        for(let i=0;i<=numGaps;i++) { const w = Math.max(80, totalGroundW/(numGaps+1)*(0.7+Math.random()*0.5)); const perm = (i===0); segments.push(createGroundSegment(cx, w, false, false, perm)); cx += w; if(i<numGaps) cx += gapBase+Math.random()*20; }
+        segments = insertTrapdoors(segments, lvl);
+        const gaps = []; for(let i=0;i<segments.length-1;i++) { const left=segments[i], right=segments[i+1]; const initialGap = right.baseX - (left.baseX+left.width); gaps.push(new GapWidener(left, right, initialGap, initialGap+40, 15+diff*2, 20)); }
+        const spikes = []; for(let i=0;i<numSpikes;i++) spikes.push(new Spike(50+Math.random()*(GAME_WIDTH-120), GROUND_Y-16, 30+Math.random()*25, 16));
+        const saws = []; const allSawPositions = [];
+        for(let i=0;i<numSaws;i++) { let placed=false, attempts=0; while(!placed && attempts<30) { const axis = Math.random()<0.5?'x':'y'; let sx,sy,pMin,pMax; if(axis==='x') { sy=280+Math.random()*120; pMin=60+Math.random()*150; pMax=pMin+80+Math.random()*150; sx=(pMin+pMax)/2; } else { sx=100+Math.random()*500; pMin=260+Math.random()*60; pMax=pMin+60+Math.random()*100; sy=(pMin+pMax)/2; } const newSaw = new Saw(sx,sy,14+Math.random()*6,axis,pMin,pMax,60+Math.random()*80); let tooClose = false; for(const pos of allSawPositions) { const dx = newSaw.homeX - pos.homeX, dy = newSaw.homeY - pos.homeY; if(Math.sqrt(dx*dx+dy*dy) < 140) { tooClose=true; break; } } if(!tooClose) { saws.push(newSaw); allSawPositions.push({ homeX:newSaw.homeX, homeY:newSaw.homeY }); placed=true; } attempts++; } }
+        const movingPlatforms = []; if (lvl > 6 && Math.random() < 0.45) { const pw = 70+Math.random()*60, px = 40+Math.random()*(GAME_WIDTH-pw-80), py = 140+Math.random()*120; const moveAmplitudeX = 180 + Math.random() * 100; const moveSpeedX = 0.225 + Math.random() * 0.225; movingPlatforms.push(new MovingPlatform(px, py, pw, 16, moveAmplitudeX, moveSpeedX)); }
+        const upperPlatforms = []; const upCount = 1 + Math.floor(Math.random()*2) - movingPlatforms.length;
+        const existingPlatforms = []; const minPlatformDist = 150;
+        for(let i=0;i<Math.max(0,upCount);i++) { let attempts=0, placed=false; while(!placed && attempts<20) { const pw = 60+Math.random()*90, px = 30+Math.random()*(GAME_WIDTH-pw-60), py = 120+Math.random()*150; let tooClose = false; for(const existing of existingPlatforms) { const dx = (px+pw/2) - (existing.x+existing.width/2); const dy = (py+8) - (existing.y+8); if(Math.sqrt(dx*dx+dy*dy) < minPlatformDist) { tooClose=true; break; } } if(!tooClose) { const plat = createPlatform(px, py, pw, Math.random()<0.3); upperPlatforms.push(plat); existingPlatforms.push(plat); placed=true; } attempts++; } }
+        const platforms = []; const groundPlatCount = Math.floor(diff*0.2);
+        for(let i=0;i<Math.max(0,groundPlatCount);i++) { const pw = 60+Math.random()*80, px = 40+Math.random()*(GAME_WIDTH-pw-80), py = 340+Math.random()*70; platforms.push(createPlatform(px, py, pw, Math.random()<0.4)); }
+        const popSpikes = []; if(usePopSpikes) { const candidatePlats = [...platforms, ...upperPlatforms]; if(candidatePlats.length>0) { const targetPlat = candidatePlats[Math.floor(Math.random()*candidatePlats.length)]; popSpikes.push(new PopSpike(targetPlat.x+10+Math.random()*(targetPlat.width-40), targetPlat.y, 30+Math.random()*20, 20+Math.random()*12)); } }
+        const popSprings = []; for(let i=0;i<Math.floor(Math.random()*2)+1;i++) popSprings.push(new PopSpring(60+Math.random()*(GAME_WIDTH-140), 40+Math.random()*30));
+        const ceilingSpikes = []; if(lvl>5){ const cnt=Math.floor(Math.random()*3)+1; for(let i=0;i<cnt;i++) ceilingSpikes.push(new CeilingSpike(50+Math.random()*(GAME_WIDTH-150), 40+Math.random()*60, 20+Math.random()*16)); }
+        const ceilingPopSpikes = []; if(lvl>4 && Math.random()<0.4) { const cnt = 1+Math.floor(Math.random()*2); for(let i=0;i<cnt;i++) { ceilingPopSpikes.push(new CeilingPopSpike(50+Math.random()*(GAME_WIDTH-100), 40+Math.random()*50, 25+Math.random()*20)); } }
+        const wallSawTriggers = []; if(lvl>4 && Math.random()<0.6) { const triggerX = GAME_WIDTH/2 + Math.random()*100; wallSawTriggers.push({triggerX, side:'left', speed:500+Math.random()*300}); }
+        const ladders = []; for(const plat of [...upperPlatforms]) { if(plat instanceof MovingPlatform) continue; if(plat.y > 160 && Math.random()<0.5 && !popSpikes.some(ps=>ps.x>plat.x && ps.x<plat.x+plat.width && ps.yBase===plat.y)) { ladders.push(new Ladder(plat.x+plat.width/2-8, plat.y, 16, GROUND_Y-plat.y)); } }
+        const walls = []; if (lvl > 8) { const wallCount = Math.min(2, Math.floor(diff*0.3)+1); for(let i=0;i<wallCount;i++) { const moving = Math.random()<0.7; const moveAmp = moving ? 30+Math.random()*40 : 0; const moveSpeed = moving ? 60+Math.random()*80 : 0; walls.push(new Wall(100+Math.random()*(GAME_WIDTH-200), GROUND_Y-60-Math.random()*30, 10, 60+Math.random()*30, moveAmp, moveSpeed)); } }
+        const hasCubes = Math.random() < CUBE_LEVEL_CHANCE;
+        const cube1 = hasCubes ? { dir: Math.random()>0.5?1:-1, size: 18+Math.random()*12, speed: 120+Math.random()*100 } : null;
+        const cube2 = hasCubes ? { dir: Math.random()>0.5?1:-1, size: 18+Math.random()*12, speed: 120+Math.random()*100 } : null;
+        const lastSeg = segments[segments.length-1]; let doorBaseX = lastSeg.x + lastSeg.width - 70; doorBaseX = Math.min(Math.max(doorBaseX, 60), GAME_WIDTH-100);
+        return { groundSegments:segments, platforms, upperPlatforms, movingPlatforms, ladders, walls, ceilingPopSpikes,
+                 hasCubes, bouncingCubeParams1: cube1, bouncingCubeParams2: cube2,
+                 spikes, saws, popSprings, ceilingSpikes, gapWideners:gaps, popSpikes, wallSawTriggers,
+                 doorBaseX, doorY:GROUND_Y-70, playerStartX:20, playerStartY:GROUND_Y-PLAYER_H };
+    }
+
+    function insertTrapdoors(segs, lvl) { if(lvl<7) return segs; const newSegs = []; for(const s of segs) { if(s.trapdoor || s.width<140 || s.permanent) { newSegs.push(s); continue; } if(Math.random() < 0.25 + Math.min(lvl-7,10)*0.02) { const tw = 56, lw = Math.floor(Math.random()*(s.width-tw-20)+10), rw = s.width - lw - tw; newSegs.push(createGroundSegment(s.baseX, lw, false, false)); newSegs.push(createGroundSegment(s.baseX+lw, tw, false, true)); newSegs.push(createGroundSegment(s.baseX+lw+tw, rw, false, false)); } else newSegs.push(s); } return newSegs; }
+
+    function generateModerateRandomLevel(lvl) {
+        const numGaps = 1 + (Math.random() < 0.5 ? 1 : 0);
+        const numSpikes = 2 + Math.floor(Math.random() * 2);
+        let hasSaw = Math.random() < 0.5;
+        let hasWall = Math.random() < 0.4;
+        let hasPopSpike = Math.random() < 0.5;
+        if (!hasSaw && !hasWall && !hasPopSpike) {
+            const r = Math.random();
+            if (r < 0.4) hasSaw = true;
+            else if (r < 0.7) hasWall = true;
+            else hasPopSpike = true;
+        }
+        const limitPlatforms = (hasSaw && hasWall);
+        const hasMovingPlatform = !limitPlatforms && Math.random() < 0.2;
+        const numUpperPlatforms = limitPlatforms ? 1 + (Math.random() < 0.3 ? 1 : 0) : 1 + (Math.random() < 0.5 ? 1 : 0);
+
+        let segments = [], cx = 10;
+        const totalGroundW = GAME_WIDTH - 60;
+        const gapBase = 45 + Math.random() * 15;
+        for (let i = 0; i <= numGaps; i++) {
+            const w = Math.max(90, totalGroundW / (numGaps + 1) * (0.7 + Math.random() * 0.3));
+            const perm = (i === 0);
+            segments.push(createGroundSegment(cx, w, false, false, perm));
+            cx += w;
+            if (i < numGaps) cx += gapBase + Math.random() * 15;
+        }
+        const gaps = [];
+        for (let i = 0; i < segments.length - 1; i++) {
+            const left = segments[i], right = segments[i + 1];
+            const initialGap = right.baseX - (left.baseX + left.width);
+            gaps.push(new GapWidener(left, right, initialGap, initialGap + 30, 20, 25));
+        }
+
+        const spikes = [];
+        for (let i = 0; i < numSpikes; i++) {
+            spikes.push(new Spike(50 + Math.random() * (GAME_WIDTH - 150), GROUND_Y - 16, 30 + Math.random() * 20, 16));
+        }
+
+        const saws = [];
+        if (hasSaw) {
+            const axis = Math.random() < 0.5 ? 'x' : 'y';
+            let sx, sy, pMin, pMax;
+            if (axis === 'x') {
+                sy = 280 + Math.random() * 100;
+                pMin = 60 + Math.random() * 200;
+                pMax = pMin + 80 + Math.random() * 100;
+                sx = (pMin + pMax) / 2;
+            } else {
+                sx = 100 + Math.random() * 500;
+                pMin = 260 + Math.random() * 50;
+                pMax = pMin + 60 + Math.random() * 80;
+                sy = (pMin + pMax) / 2;
+            }
+            saws.push(new Saw(sx, sy, 14 + Math.random() * 4, axis, pMin, pMax, 60 + Math.random() * 50));
+        }
+
+        const movingPlatforms = [];
+        if (hasMovingPlatform) {
+            const pw = 70 + Math.random() * 40, px = 40 + Math.random() * (GAME_WIDTH - pw - 80), py = 140 + Math.random() * 100;
+            movingPlatforms.push(new MovingPlatform(px, py, pw, 16, 100 + Math.random() * 100, 0.2 + Math.random() * 0.2));
+        }
+
+        const upperPlatforms = [];
+        const existingPlatforms = [];
+        const minPlatformDist = 150;
+        for (let i = 0; i < numUpperPlatforms; i++) {
+            let attempts = 0, placed = false;
+            while (!placed && attempts < 20) {
+                const pw = 60 + Math.random() * 70, px = 30 + Math.random() * (GAME_WIDTH - pw - 60), py = 120 + Math.random() * 120;
+                let tooClose = false;
+                for (const existing of existingPlatforms) {
+                    const dx = (px + pw/2) - (existing.x + existing.width/2);
+                    const dy = (py + 8) - (existing.y + 8);
+                    if (Math.sqrt(dx*dx + dy*dy) < minPlatformDist) { tooClose = true; break; }
+                }
+                if (!tooClose) {
+                    const plat = createPlatform(px, py, pw, false);
+                    upperPlatforms.push(plat);
+                    existingPlatforms.push(plat);
+                    placed = true;
+                }
+                attempts++;
+            }
+        }
+
+        const platforms = [];
+        for (const gap of gaps) {
+            const leftSeg = segments[gaps.indexOf(gap)];
+            const rightSeg = segments[gaps.indexOf(gap) + 1];
+            const midX = (leftSeg.x + leftSeg.width + rightSeg.x) / 2;
+            const canPlace = limitPlatforms ? (upperPlatforms.length + movingPlatforms.length + platforms.length < 4) : true;
+            if (canPlace && Math.random() < 0.5) {
+                platforms.push(createPlatform(midX - 30, GROUND_Y - 50, 60));
+            }
+        }
+
+        if (limitPlatforms) {
+            while (upperPlatforms.length + movingPlatforms.length + platforms.length > 4) {
+                if (platforms.length > 0) platforms.pop();
+                else if (upperPlatforms.length > 0) upperPlatforms.pop();
+                else break;
+            }
+        }
+
+        const popSpikes = [];
+        if (hasPopSpike) {
+            const candidatePlats = [...platforms, ...upperPlatforms, ...movingPlatforms];
+            if (candidatePlats.length > 0) {
+                const targetPlat = candidatePlats[Math.floor(Math.random() * candidatePlats.length)];
+                popSpikes.push(new PopSpike(targetPlat.x + 10 + Math.random() * (targetPlat.width - 30), targetPlat.y, 25 + Math.random() * 15, 15 + Math.random() * 10));
+            }
+        }
+
+        const popSprings = [new PopSpring(100 + Math.random() * (GAME_WIDTH - 200), 40 + Math.random() * 20, -1000 - Math.random() * 200)];
+
+        const ceilingSpikes = [];
+        if (Math.random() < 0.15) {
+            ceilingSpikes.push(new CeilingSpike(50 + Math.random() * (GAME_WIDTH - 150), 40 + Math.random() * 40, 20 + Math.random() * 10));
+        }
+
+        const ceilingPopSpikes = [];
+        const wallSawTriggers = [];
+
+        const ladders = [];
+        for (const plat of upperPlatforms) {
+            ladders.push(new Ladder(plat.x + plat.width / 2 - 8, plat.y, 16, GROUND_Y - plat.y));
+        }
+
+        const walls = [];
+        if (hasWall) {
+            const moveAmp = 30 + Math.random() * 40;
+            const moveSpeed = 60 + Math.random() * 60;
+            const wallX = 100 + Math.random() * (GAME_WIDTH - 200);
+            walls.push(new Wall(wallX, GROUND_Y - 50 - Math.random() * 30, 10, 50 + Math.random() * 30, moveAmp, moveSpeed));
+        }
+
+        const lastSeg = segments[segments.length - 1];
+        let doorBaseX = lastSeg.x + lastSeg.width - 70;
+        doorBaseX = Math.min(Math.max(doorBaseX, 60), GAME_WIDTH - 100);
+
+        return {
+            groundSegments: segments,
+            platforms,
+            upperPlatforms,
+            movingPlatforms,
+            ladders,
+            walls,
+            ceilingPopSpikes,
+            hasCubes: false,
+            bouncingCubeParams1: null,
+            bouncingCubeParams2: null,
+            spikes,
+            saws,
+            popSprings,
+            ceilingSpikes,
+            gapWideners: gaps,
+            popSpikes,
+            wallSawTriggers,
+            doorBaseX,
+            doorY: GROUND_Y - 70,
+            playerStartX: 20,
+            playerStartY: GROUND_Y - PLAYER_H
+        };
+    }
+
+    function getLevelData(lvl) {
+        if (easyMode && lvl <= 4) return generateFixedLevel(lvl);
+        if (!easyMode && lvl <= MAX_FIXED_LEVELS) return generateFixedLevel(lvl);
+        if (easyMode) {
+            const cacheKey = 'easy_' + lvl;
+            if (sessionLevelCache[cacheKey]) return sessionLevelCache[cacheKey];
+            const ld = generateModerateRandomLevel(lvl);
+            sessionLevelCache[cacheKey] = ld;
+            return ld;
+        } else {
+            if (sessionLevelCache[lvl]) return sessionLevelCache[lvl];
+            const ld = generateRandomLevel(lvl);
+            sessionLevelCache[lvl] = ld;
+            return ld;
+        }
+    }
+
+    // --- GAME STATE (updated trigger logic) ---
+    let gameState='home', currentLevel=1;
+    let levelData=null, player1=null, player2=null, door=null;
+    let groundObjects=[], platforms=[], upperPlatforms=[], movingPlatforms=[], ladders=[], walls=[], spikes=[], saws=[], gapWideners=[], popSpikes=[], popSprings=[], ceilingSpikes=[], wallSawTriggers=[], activeWallSaws=[], bouncingCubes=[], ceilingPopSpikes=[];
+    let colors=null;
+    let levelTransitionTimer=0, p1RespawnTimer=0, p2RespawnTimer=0, gameTime=0, victoryFlash=0;
+    let p1Deaths=0, p2Deaths=0, currentLevelDeaths=0, totalDeaths=0, gameEnded=false, winnerPlayerNum=0;
+    let p1Wins = 0, p2Wins = 0;
+    let cubeSpawned1 = false, cubeSpawned2 = false, cubesEnabled = false;
+
+    function loadLevel(lvl) {
+        currentLevel = lvl;
+        levelData = getLevelData(lvl);
+        colors = getLevelColors(lvl);
+        groundObjects = levelData.groundSegments.map(s=>({...s}));
+        platforms = levelData.platforms.map(p=>({...p, respawnTimer:0}));
+        upperPlatforms = levelData.upperPlatforms.map(p=>({...p, respawnTimer:0}));
+        movingPlatforms = levelData.movingPlatforms.map(p=>new MovingPlatform(p.x, p.y, p.width, p.height, p.moveAmplitudeX, p.speed));
+        ladders = levelData.ladders.map(l=>new Ladder(l.x,l.y,l.width,l.height));
+        walls = levelData.walls.map(w=>new Wall(w.x,w.y,w.width,w.height,w.moveAmplitude,w.moveSpeed));
+        spikes = levelData.spikes.map(s=>new Spike(s.x,s.y,s.width,s.height));
+        saws = levelData.saws.map(s=>new Saw(s.homeX,s.homeY,s.baseRadius,s.patrolAxis,s.patrolMin,s.patrolMax,s.speed));
+        gapWideners = levelData.gapWideners.map(g=>new GapWidener(
+            groundObjects.find(go=>go.baseX===g.leftSeg?.baseX && go.baseWidth===g.leftSeg?.baseWidth),
+            groundObjects.find(go=>go.baseX===g.rightSeg?.baseX && go.baseWidth===g.rightSeg?.baseWidth),
+            g.initialGap, g.maxExtraGap, g.expandSpeed, g.shrinkSpeed));
+        popSpikes = levelData.popSpikes.map(p=>new PopSpike(p.x, p.yBase, p.width, p.height));
+        popSprings = levelData.popSprings.map(p=>new PopSpring(p.x, p.width, p.launchVel, p.triggerDist));
+        ceilingSpikes = levelData.ceilingSpikes.map(c=>new CeilingSpike(c.x, c.width, c.height));
+        ceilingPopSpikes = levelData.ceilingPopSpikes.map(c=>new CeilingPopSpike(c.x, c.width, c.height));
+        // Initialize triggers with per-player tracking
+        wallSawTriggers = levelData.wallSawTriggers.map(t=>({...t, triggeredPlayers: new Set()}));
+        cubesEnabled = levelData.hasCubes || false;
+        bouncingCubes = []; cubeSpawned1 = false; cubeSpawned2 = false;
+        activeWallSaws = []; door = new Door(levelData.doorBaseX, levelData.doorY, 40, 56);
+        const startY = levelData.playerStartY;
+        const startX = levelData.playerStartX;
+        player1 = new Player(startX, startY, 'rgba(80, 160, 255, 0.9)', getPlayer1Input);
+        player2 = new Player(startX, startY, 'rgba(255, 90, 90, 0.9)', getPlayer2Input);
+        p1Deaths=0; p2Deaths=0; currentLevelDeaths=0; totalDeaths=0;
+        levelTransitionTimer=0; p1RespawnTimer=0; p2RespawnTimer=0; victoryFlash=0;
+        gameEnded=false; winnerPlayerNum=0;
+        particles=[]; shakeAmount=0; shakeDuration=0;
+        updateImpossibleButton(); updateMobileUI();
+    }
+
+    function respawnPlayer(num) {
+        const startY = levelData.playerStartY;
+        const startX = levelData.playerStartX;
+        if (num === 1) {
+            player1 = new Player(startX, startY, 'rgba(80, 160, 255, 0.9)', getPlayer1Input);
+            p1RespawnTimer = 0;
+        } else {
+            player2 = new Player(startX, startY, 'rgba(255, 90, 90, 0.9)', getPlayer2Input);
+            p2RespawnTimer = 0;
+        }
+    }
+
+    function resetLevelFull() {
+        loadLevel(currentLevel);
+    }
+
+    function updateImpossibleButton() { impossibleBtn.style.display = (currentLevel > MAX_FIXED_LEVELS && !easyMode) ? 'inline-block' : 'none'; }
+    impossibleBtn.addEventListener('click', () => {
+        if (currentLevel > MAX_FIXED_LEVELS && gameState === 'playing' && !easyMode) { delete sessionLevelCache[currentLevel]; SFX.reroll(); loadLevel(currentLevel); }
+    });
+    resetBtn.addEventListener('click', () => { if (gameState === 'playing') resetLevelFull(); });
+
+    function setGameState(state) { gameState=state; homeOverlay.classList.toggle('active', state==='home'); levelSelectOverlay.classList.toggle('active', state==='levelSelect'); updateMobileUI(); }
+    function goToHome() { setGameState('home'); }
+    function startGameFromLevel(level) { setGameState('playing'); loadLevel(level); }
+
+    function buildLevelGrid() {
+        levelGrid.innerHTML='';
+        const maxLevel = easyMode ? 30 : MAX_LEVEL_SELECT;
+        for(let i=1;i<=maxLevel;i++) {
+            const btn=document.createElement('button');
+            btn.className='level-btn';
+            btn.textContent=i;
+            btn.addEventListener('click',()=>startGameFromLevel(i));
+            levelGrid.appendChild(btn);
+        }
+    }
+    buildLevelGrid();
+
+    homeBtn.addEventListener('click', goToHome);
+    startGameBtn.addEventListener('click', ()=> {
+        easyMode = false;
+        easyModeBtn.classList.remove('active');
+        startGameFromLevel(1);
+    });
+    easyStartBtn.addEventListener('click', () => {
+        easyMode = true;
+        easyModeBtn.classList.add('active');
+        startGameFromLevel(1);
+    });
+    levelSelectBtn.addEventListener('click', ()=>setGameState('levelSelect'));
+    backToHomeBtn.addEventListener('click', ()=>setGameState('home'));
+    window.addEventListener('keydown', e=>{ if(e.key==='m'||e.key==='M') { mobileControlsVisible=!mobileControlsVisible; updateMobileUI(); } if(e.key==='Escape') { if(gameState==='playing') goToHome(); } });
+
+    function drawBackground(ctx, colors) {
+        const skyGrad=ctx.createLinearGradient(0,0,0,GAME_HEIGHT); skyGrad.addColorStop(0,colors.bg); skyGrad.addColorStop(0.7,colors.bgAccent); skyGrad.addColorStop(1,'#0a0a10');
+        ctx.fillStyle=skyGrad; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+        ctx.fillStyle = '#2a2a3a'; ctx.fillRect(0, 0, GAME_WIDTH, CEILING_Y); ctx.fillStyle = '#4a4a5a'; ctx.fillRect(0, CEILING_Y-2, GAME_WIDTH, 4);
+        for(let i=0;i<40;i++) { const dx=((currentLevel*137+i*7919)%GAME_WIDTH), dy=((i*6271)%(GROUND_Y-40)); ctx.fillStyle=`rgba(255,255,255,${0.04+Math.sin(gameTime*0.5+i)*0.03})`; ctx.beginPath(); ctx.arc(dx,dy,1.2,0,Math.PI*2); ctx.fill(); }
+    }
+
+    function drawGroundAndPlatforms(ctx) {
+        for(const g of groundObjects) if(!g.crumbled) g.draw(ctx, colors);
+        const shake=getShakeOffset();
+        for(const p of platforms) { if(p.crumbled) continue; const px=p.x+shake.x, py=p.y+shake.y; if(p.crumbling && p.crumbleTimer>0.3) { const alpha=1-p.crumbleTimer*0.8; ctx.globalAlpha=alpha; ctx.fillStyle=colors.platformCrumbling; ctx.fillRect(px,py,p.width,p.height); ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.lineWidth=1; for(let c=0;c<3;c++){ ctx.beginPath(); ctx.moveTo(px+p.width*(0.2+c*0.25),py); ctx.lineTo(px+p.width*(0.2+c*0.25)+Math.sin(gameTime*40+c)*10, py+p.height*0.7); ctx.stroke(); } ctx.globalAlpha=1; } else { const grad=ctx.createLinearGradient(px,py,px,py+p.height); grad.addColorStop(0,colors.platformLight); grad.addColorStop(1,colors.platform); ctx.fillStyle=grad; ctx.fillRect(px,py,p.width,p.height); ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(px,py,p.width,2); ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.fillRect(px,py+p.height-3,p.width,3); } }
+        for(const p of upperPlatforms) { if(p.crumbled) continue; const px=p.x+shake.x, py=p.y+shake.y; if(p.crumbling && p.crumbleTimer>0.3) { const alpha=1-p.crumbleTimer*0.8; ctx.globalAlpha=alpha; ctx.fillStyle=colors.platformCrumbling; ctx.fillRect(px,py,p.width,p.height); ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.lineWidth=1; for(let c=0;c<3;c++){ ctx.beginPath(); ctx.moveTo(px+p.width*(0.2+c*0.25),py); ctx.lineTo(px+p.width*(0.2+c*0.25)+Math.sin(gameTime*40+c)*10, py+p.height*0.7); ctx.stroke(); } ctx.globalAlpha=1; } else { const grad=ctx.createLinearGradient(px,py,px,py+p.height); grad.addColorStop(0,colors.platformLight); grad.addColorStop(1,colors.platform); ctx.fillStyle=grad; ctx.fillRect(px,py,p.width,p.height); ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(px,py,p.width,2); ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.fillRect(px,py+p.height-3,p.width,3); } }
+        for(const p of movingPlatforms) p.draw(ctx, colors);
+        for(const l of ladders) l.draw(ctx);
+        for(const w of walls) w.draw(ctx, colors);
+        for(const bc of bouncingCubes) bc.draw(ctx);
+        for(const cps of ceilingPopSpikes) cps.draw(ctx);
+        for(const ps of popSprings) ps.draw(ctx);
+        for(const cs of ceilingSpikes) cs.draw(ctx);
+    }
+
+    let lastTime=performance.now();
+    function gameLoop(timestamp) {
+        requestAnimationFrame(gameLoop);
+        if(gameState!=='playing') { lastTime=timestamp; return; }
+        let dt=(timestamp-lastTime)/1000; if(dt<=0) dt=0.016; if(dt>0.15) dt=0.15; lastTime=timestamp; gameTime+=dt; updateShake(dt);
+
+        const allPlats = [...platforms, ...upperPlatforms, ...movingPlatforms];
+        for(const p of allPlats) { if(p.crumbled && p.respawnTimer !== undefined) { p.respawnTimer -= dt; if(p.respawnTimer <= 0) { p.crumbled = false; p.crumbling = false; p.crumbleTimer = 0; p.crumbleTriggered = false; } } }
+        for(const p of movingPlatforms) p.update(dt);
+
+        if (!gameEnded) {
+            const alivePlayers = [];
+            if (player1 && player1.alive) alivePlayers.push(player1);
+            if (player2 && player2.alive) alivePlayers.push(player2);
+
+            if (cubesEnabled) {
+                const maxCX = Math.max(...alivePlayers.map(p => p.x + p.w/2), 0);
+                if (!cubeSpawned1 && maxCX > CUBE_TRIGGER_X1) { cubeSpawned1 = true; const p = levelData.bouncingCubeParams1; if (p) bouncingCubes.push(new BouncingCube(p.dir, p.size, p.speed)); }
+                if (!cubeSpawned2 && maxCX > CUBE_TRIGGER_X2) { cubeSpawned2 = true; const p = levelData.bouncingCubeParams2; if (p) bouncingCubes.push(new BouncingCube(p.dir, p.size, p.speed)); }
+            }
+
+            for(let i=bouncingCubes.length-1; i>=0; i--) { bouncingCubes[i].update(dt); if (!bouncingCubes[i].active) bouncingCubes.splice(i,1); }
+
+            for (const w of walls) w.update(dt, alivePlayers, spikes);
+            if (door) door.update(dt, alivePlayers);
+
+            const allPlayersForTriggers = [player1, player2].filter(p => p && p.alive);
+            for (const cps of ceilingPopSpikes) cps.update(dt, allPlayersForTriggers);
+            for (const ps of popSpikes) ps.update(dt, allPlayersForTriggers);
+            for (const ps of popSprings) ps.update(dt, allPlayersForTriggers);
+
+            // Wall saw triggers: each player's first crossing spawns a saw at their Y
+            for (const trigger of wallSawTriggers) {
+                for (const player of allPlayersForTriggers) {
+                    if (!trigger.triggeredPlayers.has(player) && player.x + player.w/2 > trigger.triggerX) {
+                        trigger.triggeredPlayers.add(player);
+                        const startX = trigger.side === 'left' ? -30 : GAME_WIDTH+30;
+                        const targetX = trigger.side === 'left' ? GAME_WIDTH+30 : -30;
+                        const saw = new WallSaw(startX, player.y + player.h/2, targetX, Math.abs(trigger.speed));
+                        activeWallSaws.push(saw);
+                    }
+                }
+            }
+            // Update wall saws (no need to track players, just move)
+            for(let i=activeWallSaws.length-1; i>=0; i--) {
+                activeWallSaws[i].update(dt);
+                if(!activeWallSaws[i].active) activeWallSaws.splice(i,1);
+            }
+
+            const anyAirborne = allPlayersForTriggers.some(p => !p.onGround && !p.onPlatform && !p.onLadder);
+            for(const gw of gapWideners) gw.update(dt, anyAirborne);
+            for(const g of groundObjects) if(!g.permanent && g.crumbling && g.crumbleTimer>0 && !g.crumbled) g.crumbleTimer+=dt*(g.crumbleSpeed||1);
+            for(const p of allPlats) if(p.crumbling && p.crumbleTimer>0 && !p.crumbled) p.crumbleTimer+=dt;
+            for(const s of saws) s.update(dt);
+
+            if (player1 && player1.alive && !gameEnded) {
+                player1.update(dt, groundObjects, allPlats, spikes, saws, popSpikes, ceilingPopSpikes, popSprings, ceilingSpikes, door, activeWallSaws, ladders, walls, bouncingCubes);
+                if (!player1.alive && !player1.wonDirectly) { p1RespawnTimer = RESPAWN_DELAY; p1Deaths++; currentLevelDeaths++; totalDeaths++; }
+                if (player1.wonDirectly && !gameEnded) {
+                    gameEnded = true; winnerPlayerNum = 1;
+                    p1Wins++;
+                    levelTransitionTimer = 1.5; victoryFlash = 1.5;
+                }
+            }
+            if (player2 && player2.alive && !gameEnded) {
+                player2.update(dt, groundObjects, allPlats, spikes, saws, popSpikes, ceilingPopSpikes, popSprings, ceilingSpikes, door, activeWallSaws, ladders, walls, bouncingCubes);
+                if (!player2.alive && !player2.wonDirectly) { p2RespawnTimer = RESPAWN_DELAY; p2Deaths++; currentLevelDeaths++; totalDeaths++; }
+                if (player2.wonDirectly && !gameEnded) {
+                    gameEnded = true; winnerPlayerNum = 2;
+                    p2Wins++;
+                    levelTransitionTimer = 1.5; victoryFlash = 1.5;
+                }
+            }
+
+            if (p1RespawnTimer > 0) { p1RespawnTimer -= dt; if (p1RespawnTimer <= 0) respawnPlayer(1); }
+            if (p2RespawnTimer > 0) { p2RespawnTimer -= dt; if (p2RespawnTimer <= 0) respawnPlayer(2); }
+        }
+
+        if (levelTransitionTimer > 0) {
+            levelTransitionTimer -= dt;
+            if (levelTransitionTimer <= 0) {
+                let nextLevel = currentLevel + 1;
+                startGameFromLevel(nextLevel);
+                return;
+            }
+        }
+        if (victoryFlash > 0) victoryFlash -= dt;
+
+        updateParticles(dt);
+        ctx.clearRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+        drawBackground(ctx, colors);
+        drawGroundAndPlatforms(ctx);
+        if(door) door.draw(ctx, colors);
+        for(const s of spikes) s.draw(ctx);
+        for(const s of saws) s.draw(ctx);
+        for(const ws of activeWallSaws) ws.draw(ctx);
+        for(const ps of popSpikes) ps.draw(ctx);
+        for(const cps of ceilingPopSpikes) cps.draw(ctx);
+        drawParticles(ctx);
+        if(player1) player1.draw(ctx);
+        if(player2) player2.draw(ctx);
+
+        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, GAME_WIDTH, 36);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 13px "Segoe UI", Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(`LEVEL ${currentLevel}`, 10, 18);
+        ctx.textAlign = 'center';
+        ctx.fillText(`P1 Wins: ${p1Wins} | Deaths: ${p1Deaths}`, GAME_WIDTH*0.25, 18);
+        ctx.fillText(`P2 Wins: ${p2Wins} | Deaths: ${p2Deaths}`, GAME_WIDTH*0.75, 18);
+        ctx.textAlign = 'right';
+        ctx.fillText(`Total Deaths: ${totalDeaths}`, GAME_WIDTH-10, 30);
+        if (easyMode) {
+            ctx.fillStyle = '#aaffaa';
+            ctx.textAlign = 'right';
+            ctx.fillText('EASY', GAME_WIDTH-10, 18);
+        }
+
+        if (victoryFlash > 0) {
+            ctx.fillStyle = `rgba(255,255,255,${victoryFlash/1.5*0.7})`;
+            ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 32px "Segoe UI", Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`PLAYER ${winnerPlayerNum} WINS!`, GAME_WIDTH/2, GAME_HEIGHT/2-20);
+        }
+        if (p1RespawnTimer > 0 && player1 && !player1.alive) {
+            ctx.fillStyle = `rgba(80,160,255,0.2)`; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+        }
+        if (p2RespawnTimer > 0 && player2 && !player2.alive) {
+            ctx.fillStyle = `rgba(255,90,90,0.2)`; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+        }
+    }
+    requestAnimationFrame(gameLoop);
+    setGameState('home');
+})();
+</script>
+</body>
+</html>
