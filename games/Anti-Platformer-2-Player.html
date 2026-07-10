@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
-    <title>Anti-Platformer · 2‑Player Race (Wins + Easy Mode)</title>
+    <title>Anti-Platformer · 2‑Player Race (WASD vs Arrows, No Mobile)</title>
     <style>
         :root { --bg: #0a0a12; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -20,13 +20,6 @@
         #resetBtn:hover { background: rgba(255,255,100,0.3); }
         #easyModeBtn { background: rgba(100,255,100,0.15); border-color: rgba(100,255,100,0.5); color: #aaffaa; }
         #easyModeBtn.active { background: rgba(100,255,100,0.35); border-color: rgba(100,255,100,0.9); color: #fff; }
-        .mobile-controls { display: none; position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 20; width: 94vw; max-width: 800px; pointer-events: none; }
-        .mobile-controls.visible { display: flex; justify-content: space-between; align-items: flex-end; pointer-events: auto; }
-        .ctrl-group { display: flex; gap: 14px; } .ctrl-group.right { margin-left: auto; }
-        .ctrl-btn { width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,0.14); border: 2px solid rgba(255,255,255,0.4); color: #fff; font-size: 2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease; touch-action: none; pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-        .ctrl-btn:active, .ctrl-btn.pressed { background: rgba(255,255,255,0.4); transform: scale(0.92); border-color: rgba(255,255,255,0.8); box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
-        .ctrl-btn.jump-btn { width: 80px; height: 80px; font-size: 2.4rem; background: rgba(255,200,60,0.25); border-color: rgba(255,200,60,0.55); }
-        .ctrl-btn.jump-btn:active, .ctrl-btn.jump-btn.pressed { background: rgba(255,200,60,0.5); border-color: rgba(255,220,100,0.9); }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,5,15,0.92); display: none; justify-content: center; align-items: center; flex-direction: column; z-index: 50; backdrop-filter: blur(4px); }
         .overlay.active { display: flex; }
         .overlay-panel { background: #1a1a2e; border: 2px solid #3a3a5a; border-radius: 24px; padding: 24px 20px; text-align: center; width: auto; max-width: 90vw; box-shadow: 0 20px 50px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -46,20 +39,15 @@
     <canvas id="gameCanvas"></canvas>
     <div class="ui-bar">
         <button class="ui-btn" id="homeBtn">🏠 Home</button>
-        <button class="ui-btn" id="toggleMobileBtn">📱 Mobile</button>
         <button class="ui-btn" id="easyModeBtn">🌱 Easy</button>
         <button class="ui-btn" id="resetBtn">↺ Reset</button>
         <button class="ui-btn" id="impossibleBtn">⚠️ Impossible</button>
     </div>
 </div>
-<div class="mobile-controls" id="mobileControls">
-    <div class="ctrl-group"><button class="ctrl-btn" id="btnLeft">◀</button><button class="ctrl-btn" id="btnRight">▶</button></div>
-    <div class="ctrl-group right"><button class="ctrl-btn jump-btn" id="btnJump">▲</button><button class="ctrl-btn" id="btnDown">▼</button></div>
-</div>
 <div class="overlay active" id="homeOverlay">
     <div class="overlay-panel">
         <h1>🕹️ Anti‑Platformer – 2‑Player Race</h1>
-        <p>Player 1: W A S D (and mobile)<br>Player 2: Arrow Keys<br>Same start spot – first to the door wins!<br>Easy mode: levels 1‑4 fixed, then moderate random levels.</p>
+        <p>Player 1: W A S D<br>Player 2: Arrow Keys<br>Same start spot – first to the door wins!<br>Easy mode: levels 1‑4 fixed, then moderate random levels.</p>
         <button class="menu-btn" id="startGameBtn">▶ START GAME</button>
         <button class="menu-btn" id="easyStartBtn">🌱 EASY MODE (1-4 then moderate)</button>
         <button class="menu-btn" id="levelSelectBtn">📋 LEVEL SELECT</button>
@@ -73,13 +61,7 @@
 (function() {
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const toggleMobileBtn = document.getElementById('toggleMobileBtn');
-    const mobileControls = document.getElementById('mobileControls');
     const easyModeBtn = document.getElementById('easyModeBtn');
-    const btnLeft = document.getElementById('btnLeft');
-    const btnRight = document.getElementById('btnRight');
-    const btnJump = document.getElementById('btnJump');
-    const btnDown = document.getElementById('btnDown');
     const homeBtn = document.getElementById('homeBtn');
     const resetBtn = document.getElementById('resetBtn');
     const impossibleBtn = document.getElementById('impossibleBtn');
@@ -138,8 +120,6 @@
     };
 
     const keys = {};
-    let mobileLeft = false, mobileRight = false, mobileJump = false, mobileDown = false;
-    let mobileControlsVisible = false;
     let easyMode = false;
 
     window.addEventListener('keydown', e => {
@@ -151,12 +131,6 @@
     });
     window.addEventListener('keyup', e => { keys[e.key] = false; keys[e.code] = false; });
 
-    function updateMobileUI() {
-        mobileControls.classList.toggle('visible', mobileControlsVisible);
-        toggleMobileBtn.classList.toggle('active', mobileControlsVisible);
-    }
-    toggleMobileBtn.addEventListener('click', ()=>{ mobileControlsVisible = !mobileControlsVisible; updateMobileUI(); });
-
     easyModeBtn.addEventListener('click', () => {
         easyMode = !easyMode;
         easyModeBtn.classList.toggle('active', easyMode);
@@ -164,50 +138,12 @@
         if (gameState === 'playing') loadLevel(currentLevel);
     });
 
-    const activePointers = new Map();
-    function getButtonFromPoint(x, y) {
-        const el = document.elementFromPoint(x, y);
-        if (!el) return null;
-        if (el.id === 'btnLeft' || el.closest('#btnLeft')) return 'btnLeft';
-        if (el.id === 'btnRight' || el.closest('#btnRight')) return 'btnRight';
-        if (el.id === 'btnJump' || el.closest('#btnJump')) return 'btnJump';
-        if (el.id === 'btnDown' || el.closest('#btnDown')) return 'btnDown';
-        return null;
-    }
-    function updateMobileFlags() {
-        mobileLeft = false; mobileRight = false; mobileJump = false; mobileDown = false;
-        for (const [_, btn] of activePointers) {
-            switch (btn) {
-                case 'btnLeft': mobileLeft = true; break;
-                case 'btnRight': mobileRight = true; break;
-                case 'btnJump': mobileJump = true; break;
-                case 'btnDown': mobileDown = true; break;
-            }
-        }
-        btnLeft.classList.toggle('pressed', mobileLeft);
-        btnRight.classList.toggle('pressed', mobileRight);
-        btnJump.classList.toggle('pressed', mobileJump);
-        btnDown.classList.toggle('pressed', mobileDown);
-    }
-    function handlePointerDown(e) {
-        if (!mobileControlsVisible) return;
-        const btn = getButtonFromPoint(e.clientX, e.clientY);
-        if (btn) { e.preventDefault(); activePointers.set(e.pointerId, btn); updateMobileFlags(); }
-    }
-    function handlePointerUp(e) {
-        if (activePointers.has(e.pointerId)) { activePointers.delete(e.pointerId); updateMobileFlags(); }
-    }
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('pointerup', handlePointerUp);
-    document.addEventListener('pointercancel', handlePointerUp);
-    document.addEventListener('pointerleave', handlePointerUp);
-
     function getPlayer1Input() {
         return {
-            left: keys['a'] || keys['A'] || keys['KeyA'] || mobileLeft,
-            right: keys['d'] || keys['D'] || keys['KeyD'] || mobileRight,
-            jump: keys['w'] || keys['W'] || keys['KeyW'] || mobileJump,
-            down: keys['s'] || keys['S'] || keys['KeyS'] || mobileDown
+            left: keys['a'] || keys['A'] || keys['KeyA'],
+            right: keys['d'] || keys['D'] || keys['KeyD'],
+            jump: keys['w'] || keys['W'] || keys['KeyW'],
+            down: keys['s'] || keys['S'] || keys['KeyS']
         };
     }
     function getPlayer2Input() {
@@ -268,7 +204,7 @@
                  doorGlow:`hsl(${hue},70%,65%)`, doorFrame:`hsl(${hue},45%,35%)`, accent:`hsl(${hue},50%,40%)` };
     }
 
-    // --- CLASSES (WallSaw with fixed Y) ---
+    // --- CLASSES (unchanged, but WallSaw now has fixed Y) ---
     class Wall {
         constructor(x, y, width, height, moveAmplitude = 0, moveSpeed = 0) {
             this.x = x; this.y = y; this.width = width; this.height = height;
@@ -694,7 +630,7 @@
         }
     }
 
-    // --- LEVEL GENERATION (unchanged except easy random) ---
+    // --- LEVEL GENERATION (unchanged) ---
     const sessionLevelCache = {};
 
     function createGroundSegment(x,w, crumbling=false, trapdoor=false, permanent=false) {
@@ -946,7 +882,7 @@
         }
     }
 
-    // --- GAME STATE (updated trigger logic) ---
+    // --- GAME STATE ---
     let gameState='home', currentLevel=1;
     let levelData=null, player1=null, player2=null, door=null;
     let groundObjects=[], platforms=[], upperPlatforms=[], movingPlatforms=[], ladders=[], walls=[], spikes=[], saws=[], gapWideners=[], popSpikes=[], popSprings=[], ceilingSpikes=[], wallSawTriggers=[], activeWallSaws=[], bouncingCubes=[], ceilingPopSpikes=[];
@@ -976,7 +912,6 @@
         popSprings = levelData.popSprings.map(p=>new PopSpring(p.x, p.width, p.launchVel, p.triggerDist));
         ceilingSpikes = levelData.ceilingSpikes.map(c=>new CeilingSpike(c.x, c.width, c.height));
         ceilingPopSpikes = levelData.ceilingPopSpikes.map(c=>new CeilingPopSpike(c.x, c.width, c.height));
-        // Initialize triggers with per-player tracking
         wallSawTriggers = levelData.wallSawTriggers.map(t=>({...t, triggeredPlayers: new Set()}));
         cubesEnabled = levelData.hasCubes || false;
         bouncingCubes = []; cubeSpawned1 = false; cubeSpawned2 = false;
@@ -989,7 +924,7 @@
         levelTransitionTimer=0; p1RespawnTimer=0; p2RespawnTimer=0; victoryFlash=0;
         gameEnded=false; winnerPlayerNum=0;
         particles=[]; shakeAmount=0; shakeDuration=0;
-        updateImpossibleButton(); updateMobileUI();
+        updateImpossibleButton(); easyModeBtn.classList.toggle('active', easyMode);
     }
 
     function respawnPlayer(num) {
@@ -1004,9 +939,7 @@
         }
     }
 
-    function resetLevelFull() {
-        loadLevel(currentLevel);
-    }
+    function resetLevelFull() { loadLevel(currentLevel); }
 
     function updateImpossibleButton() { impossibleBtn.style.display = (currentLevel > MAX_FIXED_LEVELS && !easyMode) ? 'inline-block' : 'none'; }
     impossibleBtn.addEventListener('click', () => {
@@ -1014,7 +947,7 @@
     });
     resetBtn.addEventListener('click', () => { if (gameState === 'playing') resetLevelFull(); });
 
-    function setGameState(state) { gameState=state; homeOverlay.classList.toggle('active', state==='home'); levelSelectOverlay.classList.toggle('active', state==='levelSelect'); updateMobileUI(); }
+    function setGameState(state) { gameState=state; homeOverlay.classList.toggle('active', state==='home'); levelSelectOverlay.classList.toggle('active', state==='levelSelect'); }
     function goToHome() { setGameState('home'); }
     function startGameFromLevel(level) { setGameState('playing'); loadLevel(level); }
 
@@ -1044,7 +977,7 @@
     });
     levelSelectBtn.addEventListener('click', ()=>setGameState('levelSelect'));
     backToHomeBtn.addEventListener('click', ()=>setGameState('home'));
-    window.addEventListener('keydown', e=>{ if(e.key==='m'||e.key==='M') { mobileControlsVisible=!mobileControlsVisible; updateMobileUI(); } if(e.key==='Escape') { if(gameState==='playing') goToHome(); } });
+    window.addEventListener('keydown', e=>{ if(e.key==='Escape') { if(gameState==='playing') goToHome(); } });
 
     function drawBackground(ctx, colors) {
         const skyGrad=ctx.createLinearGradient(0,0,0,GAME_HEIGHT); skyGrad.addColorStop(0,colors.bg); skyGrad.addColorStop(0.7,colors.bgAccent); skyGrad.addColorStop(1,'#0a0a10');
@@ -1098,7 +1031,6 @@
             for (const ps of popSpikes) ps.update(dt, allPlayersForTriggers);
             for (const ps of popSprings) ps.update(dt, allPlayersForTriggers);
 
-            // Wall saw triggers: each player's first crossing spawns a saw at their Y
             for (const trigger of wallSawTriggers) {
                 for (const player of allPlayersForTriggers) {
                     if (!trigger.triggeredPlayers.has(player) && player.x + player.w/2 > trigger.triggerX) {
@@ -1110,7 +1042,6 @@
                     }
                 }
             }
-            // Update wall saws (no need to track players, just move)
             for(let i=activeWallSaws.length-1; i>=0; i--) {
                 activeWallSaws[i].update(dt);
                 if(!activeWallSaws[i].active) activeWallSaws.splice(i,1);
@@ -1125,20 +1056,12 @@
             if (player1 && player1.alive && !gameEnded) {
                 player1.update(dt, groundObjects, allPlats, spikes, saws, popSpikes, ceilingPopSpikes, popSprings, ceilingSpikes, door, activeWallSaws, ladders, walls, bouncingCubes);
                 if (!player1.alive && !player1.wonDirectly) { p1RespawnTimer = RESPAWN_DELAY; p1Deaths++; currentLevelDeaths++; totalDeaths++; }
-                if (player1.wonDirectly && !gameEnded) {
-                    gameEnded = true; winnerPlayerNum = 1;
-                    p1Wins++;
-                    levelTransitionTimer = 1.5; victoryFlash = 1.5;
-                }
+                if (player1.wonDirectly && !gameEnded) { gameEnded = true; winnerPlayerNum = 1; p1Wins++; levelTransitionTimer = 1.5; victoryFlash = 1.5; }
             }
             if (player2 && player2.alive && !gameEnded) {
                 player2.update(dt, groundObjects, allPlats, spikes, saws, popSpikes, ceilingPopSpikes, popSprings, ceilingSpikes, door, activeWallSaws, ladders, walls, bouncingCubes);
                 if (!player2.alive && !player2.wonDirectly) { p2RespawnTimer = RESPAWN_DELAY; p2Deaths++; currentLevelDeaths++; totalDeaths++; }
-                if (player2.wonDirectly && !gameEnded) {
-                    gameEnded = true; winnerPlayerNum = 2;
-                    p2Wins++;
-                    levelTransitionTimer = 1.5; victoryFlash = 1.5;
-                }
+                if (player2.wonDirectly && !gameEnded) { gameEnded = true; winnerPlayerNum = 2; p2Wins++; levelTransitionTimer = 1.5; victoryFlash = 1.5; }
             }
 
             if (p1RespawnTimer > 0) { p1RespawnTimer -= dt; if (p1RespawnTimer <= 0) respawnPlayer(1); }
@@ -1147,11 +1070,7 @@
 
         if (levelTransitionTimer > 0) {
             levelTransitionTimer -= dt;
-            if (levelTransitionTimer <= 0) {
-                let nextLevel = currentLevel + 1;
-                startGameFromLevel(nextLevel);
-                return;
-            }
+            if (levelTransitionTimer <= 0) { startGameFromLevel(currentLevel + 1); return; }
         }
         if (victoryFlash > 0) victoryFlash -= dt;
 
