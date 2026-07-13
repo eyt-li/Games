@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Click Speed Competition</title>
+
+<style>
+
+*{
+    box-sizing:border-box;
+    user-select:none;
+}
+
+
+body{
+    font-family:Arial,Helvetica,sans-serif;
+    background:#f5f5f5;
+    text-align:center;
+    margin:0;
+    padding:20px;
+}
+
+
+.players{
+
+    width:1200px;
+    max-width:98%;
+    margin:auto;
+
+    display:flex;
+    gap:20px;
+
+}
+
+
+.player{
+
+    flex:1;
+
+}
+
+
+
+.liveTimer{
+
+    background:white;
+    border:2px solid #555;
+    border-radius:10px;
+
+    padding:10px;
+
+    font-family:monospace;
+    font-size:22px;
+    font-weight:bold;
+
+}
+
+
+
+.clickArea{
+
+    height:280px;
+
+    margin:25px auto;
+
+    background:white;
+
+    border:4px dashed #555;
+
+    border-radius:15px;
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    font-size:32px;
+
+    cursor:pointer;
+
+}
+
+
+
+button{
+
+    padding:10px 25px;
+
+    font-size:18px;
+
+    cursor:pointer;
+
+}
+
+
+
+.content{
+
+    display:flex;
+
+    gap:15px;
+
+}
+
+
+
+.timeBox{
+
+    flex:2;
+
+    height:300px;
+
+    overflow-y:auto;
+
+    background:white;
+
+    border:1px solid #aaa;
+
+    padding:10px;
+
+    text-align:left;
+
+}
+
+
+
+.stats{
+
+    flex:1;
+
+    background:white;
+
+    border:1px solid #aaa;
+
+    padding:15px;
+
+    text-align:left;
+
+}
+
+
+
+.value{
+
+    font-family:monospace;
+
+    font-size:20px;
+
+}
+
+
+.fast{
+    color:green;
+}
+
+
+.slow{
+    color:red;
+}
+
+
+li{
+
+    font-family:monospace;
+
+    margin:3px;
+
+}
+
+
+
+#winner{
+
+    margin:25px;
+
+    font-size:24px;
+
+    font-weight:bold;
+
+}
+
+
+
+#graphBox{
+
+    width:900px;
+
+    max-width:95%;
+
+    margin:30px auto;
+
+    background:white;
+
+    border:1px solid #aaa;
+
+    padding:15px;
+
+}
+
+
+
+canvas{
+
+    width:100%;
+
+    height:250px;
+
+    border:1px solid #aaa;
+
+    margin-bottom:25px;
+
+}
+
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<h1>
+Click Speed Competition
+</h1>
+
+
+
+<div class="players">
+
+
+
+<div class="player">
+
+<h2>Player 1 🔵</h2>
+
+
+<div class="liveTimer" id="liveTimer1">
+0.000 ms
+</div>
+
+
+
+<div class="clickArea" id="clickArea1">
+Click Here
+</div>
+
+
+
+<button id="clear1">
+Clear Player 1
+</button>
+
+
+
+<div class="content">
+
+
+<div class="timeBox">
+
+<b>
+Times
+</b>
+
+<ul id="list1"></ul>
+
+</div>
+
+
+<div class="stats">
+
+<h3>
+Statistics
+</h3>
+
+
+<b>Fastest</b>
+
+<div class="value fast" id="fast1">
+0.000 ms
+</div>
+
+
+<br>
+
+
+<b>Slowest</b>
+
+<div class="value slow" id="slow1">
+0.000 ms
+</div>
+
+
+<br>
+
+
+<b>Average</b>
+
+<div class="value" id="avg1">
+0.000 ms
+</div>
+
+
+<br>
+
+
+<b>Recorded</b>
+
+<div class="value" id="amount1">
+0 / 100
+</div>
+
+
+</div>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+
+<div class="player">
+
+
+<h2>Player 2 🟢</h2>
+
+
+<div class="liveTimer" id="liveTimer2">
+0.000 ms
+</div>
+
+
+
+<div class="clickArea" id="clickArea2">
+Click Here
+</div>
+
+
+
+<button id="clear2">
+Clear Player 2
+</button>
+
+
+
+<div class="content">
+
+
+<div class="timeBox">
+
+<b>
+Times
+</b>
+
+<ul id="list2"></ul>
+
+</div>
+
+
+<div class="stats">
+
+<h3>
+Statistics
+</h3>
+
+
+<b>Fastest</b>
+
+<div class="value fast" id="fast2">
+0.000 ms
+</div>
+
+
+<br>
+
+
+<b>Slowest</b>
+
+<div class="value slow" id="slow2">
+0.000 ms
+</div>
+
+
+<br>
+
+
+<b>Average</b>
+
+<div class="value" id="avg2">
+0.000 ms
+</div>
+
+
+<br>
+
+
+<b>Recorded</b>
+
+<div class="value" id="amount2">
+0 / 100
+</div>
+
+
+</div>
+
+
+</div>
+
+
+</div>
+
+
+
+</div>
+
+
+
+
+<div id="winner">
+Waiting for both players...
+</div>
+
+
+
+
+<div id="graphBox">
+
+
+<h2>
+Player 1 Graph 🔵
+</h2>
+
+<canvas id="graph1" width="900" height="250"></canvas>
+
+
+
+<h2>
+Player 2 Graph 🟢
+</h2>
+
+<canvas id="graph2" width="900" height="250"></canvas>
+
+
+
+<h2>
+Comparison Graph
+</h2>
+
+<canvas id="compareGraph" width="900" height="250"></canvas>
+
+
+</div>
+
+
+
+<script>
+  const MAX = 100;
+
+
+let p1Times = [];
+let p2Times = [];
+
+
+let last1 = null;
+let last2 = null;
+
+
+let locked1 = false;
+let locked2 = false;
+
+
+
+const canvas1 = document.getElementById("graph1");
+const ctx1 = canvas1.getContext("2d");
+
+
+const canvas2 = document.getElementById("graph2");
+const ctx2 = canvas2.getContext("2d");
+
+
+const compareCanvas = document.getElementById("compareGraph");
+const compareCtx = compareCanvas.getContext("2d");
+
+
+
+
+
+function setupPlayer(num){
+
+
+    const area =
+    document.getElementById("clickArea"+num);
+
+
+    const list =
+    document.getElementById("list"+num);
+
+
+
+    area.addEventListener("pointerdown", function(){
+
+
+        if(num===1 && locked1)
+            return;
+
+
+        if(num===2 && locked2)
+            return;
+
+
+
+        let now = performance.now();
+
+
+
+        let last =
+        num===1 ? last1 : last2;
+
+
+
+        if(last !== null){
+
+
+            let diff =
+            now-last;
+
+
+
+            let data =
+            num===1 ? p1Times : p2Times;
+
+
+
+            data.push(diff);
+
+
+
+            let li =
+            document.createElement("li");
+
+
+            li.textContent =
+            diff.toFixed(3)+" ms";
+
+
+            list.prepend(li);
+
+
+
+            updateStats(num);
+
+            drawGraphs();
+
+
+
+            if(data.length>=MAX){
+
+
+                area.textContent =
+                "Finished";
+
+
+                if(num===1)
+                    locked1=true;
+                else
+                    locked2=true;
+
+
+
+                compare();
+
+            }
+
+
+
+        }
+
+
+
+        if(num===1)
+            last1=now;
+        else
+            last2=now;
+
+
+
+    });
+
+
+
+
+
+
+
+    document.getElementById("clear"+num)
+    .onclick=function(){
+
+
+
+        if(num===1){
+
+            p1Times=[];
+
+            last1=null;
+
+            locked1=false;
+
+        }
+
+        else{
+
+            p2Times=[];
+
+            last2=null;
+
+            locked2=false;
+
+        }
+
+
+
+        list.innerHTML="";
+
+        area.textContent="Click Here";
+
+
+        updateStats(num);
+
+        drawGraphs();
+
+
+        document.getElementById("winner")
+        .textContent =
+        "Waiting for both players...";
+
+
+    };
+
+
+}
+
+
+
+
+
+
+setupPlayer(1);
+setupPlayer(2);
+
+
+
+
+
+
+
+
+
+function getStats(data){
+
+
+    if(data.length===0)
+
+        return {
+            min:0,
+            max:0,
+            avg:0
+        };
+
+
+
+    let min=Infinity;
+
+    let max=0;
+
+    let total=0;
+
+
+
+    data.forEach(t=>{
+
+
+        total+=t;
+
+
+        if(t<min)
+            min=t;
+
+
+        if(t>max)
+            max=t;
+
+
+    });
+
+
+
+    return {
+
+        min:min,
+
+        max:max,
+
+        avg:total/data.length
+
+    };
+
+
+}
+
+
+
+
+
+
+
+function updateStats(num){
+
+
+    let data =
+    num===1 ? p1Times : p2Times;
+
+
+
+    let s =
+    getStats(data);
+
+
+
+    document.getElementById("fast"+num)
+    .textContent =
+    s.min.toFixed(3)+" ms";
+
+
+    document.getElementById("slow"+num)
+    .textContent =
+    s.max.toFixed(3)+" ms";
+
+
+    document.getElementById("avg"+num)
+    .textContent =
+    s.avg.toFixed(3)+" ms";
+
+
+    document.getElementById("amount"+num)
+    .textContent =
+    data.length+" / 100";
+
+
+}
+
+
+
+
+
+
+
+
+
+function point(canvas,data,i,value,all=data){
+
+
+    let pad=40;
+
+
+    let highest =
+    Math.max(...all,1);
+
+
+
+    let length =
+    Math.max(data.length,2);
+
+
+
+    return {
+
+        x:
+        pad+
+        i/(length-1)*
+        (canvas.width-pad*2),
+
+
+        y:
+        canvas.height-pad-
+        value/highest*
+        (canvas.height-pad*2)
+
+    };
+
+
+}
+
+
+
+
+
+
+
+
+function drawGraphs(){
+
+
+    drawSingle(
+        ctx1,
+        canvas1,
+        p1Times,
+        "blue"
+    );
+
+
+    drawSingle(
+        ctx2,
+        canvas2,
+        p2Times,
+        "green"
+    );
+
+
+    drawCompare();
+
+
+}
+
+
+
+
+
+
+
+function drawSingle(ctx,canvas,data,color){
+
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+
+    if(data.length<2)
+        return;
+
+
+
+    drawAverage(
+        ctx,
+        canvas,
+        data
+    );
+
+
+
+    ctx.beginPath();
+
+    ctx.strokeStyle=color;
+
+    ctx.lineWidth=2;
+
+
+
+    data.forEach((v,i)=>{
+
+
+        let p =
+        point(canvas,data,i,v);
+
+
+
+        if(i===0)
+
+            ctx.moveTo(p.x,p.y);
+
+        else
+
+            ctx.lineTo(p.x,p.y);
+
+
+    });
+
+
+
+    ctx.stroke();
+
+
+}
+
+
+
+
+
+
+
+
+function drawAverage(ctx,canvas,data){
+
+
+    ctx.beginPath();
+
+    ctx.strokeStyle="red";
+
+    ctx.lineWidth=1;
+
+
+
+    let total=0;
+
+
+
+    data.forEach((v,i)=>{
+
+
+        total+=v;
+
+
+        let p =
+        point(
+            canvas,
+            data,
+            i,
+            total/(i+1)
+        );
+
+
+
+        if(i===0)
+
+            ctx.moveTo(p.x,p.y);
+
+        else
+
+            ctx.lineTo(p.x,p.y);
+
+
+    });
+
+
+
+    ctx.stroke();
+
+
+}
+
+
+
+
+
+
+
+
+
+function drawCompare(){
+
+
+    compareCtx.clearRect(
+        0,
+        0,
+        compareCanvas.width,
+        compareCanvas.height
+    );
+
+
+    drawCompareLine(
+        p1Times,
+        "blue"
+    );
+
+
+    drawCompareLine(
+        p2Times,
+        "green"
+    );
+
+
+}
+
+
+
+
+
+
+
+function drawCompareLine(data,color){
+
+
+    if(data.length<2)
+        return;
+
+
+
+    let all =
+    [
+        ...p1Times,
+        ...p2Times
+    ];
+
+
+
+    compareCtx.beginPath();
+
+    compareCtx.strokeStyle=color;
+
+    compareCtx.lineWidth=2;
+
+
+
+    data.forEach((v,i)=>{
+
+
+        let p =
+        point(
+            compareCanvas,
+            data,
+            i,
+            v,
+            all
+        );
+
+
+
+        if(i===0)
+
+            compareCtx.moveTo(p.x,p.y);
+
+        else
+
+            compareCtx.lineTo(p.x,p.y);
+
+
+
+    });
+
+
+
+    compareCtx.stroke();
+
+
+}
+
+
+
+
+
+
+
+
+function compare(){
+
+
+    if(
+        p1Times.length<MAX ||
+        p2Times.length<MAX
+    )
+        return;
+
+
+
+    let a=getStats(p1Times);
+
+    let b=getStats(p2Times);
+
+
+
+    if(a.avg<b.avg)
+
+        document.getElementById("winner")
+        .textContent =
+        "🏆 Player 1 Wins";
+
+
+    else if(b.avg<a.avg)
+
+        document.getElementById("winner")
+        .textContent =
+        "🏆 Player 2 Wins";
+
+
+    else
+
+        document.getElementById("winner")
+        .textContent =
+        "Draw";
+
+
+}
+
+
+
+
+
+
+
+
+function updateTimer(){
+
+
+    if(last1!==null && !locked1)
+
+        document.getElementById("liveTimer1")
+        .textContent =
+        (performance.now()-last1)
+        .toFixed(3)+" ms";
+
+
+
+    if(last2!==null && !locked2)
+
+        document.getElementById("liveTimer2")
+        .textContent =
+        (performance.now()-last2)
+        .toFixed(3)+" ms";
+
+
+
+    requestAnimationFrame(updateTimer);
+
+}
+
+
+
+updateTimer();
+
+
+</script>
+
+</body>
+</html>
