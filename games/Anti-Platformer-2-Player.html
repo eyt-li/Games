@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
-    <title>Anti-Platformer · 2‑Player Race (WASD vs Arrows, No Mobile)</title>
+    <title>Anti-Platformer · 1 or 2 Players + Easy Mode</title>
     <style>
         :root { --bg: #0a0a12; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -20,9 +20,19 @@
         #resetBtn:hover { background: rgba(255,255,100,0.3); }
         #easyModeBtn { background: rgba(100,255,100,0.15); border-color: rgba(100,255,100,0.5); color: #aaffaa; }
         #easyModeBtn.active { background: rgba(100,255,100,0.35); border-color: rgba(100,255,100,0.9); color: #fff; }
+        #toggleMobileBtn { background: rgba(255,255,255,0.1); color: #ddd; border: 2px solid rgba(255,255,255,0.25); padding: 10px 18px; border-radius: 24px; cursor: pointer; font-size: 0.9rem; font-weight: 600; letter-spacing: 0.03em; transition: all 0.2s; white-space: nowrap; display: none; }
+        #toggleMobileBtn:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); color: #fff; }
+        #toggleMobileBtn.active { background: rgba(100,200,255,0.3); border-color: rgba(130,210,255,0.8); color: #fff; box-shadow: 0 0 18px rgba(100,180,255,0.4); }
+        .mobile-controls { display: none; position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 20; width: 94vw; max-width: 800px; pointer-events: none; }
+        .mobile-controls.visible { display: flex; justify-content: space-between; align-items: flex-end; pointer-events: auto; }
+        .ctrl-group { display: flex; gap: 14px; } .ctrl-group.right { margin-left: auto; }
+        .ctrl-btn { width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,0.14); border: 2px solid rgba(255,255,255,0.4); color: #fff; font-size: 2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease; touch-action: none; pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .ctrl-btn:active, .ctrl-btn.pressed { background: rgba(255,255,255,0.4); transform: scale(0.92); border-color: rgba(255,255,255,0.8); box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+        .ctrl-btn.jump-btn { width: 80px; height: 80px; font-size: 2.4rem; background: rgba(255,200,60,0.25); border-color: rgba(255,200,60,0.55); }
+        .ctrl-btn.jump-btn:active, .ctrl-btn.jump-btn.pressed { background: rgba(255,200,60,0.5); border-color: rgba(255,220,100,0.9); }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,5,15,0.92); display: none; justify-content: center; align-items: center; flex-direction: column; z-index: 50; backdrop-filter: blur(4px); }
         .overlay.active { display: flex; }
-        .overlay-panel { background: #1a1a2e; border: 2px solid #3a3a5a; border-radius: 24px; padding: 24px 20px; text-align: center; width: auto; max-width: 90vw; box-shadow: 0 20px 50px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .overlay-panel { background: #1a1a2e; border: 2px solid #3a3a5a; border-radius: 24px; padding: 24px 20px; text-align: center; width: auto; max-width: 90vw; box-shadow: 0 20px 50px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
         .overlay-panel h1 { color: #fff; font-size: 2.2rem; margin-bottom: 10px; letter-spacing: 0.04em; line-height: 1.2; }
         .overlay-panel p { color: #ccc; margin-bottom: 20px; font-size: 1rem; line-height: 1.5; white-space: pre-line; }
         .menu-btn { display: block; width: 100%; margin: 8px 0; padding: 12px; font-size: 1.1rem; border-radius: 28px; background: #2a2a4a; color: #fff; border: 2px solid #5a5a8a; cursor: pointer; font-weight: 600; transition: 0.2s; }
@@ -30,7 +40,10 @@
         .level-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 16px 0; }
         .level-btn { width: 48px; height: 48px; border-radius: 14px; background: #2a2a4a; border: 2px solid #5a5a8a; color: #fff; font-weight: bold; font-size: 1.1rem; cursor: pointer; transition: 0.15s; }
         .level-btn:hover { background: #4a4a8a; border-color: #aaaaff; transform: scale(1.05); }
-        @media (max-width: 600px) { .overlay-panel h1 { font-size: 1.8rem; } .overlay-panel p { font-size: 0.9rem; } .menu-btn { font-size: 1rem; padding: 10px; } }
+        .player-toggle { position: absolute; top: 16px; right: 20px; display: flex; gap: 8px; }
+        .player-toggle-btn { padding: 6px 14px; font-size: 0.9rem; border-radius: 18px; background: rgba(255,255,255,0.1); color: #ccc; border: 2px solid rgba(255,255,255,0.3); cursor: pointer; transition: 0.2s; font-weight: 600; }
+        .player-toggle-btn.active { background: rgba(100,200,255,0.3); border-color: rgba(130,210,255,0.8); color: #fff; }
+        @media (max-width: 600px) { .overlay-panel h1 { font-size: 1.8rem; } .overlay-panel p { font-size: 0.9rem; } .menu-btn { font-size: 1rem; padding: 10px; } .player-toggle { top: 10px; right: 10px; } }
         @media (max-width: 400px) { .overlay-panel h1 { font-size: 1.5rem; } .overlay-panel p { font-size: 0.8rem; } .menu-btn { font-size: 0.9rem; padding: 8px; } }
     </style>
 </head>
@@ -39,39 +52,60 @@
     <canvas id="gameCanvas"></canvas>
     <div class="ui-bar">
         <button class="ui-btn" id="homeBtn">🏠 Home</button>
+        <button class="ui-btn" id="toggleMobileBtn" style="display:none;">📱 Mobile</button>
         <button class="ui-btn" id="easyModeBtn">🌱 Easy</button>
         <button class="ui-btn" id="resetBtn">↺ Reset</button>
         <button class="ui-btn" id="impossibleBtn">⚠️ Impossible</button>
     </div>
 </div>
+<div class="mobile-controls" id="mobileControls">
+    <div class="ctrl-group"><button class="ctrl-btn" id="btnLeft">◀</button><button class="ctrl-btn" id="btnRight">▶</button></div>
+    <div class="ctrl-group right"><button class="ctrl-btn jump-btn" id="btnJump">▲</button><button class="ctrl-btn" id="btnDown">▼</button></div>
+</div>
 <div class="overlay active" id="homeOverlay">
     <div class="overlay-panel">
-        <h1>🕹️ Anti‑Platformer – 2‑Player Race</h1>
-        <p>Player 1: W A S D<br>Player 2: Arrow Keys<br>Same start spot – first to the door wins!<br>Easy mode: levels 1‑4 fixed, then moderate random levels.</p>
-        <button class="menu-btn" id="startGameBtn">▶ START GAME</button>
-        <button class="menu-btn" id="easyStartBtn">🌱 EASY MODE (1-4 then moderate)</button>
+        <h1>🕹️ Anti‑Platformer</h1>
+        <p>Choose 1 or 2 players<br>Easy mode toggles with the 🌱 button</p>
+        <button class="menu-btn" id="startOnePlayerBtn">▶ 1 PLAYER (Arrows + WASD + Mobile)</button>
+        <button class="menu-btn" id="startTwoPlayerBtn">▶ 2 PLAYER (WASD vs Arrows)</button>
         <button class="menu-btn" id="levelSelectBtn">📋 LEVEL SELECT</button>
     </div>
 </div>
 <div class="overlay" id="levelSelectOverlay">
-    <div class="overlay-panel" style="max-width:500px"><h2 style="color:#fff;margin-bottom:12px">CHOOSE LEVEL</h2><div class="level-grid" id="levelGrid"></div><button class="menu-btn" id="backToHomeBtn">← BACK</button></div>
+    <div class="overlay-panel" style="max-width:500px">
+        <div class="player-toggle">
+            <button class="player-toggle-btn active" id="toggle1PBtn">1P</button>
+            <button class="player-toggle-btn" id="toggle2PBtn">2P</button>
+        </div>
+        <h2 style="color:#fff;margin-bottom:12px">CHOOSE LEVEL</h2>
+        <div class="level-grid" id="levelGrid"></div>
+        <button class="menu-btn" id="backToHomeBtn">← BACK</button>
+    </div>
 </div>
 
 <script>
 (function() {
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    const toggleMobileBtn = document.getElementById('toggleMobileBtn');
+    const mobileControls = document.getElementById('mobileControls');
     const easyModeBtn = document.getElementById('easyModeBtn');
+    const btnLeft = document.getElementById('btnLeft');
+    const btnRight = document.getElementById('btnRight');
+    const btnJump = document.getElementById('btnJump');
+    const btnDown = document.getElementById('btnDown');
     const homeBtn = document.getElementById('homeBtn');
     const resetBtn = document.getElementById('resetBtn');
     const impossibleBtn = document.getElementById('impossibleBtn');
     const homeOverlay = document.getElementById('homeOverlay');
     const levelSelectOverlay = document.getElementById('levelSelectOverlay');
-    const startGameBtn = document.getElementById('startGameBtn');
-    const easyStartBtn = document.getElementById('easyStartBtn');
+    const startOnePlayerBtn = document.getElementById('startOnePlayerBtn');
+    const startTwoPlayerBtn = document.getElementById('startTwoPlayerBtn');
     const levelSelectBtn = document.getElementById('levelSelectBtn');
     const backToHomeBtn = document.getElementById('backToHomeBtn');
     const levelGrid = document.getElementById('levelGrid');
+    const toggle1PBtn = document.getElementById('toggle1PBtn');
+    const toggle2PBtn = document.getElementById('toggle2PBtn');
 
     const GAME_WIDTH = 800, GAME_HEIGHT = 500;
     const GROUND_Y = 440, GROUND_H = 60, CEILING_Y = 20;
@@ -120,7 +154,10 @@
     };
 
     const keys = {};
+    let mobileLeft = false, mobileRight = false, mobileJump = false, mobileDown = false;
+    let mobileControlsVisible = false;
     let easyMode = false;
+    let playerCount = 2; // default 2 players
 
     window.addEventListener('keydown', e => {
         keys[e.key] = true;
@@ -131,6 +168,23 @@
     });
     window.addEventListener('keyup', e => { keys[e.key] = false; keys[e.code] = false; });
 
+    function updateMobileUI() {
+        if (playerCount === 1) {
+            mobileControls.classList.toggle('visible', mobileControlsVisible && gameState === 'playing');
+            toggleMobileBtn.style.display = 'inline-block';
+            toggleMobileBtn.classList.toggle('active', mobileControlsVisible);
+        } else {
+            mobileControls.classList.remove('visible');
+            toggleMobileBtn.style.display = 'none';
+        }
+    }
+    toggleMobileBtn.addEventListener('click', ()=>{
+        if (playerCount === 1) {
+            mobileControlsVisible = !mobileControlsVisible;
+            updateMobileUI();
+        }
+    });
+
     easyModeBtn.addEventListener('click', () => {
         easyMode = !easyMode;
         easyModeBtn.classList.toggle('active', easyMode);
@@ -138,21 +192,89 @@
         if (gameState === 'playing') loadLevel(currentLevel);
     });
 
+    // Player count toggle in level select
+    function updatePlayerToggleButtons() {
+        toggle1PBtn.classList.toggle('active', playerCount === 1);
+        toggle2PBtn.classList.toggle('active', playerCount === 2);
+    }
+    toggle1PBtn.addEventListener('click', () => {
+        playerCount = 1;
+        updatePlayerToggleButtons();
+        if (gameState === 'playing') loadLevel(currentLevel); // restart current level with new player count
+    });
+    toggle2PBtn.addEventListener('click', () => {
+        playerCount = 2;
+        updatePlayerToggleButtons();
+        if (gameState === 'playing') loadLevel(currentLevel);
+    });
+
+    const activePointers = new Map();
+    function getButtonFromPoint(x, y) {
+        const el = document.elementFromPoint(x, y);
+        if (!el) return null;
+        if (el.id === 'btnLeft' || el.closest('#btnLeft')) return 'btnLeft';
+        if (el.id === 'btnRight' || el.closest('#btnRight')) return 'btnRight';
+        if (el.id === 'btnJump' || el.closest('#btnJump')) return 'btnJump';
+        if (el.id === 'btnDown' || el.closest('#btnDown')) return 'btnDown';
+        return null;
+    }
+    function updateMobileFlags() {
+        mobileLeft = false; mobileRight = false; mobileJump = false; mobileDown = false;
+        for (const [_, btn] of activePointers) {
+            switch (btn) {
+                case 'btnLeft': mobileLeft = true; break;
+                case 'btnRight': mobileRight = true; break;
+                case 'btnJump': mobileJump = true; break;
+                case 'btnDown': mobileDown = true; break;
+            }
+        }
+        btnLeft.classList.toggle('pressed', mobileLeft);
+        btnRight.classList.toggle('pressed', mobileRight);
+        btnJump.classList.toggle('pressed', mobileJump);
+        btnDown.classList.toggle('pressed', mobileDown);
+    }
+    function handlePointerDown(e) {
+        if (!mobileControlsVisible || playerCount !== 1) return;
+        const btn = getButtonFromPoint(e.clientX, e.clientY);
+        if (btn) { e.preventDefault(); activePointers.set(e.pointerId, btn); updateMobileFlags(); }
+    }
+    function handlePointerUp(e) {
+        if (activePointers.has(e.pointerId)) { activePointers.delete(e.pointerId); updateMobileFlags(); }
+    }
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('pointercancel', handlePointerUp);
+    document.addEventListener('pointerleave', handlePointerUp);
+
     function getPlayer1Input() {
-        return {
-            left: keys['a'] || keys['A'] || keys['KeyA'],
-            right: keys['d'] || keys['D'] || keys['KeyD'],
-            jump: keys['w'] || keys['W'] || keys['KeyW'],
-            down: keys['s'] || keys['S'] || keys['KeyS']
-        };
+        if (playerCount === 1) {
+            // 1-player: arrow keys, WASD, and mobile
+            return {
+                left: keys['ArrowLeft'] || keys['a'] || keys['A'] || keys['KeyA'] || mobileLeft,
+                right: keys['ArrowRight'] || keys['d'] || keys['D'] || keys['KeyD'] || mobileRight,
+                jump: keys['ArrowUp'] || keys['w'] || keys['W'] || keys['KeyW'] || mobileJump,
+                down: keys['ArrowDown'] || keys['s'] || keys['S'] || keys['KeyS'] || mobileDown
+            };
+        } else {
+            // 2-player: WASD for player 1
+            return {
+                left: keys['a'] || keys['A'] || keys['KeyA'],
+                right: keys['d'] || keys['D'] || keys['KeyD'],
+                jump: keys['w'] || keys['W'] || keys['KeyW'],
+                down: keys['s'] || keys['S'] || keys['KeyS']
+            };
+        }
     }
     function getPlayer2Input() {
-        return {
-            left: keys['ArrowLeft'],
-            right: keys['ArrowRight'],
-            jump: keys['ArrowUp'],
-            down: keys['ArrowDown']
-        };
+        if (playerCount === 2) {
+            return {
+                left: keys['ArrowLeft'],
+                right: keys['ArrowRight'],
+                jump: keys['ArrowUp'],
+                down: keys['ArrowDown']
+            };
+        }
+        return { left: false, right: false, jump: false, down: false };
     }
 
     function fillRoundedRect(ctx, x,y,w,h,r) {
@@ -204,7 +326,7 @@
                  doorGlow:`hsl(${hue},70%,65%)`, doorFrame:`hsl(${hue},45%,35%)`, accent:`hsl(${hue},50%,40%)` };
     }
 
-    // --- CLASSES (unchanged, but WallSaw now has fixed Y) ---
+    // --- CLASSES (unchanged) ---
     class Wall {
         constructor(x, y, width, height, moveAmplitude = 0, moveSpeed = 0) {
             this.x = x; this.y = y; this.width = width; this.height = height;
@@ -632,7 +754,6 @@
 
     // --- LEVEL GENERATION (unchanged) ---
     const sessionLevelCache = {};
-
     function createGroundSegment(x,w, crumbling=false, trapdoor=false, permanent=false) {
         return { x, y:GROUND_Y, width:w, height:GROUND_H, baseX:x, baseWidth:w, crumbling, crumbled:false, crumbleTimer:0, crumbleTriggered:false, trapdoor, permanent, crumbleSpeed:trapdoor?2:1,
             draw(ctx,colors){ if(this.crumbled) return; const shake=getShakeOffset(), sx=this.x+shake.x, sy=this.y+shake.y; const grad=ctx.createLinearGradient(sx,sy,sx,sy+this.height); grad.addColorStop(0,colors.groundLight); grad.addColorStop(0.5,colors.ground); grad.addColorStop(1,colors.groundDark); ctx.fillStyle=grad; ctx.fillRect(sx,sy,this.width,this.height); if(this.permanent) ctx.fillStyle='rgba(255,255,255,0.25)'; else ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fillRect(sx,sy,this.width,3); } };
@@ -918,13 +1039,20 @@
         activeWallSaws = []; door = new Door(levelData.doorBaseX, levelData.doorY, 40, 56);
         const startY = levelData.playerStartY;
         const startX = levelData.playerStartX;
-        player1 = new Player(startX, startY, 'rgba(80, 160, 255, 0.9)', getPlayer1Input);
-        player2 = new Player(startX, startY, 'rgba(255, 90, 90, 0.9)', getPlayer2Input);
+        if (playerCount === 1) {
+            player1 = new Player(startX, startY, 'rgba(80, 160, 255, 0.9)', getPlayer1Input);
+            player2 = null;
+            p2Deaths = 0; p2Wins = 0;
+        } else {
+            player1 = new Player(startX, startY, 'rgba(80, 160, 255, 0.9)', getPlayer1Input);
+            player2 = new Player(startX, startY, 'rgba(255, 90, 90, 0.9)', getPlayer2Input);
+        }
         p1Deaths=0; p2Deaths=0; currentLevelDeaths=0; totalDeaths=0;
         levelTransitionTimer=0; p1RespawnTimer=0; p2RespawnTimer=0; victoryFlash=0;
         gameEnded=false; winnerPlayerNum=0;
         particles=[]; shakeAmount=0; shakeDuration=0;
-        updateImpossibleButton(); easyModeBtn.classList.toggle('active', easyMode);
+        updateImpossibleButton(); updateMobileUI();
+        updatePlayerToggleButtons();
     }
 
     function respawnPlayer(num) {
@@ -933,7 +1061,7 @@
         if (num === 1) {
             player1 = new Player(startX, startY, 'rgba(80, 160, 255, 0.9)', getPlayer1Input);
             p1RespawnTimer = 0;
-        } else {
+        } else if (playerCount === 2) {
             player2 = new Player(startX, startY, 'rgba(255, 90, 90, 0.9)', getPlayer2Input);
             p2RespawnTimer = 0;
         }
@@ -947,7 +1075,7 @@
     });
     resetBtn.addEventListener('click', () => { if (gameState === 'playing') resetLevelFull(); });
 
-    function setGameState(state) { gameState=state; homeOverlay.classList.toggle('active', state==='home'); levelSelectOverlay.classList.toggle('active', state==='levelSelect'); }
+    function setGameState(state) { gameState=state; homeOverlay.classList.toggle('active', state==='home'); levelSelectOverlay.classList.toggle('active', state==='levelSelect'); updateMobileUI(); }
     function goToHome() { setGameState('home'); }
     function startGameFromLevel(level) { setGameState('playing'); loadLevel(level); }
 
@@ -965,17 +1093,20 @@
     buildLevelGrid();
 
     homeBtn.addEventListener('click', goToHome);
-    startGameBtn.addEventListener('click', ()=> {
-        easyMode = false;
-        easyModeBtn.classList.remove('active');
+    startOnePlayerBtn.addEventListener('click', ()=> {
+        playerCount = 1;
+        mobileControlsVisible = true;
         startGameFromLevel(1);
     });
-    easyStartBtn.addEventListener('click', () => {
-        easyMode = true;
-        easyModeBtn.classList.add('active');
+    startTwoPlayerBtn.addEventListener('click', ()=> {
+        playerCount = 2;
+        mobileControlsVisible = false;
         startGameFromLevel(1);
     });
-    levelSelectBtn.addEventListener('click', ()=>setGameState('levelSelect'));
+    levelSelectBtn.addEventListener('click', ()=> {
+        updatePlayerToggleButtons();
+        setGameState('levelSelect');
+    });
     backToHomeBtn.addEventListener('click', ()=>setGameState('home'));
     window.addEventListener('keydown', e=>{ if(e.key==='Escape') { if(gameState==='playing') goToHome(); } });
 
@@ -1013,7 +1144,7 @@
         if (!gameEnded) {
             const alivePlayers = [];
             if (player1 && player1.alive) alivePlayers.push(player1);
-            if (player2 && player2.alive) alivePlayers.push(player2);
+            if (playerCount === 2 && player2 && player2.alive) alivePlayers.push(player2);
 
             if (cubesEnabled) {
                 const maxCX = Math.max(...alivePlayers.map(p => p.x + p.w/2), 0);
@@ -1056,16 +1187,24 @@
             if (player1 && player1.alive && !gameEnded) {
                 player1.update(dt, groundObjects, allPlats, spikes, saws, popSpikes, ceilingPopSpikes, popSprings, ceilingSpikes, door, activeWallSaws, ladders, walls, bouncingCubes);
                 if (!player1.alive && !player1.wonDirectly) { p1RespawnTimer = RESPAWN_DELAY; p1Deaths++; currentLevelDeaths++; totalDeaths++; }
-                if (player1.wonDirectly && !gameEnded) { gameEnded = true; winnerPlayerNum = 1; p1Wins++; levelTransitionTimer = 1.5; victoryFlash = 1.5; }
+                if (player1.wonDirectly && !gameEnded) {
+                    gameEnded = true; winnerPlayerNum = 1;
+                    p1Wins++;
+                    levelTransitionTimer = 1.5; victoryFlash = 1.5;
+                }
             }
-            if (player2 && player2.alive && !gameEnded) {
+            if (playerCount === 2 && player2 && player2.alive && !gameEnded) {
                 player2.update(dt, groundObjects, allPlats, spikes, saws, popSpikes, ceilingPopSpikes, popSprings, ceilingSpikes, door, activeWallSaws, ladders, walls, bouncingCubes);
                 if (!player2.alive && !player2.wonDirectly) { p2RespawnTimer = RESPAWN_DELAY; p2Deaths++; currentLevelDeaths++; totalDeaths++; }
-                if (player2.wonDirectly && !gameEnded) { gameEnded = true; winnerPlayerNum = 2; p2Wins++; levelTransitionTimer = 1.5; victoryFlash = 1.5; }
+                if (player2.wonDirectly && !gameEnded) {
+                    gameEnded = true; winnerPlayerNum = 2;
+                    p2Wins++;
+                    levelTransitionTimer = 1.5; victoryFlash = 1.5;
+                }
             }
 
             if (p1RespawnTimer > 0) { p1RespawnTimer -= dt; if (p1RespawnTimer <= 0) respawnPlayer(1); }
-            if (p2RespawnTimer > 0) { p2RespawnTimer -= dt; if (p2RespawnTimer <= 0) respawnPlayer(2); }
+            if (playerCount === 2 && p2RespawnTimer > 0) { p2RespawnTimer -= dt; if (p2RespawnTimer <= 0) respawnPlayer(2); }
         }
 
         if (levelTransitionTimer > 0) {
@@ -1086,15 +1225,20 @@
         for(const cps of ceilingPopSpikes) cps.draw(ctx);
         drawParticles(ctx);
         if(player1) player1.draw(ctx);
-        if(player2) player2.draw(ctx);
+        if(playerCount === 2 && player2) player2.draw(ctx);
 
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, GAME_WIDTH, 36);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 13px "Segoe UI", Arial';
         ctx.textAlign = 'left';
         ctx.fillText(`LEVEL ${currentLevel}`, 10, 18);
-        ctx.textAlign = 'center';
-        ctx.fillText(`P1 Wins: ${p1Wins} | Deaths: ${p1Deaths}`, GAME_WIDTH*0.25, 18);
-        ctx.fillText(`P2 Wins: ${p2Wins} | Deaths: ${p2Deaths}`, GAME_WIDTH*0.75, 18);
+        if (playerCount === 1) {
+            ctx.textAlign = 'center';
+            ctx.fillText(`Wins: ${p1Wins} | Deaths: ${p1Deaths}`, GAME_WIDTH/2, 18);
+        } else {
+            ctx.textAlign = 'center';
+            ctx.fillText(`P1 Wins: ${p1Wins} | Deaths: ${p1Deaths}`, GAME_WIDTH*0.25, 18);
+            ctx.fillText(`P2 Wins: ${p2Wins} | Deaths: ${p2Deaths}`, GAME_WIDTH*0.75, 18);
+        }
         ctx.textAlign = 'right';
         ctx.fillText(`Total Deaths: ${totalDeaths}`, GAME_WIDTH-10, 30);
         if (easyMode) {
@@ -1108,12 +1252,13 @@
             ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
             ctx.fillStyle = '#fff'; ctx.font = 'bold 32px "Segoe UI", Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(`PLAYER ${winnerPlayerNum} WINS!`, GAME_WIDTH/2, GAME_HEIGHT/2-20);
+            if (playerCount === 1) ctx.fillText(`YOU WIN!`, GAME_WIDTH/2, GAME_HEIGHT/2-20);
+            else ctx.fillText(`PLAYER ${winnerPlayerNum} WINS!`, GAME_WIDTH/2, GAME_HEIGHT/2-20);
         }
         if (p1RespawnTimer > 0 && player1 && !player1.alive) {
             ctx.fillStyle = `rgba(80,160,255,0.2)`; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
         }
-        if (p2RespawnTimer > 0 && player2 && !player2.alive) {
+        if (playerCount === 2 && p2RespawnTimer > 0 && player2 && !player2.alive) {
             ctx.fillStyle = `rgba(255,90,90,0.2)`; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
         }
     }
