@@ -283,12 +283,6 @@
             background: linear-gradient(135deg, #1a1025, #1a1a3e, #2d1b4e);
             filter: blur(20px);
         }
-        .game-card:hover .game-info h3,
-        .game-card:hover .game-info p,
-        .game-card:hover .game-meta,
-        .game-card:hover .game-rating {
-            text-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
-        }
         .game-thumb {
             width: 100%;
             height: 200px;
@@ -357,7 +351,6 @@
         .social-links a { color: var(--text-muted); text-decoration: none; font-weight: 600; transition: color 0.3s; }
         .social-links a:hover { color: var(--neon-cyan); }
 
-        /* Hit Counter */
         .hit-counter {
             position: fixed; bottom: 16px; right: 16px; z-index: 1000;
             opacity: 0.7; transition: opacity 0.3s;
@@ -368,7 +361,7 @@
             background: rgba(0,0,0,0.5); padding: 4px 8px;
         }
 
-        /* Rating modal */
+        /* Rating Modal */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.8); backdrop-filter: blur(6px); z-index: 10000;
@@ -388,7 +381,7 @@
         }
         .modal-close:hover { color: var(--neon-pink); }
         .modal h2 { font-size: 1.8rem; margin-bottom: 8px; }
-        .game-description { color: var(--text-muted); margin-bottom: 16px; line-height: 1.6; }
+        .modal .game-description { color: var(--text-muted); margin-bottom: 16px; line-height: 1.6; }
         .rating-section { margin: 20px 0; }
         .stars { display: flex; gap: 6px; margin: 8px 0; }
         .star { font-size: 2rem; color: #444; cursor: pointer; transition: color 0.1s, transform 0.1s; }
@@ -578,9 +571,9 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        const ADMIN_PASSWORD = '1320';   // 👈 change this to your own secret
+        const ADMIN_PASSWORD = '1320';   // change this to your own secret
 
-        // ── Particle system ──
+        // ── Particles (same as before) ──
         const canvas = document.getElementById('particles');
         const ctx = canvas.getContext('2d');
         let particles = [];
@@ -622,7 +615,7 @@
         }
         animateParticles();
 
-        // ── Game data (Mobile tags added) ──
+        // ── Game data ──
         const games = [
             { id:1, title:"Anti-Platformer", emoji:"😈", thumbBg:"linear-gradient(135deg, #1a1a3e, #2d1b4e)", description:"A chaotic 2D platformer where the level itself actively works against you...", tags:["Platformer","Single Player","Mobile"], link:"games/Anti-Platformer.html", highlightTag:"Platformer" },
             { id:2, title:"Galaxy Drone Force", emoji:"🚀", thumbBg:"linear-gradient(135deg, #1e1a30, #2a1040)", description:"Blast through waves of enemies with your ship and an army of loyal drones!", tags:["2D","Space Shooter","Arcade","Mobile"], link:"games/Galaxy-Drone-Force.html", highlightTag:"Space Shooter" },
@@ -632,9 +625,33 @@
             { id:6, title:"Riot Arena Capture the flag 8v8", emoji:"🎮", thumbBg:"linear-gradient(135deg, #1a2025, #1a0a2e)", description:"A chaotic top‑down team shooter where you battle alongside AI bots in a destructible city.", tags:["Shooter","Arena","Singleplayer"], link:"games/Riot Arena CTF 8v8.html", highlightTag:"Shooter" },
             { id:7, title:"ShroomForge", emoji:"🍄", thumbBg:"linear-gradient(135deg, #1a1025, #200a20)", description:"A floaty 2D platformer with a built-in level editor.", tags:["Platformer","level-Editor","Mushroom"], link:"games/ShroomForge.html", highlightTag:"Platformer" },
             { id:8, title:"Anti-Platformer 2-player", emoji:"😈", thumbBg:"linear-gradient(135deg, #1a1a3e, #2d1b4e)", description:"A chaotic 2D platformer where the level itself actively works against you...", tags:["Platformer","Multi Player"], link:"games/Anti-Platformer-2-Player.html", highlightTag:"Platformer" },
-            { id:9, title:"Click Faster", emoji:"🖱️", thumbBg:"linear-gradient(135deg, #1a1a3e, #2d1b4e)", description:"Click as fast as possible and try to get as little time between clicks as you can", tags:["Clicker", "Simple"], link:"games/Clicker.html", highlightTag:"Clicker" }
-
+            { id:9, title:"Click Faster", emoji:"🖱️", thumbBg:"linear-gradient(135deg, #1a1a3e, #2d1b4e)", description:"Click as fast as possible and try to get as little time between clicks as you can", tags:["Clicker"], link:"games/Clicker.html", highlightTag:"Clicker" }
         ];
+
+        // ── Firebase helpers ──
+        function gameRef(gameId, path) { return ref(db, `games/${gameId}/${path}`); }
+
+        async function fetchRatings(gameId) {
+            try {
+                const snapshot = await get(child(ref(db), `games/${gameId}/ratings`));
+                return snapshot.exists() ? Object.values(snapshot.val()) : [];
+            } catch (e) { return []; }
+        }
+
+        async function fetchComments(gameId) {
+            try {
+                const snapshot = await get(child(ref(db), `games/${gameId}/comments`));
+                if (snapshot.exists()) {
+                    const vals = snapshot.val();
+                    return Object.entries(vals).map(([key, value]) => ({ id: key, ...value }));
+                }
+                return [];
+            } catch (e) { return []; }
+        }
+
+        function average(arr) {
+            return arr.length === 0 ? 0 : (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1);
+        }
 
         function getAuthorToken() {
             let token = localStorage.getItem('commentAuthorToken');
@@ -645,37 +662,16 @@
             return token;
         }
 
-        function gameRef(gameId, path) { return ref(db, `games/${gameId}/${path}`); }
-
-        async function fetchRatings(gameId) {
-            const snapshot = await get(child(ref(db), `games/${gameId}/ratings`));
-            return snapshot.exists() ? Object.values(snapshot.val()) : [];
-        }
-
-        async function fetchComments(gameId) {
-            const snapshot = await get(child(ref(db), `games/${gameId}/comments`));
-            if (snapshot.exists()) {
-                const vals = snapshot.val();
-                return Object.entries(vals).map(([key, value]) => ({ id: key, ...value }));
-            }
-            return [];
-        }
-
-        function average(arr) {
-            return arr.length === 0 ? 0 : (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1);
-        }
-
+        // ── Render games (with immediate placeholder, then update) ──
         const gamesGrid = document.getElementById('gamesGrid');
+
         async function renderGames() {
             gamesGrid.innerHTML = '';
             for (const game of games) {
-                const ratings = await fetchRatings(game.id);
-                const avg = average(ratings);
-                const comments = await fetchComments(game.id);
-                const commentCount = comments.length;
-
+                // Create card with placeholder rating
                 const card = document.createElement('div');
                 card.className = 'game-card';
+                card.setAttribute('data-game-id', game.id);
                 card.innerHTML = `
                     <div class="card-glow"></div>
                     <div class="game-thumb" style="background: ${game.thumbBg};">
@@ -688,50 +684,31 @@
                         </div>
                         <p>${game.description}</p>
                         <div class="game-meta">
-                            <span class="game-rating">⭐ ${avg} (${commentCount})</span>
+                            <span class="game-rating" id="rating-${game.id}">⭐ 0 (0)</span>
                             <a href="${game.link}" class="play-btn" target="_blank" rel="noopener noreferrer">▶ Play</a>
                         </div>
                     </div>`;
+                // Click card to open modal
                 card.addEventListener('click', (e) => {
                     if (e.target.closest('.play-btn')) return;
                     openRatingModal(game.id);
                 });
                 gamesGrid.appendChild(card);
+
+                // Fetch real data in background
+                (async (gameId, cardElement) => {
+                    const ratings = await fetchRatings(gameId);
+                    const avg = average(ratings);
+                    const comments = await fetchComments(gameId);
+                    const ratingSpan = cardElement.querySelector(`#rating-${gameId}`);
+                    if (ratingSpan) {
+                        ratingSpan.textContent = `⭐ ${avg} (${comments.length})`;
+                    }
+                })(game.id, card);
             }
         }
+
         renderGames();
-
-        // ── Password helper ──
-        const passwordOverlay = document.getElementById('passwordOverlay');
-        const passwordInput = document.getElementById('passwordInput');
-        const confirmPasswordBtn = document.getElementById('confirmPasswordBtn');
-        const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
-        let currentPasswordCallback = null;
-
-        function askPassword(callback) {
-            currentPasswordCallback = callback;
-            passwordInput.value = '';
-            passwordOverlay.classList.add('active');
-            passwordInput.focus();
-        }
-
-        function hidePasswordOverlay() {
-            passwordOverlay.classList.remove('active');
-            currentPasswordCallback = null;
-        }
-
-        confirmPasswordBtn.addEventListener('click', () => {
-            const entered = passwordInput.value.trim();
-            if (currentPasswordCallback) {
-                currentPasswordCallback(entered);
-            }
-            hidePasswordOverlay();
-        });
-
-        cancelPasswordBtn.addEventListener('click', hidePasswordOverlay);
-        passwordOverlay.addEventListener('click', (e) => {
-            if (e.target === passwordOverlay) hidePasswordOverlay();
-        });
 
         // ── Modal logic ──
         const modalOverlay = document.getElementById('ratingModal');
@@ -786,7 +763,7 @@
             modalContent.innerHTML = html;
             modalOverlay.classList.add('active');
 
-            // Star rating
+            // ── Star rating logic ──
             const stars = document.querySelectorAll('#starsContainer .star');
             let selectedRating = 0;
             stars.forEach(star => {
@@ -796,7 +773,7 @@
                     const newRatingRef = push(gameRef(gameId, 'ratings'));
                     await set(newRatingRef, selectedRating);
                     openRatingModal(gameId);
-                    renderGames();
+                    renderGames(); // refresh cards
                 });
                 star.addEventListener('mouseenter', () => highlightStars(parseInt(star.dataset.value)));
                 star.addEventListener('mouseleave', () => highlightStars(selectedRating));
@@ -807,7 +784,7 @@
             }
             function updateStarDisplay(value) { highlightStars(value); }
 
-            // Comment submission
+            // ── Submit comment ──
             document.getElementById('submitCommentBtn').addEventListener('click', async () => {
                 const text = document.getElementById('commentText').value.trim();
                 if (!text) return;
@@ -817,7 +794,7 @@
                 renderGames();
             });
 
-            // Delete comment (self or admin)
+            // ── Delete comment (self or admin) ──
             document.querySelectorAll('.delete-comment-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -837,7 +814,7 @@
 
                     if (isOwner) {
                         if (confirm('Delete your comment?')) {
-                            deleteAction(ADMIN_PASSWORD); // no password needed for self
+                            deleteAction(ADMIN_PASSWORD);
                         }
                     } else {
                         askPassword((password) => {
@@ -847,7 +824,7 @@
                 });
             });
 
-            // Reset stars only (with password)
+            // ── Reset stars (admin only) ──
             document.getElementById('resetStarsBtn').addEventListener('click', () => {
                 askPassword(async (password) => {
                     if (password === ADMIN_PASSWORD) {
@@ -863,7 +840,39 @@
             });
         }
 
-        // Smooth scroll
+        // ── Password modal helpers ──
+        const passwordOverlay = document.getElementById('passwordOverlay');
+        const passwordInput = document.getElementById('passwordInput');
+        const confirmPasswordBtn = document.getElementById('confirmPasswordBtn');
+        const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
+        let currentPasswordCallback = null;
+
+        function askPassword(callback) {
+            currentPasswordCallback = callback;
+            passwordInput.value = '';
+            passwordOverlay.classList.add('active');
+            passwordInput.focus();
+        }
+
+        function hidePasswordOverlay() {
+            passwordOverlay.classList.remove('active');
+            currentPasswordCallback = null;
+        }
+
+        confirmPasswordBtn.addEventListener('click', () => {
+            const entered = passwordInput.value.trim();
+            if (currentPasswordCallback) {
+                currentPasswordCallback(entered);
+            }
+            hidePasswordOverlay();
+        });
+
+        cancelPasswordBtn.addEventListener('click', hidePasswordOverlay);
+        passwordOverlay.addEventListener('click', (e) => {
+            if (e.target === passwordOverlay) hidePasswordOverlay();
+        });
+
+        // ── Smooth scroll ──
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
                 const href = this.getAttribute('href');
@@ -874,7 +883,7 @@
             });
         });
 
-        console.log('%c🎮 GameVault Ready! %cPassword-protected star reset only.', 'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
+        console.log('%c🎮 GameVault Ready! %cRatings & comments powered by Firebase.', 'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
     </script>
 </body>
 </html>
