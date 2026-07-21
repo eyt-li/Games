@@ -370,9 +370,16 @@
         }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
         .modal {
-            background: var(--surface); border: 1px solid var(--border); border-radius: 24px;
-            max-width: 650px; width: 90%; max-height: 80vh; overflow-y: auto; padding: 28px;
-            position: relative; color: var(--text);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            max-width: 650px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 28px;
+            position: relative;
+            color: var(--text);
             box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(179,71,234,0.3);
         }
         .modal-close {
@@ -390,18 +397,37 @@
         .rating-display { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 0.9rem; }
         .comment-form { display: flex; flex-direction: column; gap: 12px; margin: 20px 0; }
         .comment-form textarea {
-            background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
-            padding: 12px; color: var(--text); font-family: inherit; resize: vertical; min-height: 80px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            color: var(--text);
+            font-family: inherit;
+            resize: vertical;
+            min-height: 80px;
         }
         .comment-form button {
-            align-self: flex-end; padding: 10px 24px; border-radius: 50px; background: var(--neon-purple);
-            border: none; color: #fff; font-weight: 700; cursor: pointer; transition: box-shadow 0.3s;
+            align-self: flex-end;
+            padding: 10px 24px;
+            border-radius: 50px;
+            background: var(--neon-purple);
+            border: none;
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            transition: box-shadow 0.3s;
         }
         .comment-form button:hover { box-shadow: 0 0 20px rgba(179,71,234,0.6); }
         .comments-list { margin-top: 20px; max-height: 200px; overflow-y: auto; }
         .comment-item {
-            background: rgba(255,255,255,0.03); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px;
-            display: flex; justify-content: space-between; align-items: flex-start;
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
         }
         .comment-item .comment-text { color: #ddd; flex: 1; }
         .comment-item .comment-date { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
@@ -553,27 +579,8 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import { getDatabase, ref, get, child, push, set, remove } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
-
-        const firebaseConfig = {
-          apiKey: "AIzaSyDzJQeMOfXarw5sfCjs9cPc1cRs8J_wo6M",
-          authDomain: "games-f4f3f.firebaseapp.com",
-          databaseURL: "https://games-f4f3f-default-rtdb.asia-southeast1.firebasedatabase.app",
-          projectId: "games-f4f3f",
-          storageBucket: "games-f4f3f.firebasestorage.app",
-          messagingSenderId: "807641306083",
-          appId: "1:807641306083:web:22e32748619f31aa9d46d6"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-
-        const ADMIN_PASSWORD = '1320';   // change this to your own secret
-
-        // ── Particles (same as before) ──
+    <script>
+        // ── Particle system ──
         const canvas = document.getElementById('particles');
         const ctx = canvas.getContext('2d');
         let particles = [];
@@ -615,6 +622,57 @@
         }
         animateParticles();
 
+        // ── Data Manager (localStorage) ──
+        const ADMIN_PASSWORD = '1320';
+
+        class DataManager {
+            constructor() {
+                this.ratings = JSON.parse(localStorage.getItem('game_ratings_v2')) || {};
+                this.comments = JSON.parse(localStorage.getItem('game_comments_v2')) || {};
+            }
+            getRatings(gameId) {
+                return this.ratings[gameId] || [];
+            }
+            addRating(gameId, value) {
+                if (!this.ratings[gameId]) this.ratings[gameId] = [];
+                this.ratings[gameId].push(value);
+                localStorage.setItem('game_ratings_v2', JSON.stringify(this.ratings));
+            }
+            getComments(gameId) {
+                return this.comments[gameId] || [];
+            }
+            addComment(gameId, text, authorToken) {
+                if (!this.comments[gameId]) this.comments[gameId] = [];
+                this.comments[gameId].push({ text, date: Date.now(), authorToken });
+                localStorage.setItem('game_comments_v2', JSON.stringify(this.comments));
+            }
+            deleteComment(gameId, commentId) {
+                if (this.comments[gameId]) {
+                    this.comments[gameId] = this.comments[gameId].filter((_, i) => i !== commentId);
+                    localStorage.setItem('game_comments_v2', JSON.stringify(this.comments));
+                }
+            }
+            resetRatings(gameId) {
+                this.ratings[gameId] = [];
+                localStorage.setItem('game_ratings_v2', JSON.stringify(this.ratings));
+            }
+        }
+        const dataManager = new DataManager();
+
+        // ── Helper functions ──
+        function average(arr) {
+            return arr.length === 0 ? 0 : (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1);
+        }
+
+        function getAuthorToken() {
+            let token = localStorage.getItem('commentAuthorToken_v2');
+            if (!token) {
+                token = 'user-' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('commentAuthorToken_v2', token);
+            }
+            return token;
+        }
+
         // ── Game data ──
         const games = [
             { id:1, title:"Anti-Platformer", emoji:"😈", thumbBg:"linear-gradient(135deg, #1a1a3e, #2d1b4e)", description:"A chaotic 2D platformer where the level itself actively works against you...", tags:["Platformer","Single Player","Mobile"], link:"games/Anti-Platformer.html", highlightTag:"Platformer" },
@@ -628,47 +686,16 @@
             { id:9, title:"Click Faster", emoji:"🖱️", thumbBg:"linear-gradient(135deg, #1a1a3e, #2d1b4e)", description:"Click as fast as possible and try to get as little time between clicks as you can", tags:["Clicker"], link:"games/Clicker.html", highlightTag:"Clicker" }
         ];
 
-        // ── Firebase helpers ──
-        function gameRef(gameId, path) { return ref(db, `games/${gameId}/${path}`); }
-
-        async function fetchRatings(gameId) {
-            try {
-                const snapshot = await get(child(ref(db), `games/${gameId}/ratings`));
-                return snapshot.exists() ? Object.values(snapshot.val()) : [];
-            } catch (e) { return []; }
-        }
-
-        async function fetchComments(gameId) {
-            try {
-                const snapshot = await get(child(ref(db), `games/${gameId}/comments`));
-                if (snapshot.exists()) {
-                    const vals = snapshot.val();
-                    return Object.entries(vals).map(([key, value]) => ({ id: key, ...value }));
-                }
-                return [];
-            } catch (e) { return []; }
-        }
-
-        function average(arr) {
-            return arr.length === 0 ? 0 : (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1);
-        }
-
-        function getAuthorToken() {
-            let token = localStorage.getItem('commentAuthorToken');
-            if (!token) {
-                token = 'user-' + Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('commentAuthorToken', token);
-            }
-            return token;
-        }
-
-        // ── Render games (with immediate placeholder, then update) ──
+        // ── Render games ──
         const gamesGrid = document.getElementById('gamesGrid');
 
-        async function renderGames() {
+        function renderGames() {
             gamesGrid.innerHTML = '';
             for (const game of games) {
-                // Create card with placeholder rating
+                const ratings = dataManager.getRatings(game.id);
+                const comments = dataManager.getComments(game.id);
+                const avg = average(ratings);
+
                 const card = document.createElement('div');
                 card.className = 'game-card';
                 card.setAttribute('data-game-id', game.id);
@@ -684,60 +711,48 @@
                         </div>
                         <p>${game.description}</p>
                         <div class="game-meta">
-                            <span class="game-rating" id="rating-${game.id}">⭐ 0 (0)</span>
+                            <span class="game-rating">⭐ ${avg} (${comments.length})</span>
                             <a href="${game.link}" class="play-btn" target="_blank" rel="noopener noreferrer">▶ Play</a>
                         </div>
                     </div>`;
-                // Click card to open modal
                 card.addEventListener('click', (e) => {
                     if (e.target.closest('.play-btn')) return;
                     openRatingModal(game.id);
                 });
                 gamesGrid.appendChild(card);
-
-                // Fetch real data in background
-                (async (gameId, cardElement) => {
-                    const ratings = await fetchRatings(gameId);
-                    const avg = average(ratings);
-                    const comments = await fetchComments(gameId);
-                    const ratingSpan = cardElement.querySelector(`#rating-${gameId}`);
-                    if (ratingSpan) {
-                        ratingSpan.textContent = `⭐ ${avg} (${comments.length})`;
-                    }
-                })(game.id, card);
             }
         }
 
         renderGames();
 
-        // ── Modal logic ──
+        // ── Modal Logic ──
         const modalOverlay = document.getElementById('ratingModal');
         const modalContent = document.getElementById('modalContent');
         document.getElementById('closeModal').addEventListener('click', () => modalOverlay.classList.remove('active'));
         modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.classList.remove('active'); });
 
-        async function openRatingModal(gameId) {
+        function openRatingModal(gameId) {
             const game = games.find(g => g.id === gameId);
             if (!game) return;
 
-            const ratings = await fetchRatings(gameId);
+            const ratings = dataManager.getRatings(gameId);
+            const comments = dataManager.getComments(gameId);
             const avg = average(ratings);
-            const comments = await fetchComments(gameId);
             const authorToken = getAuthorToken();
 
             const commentsHTML = comments.length === 0
                 ? '<p style="color:var(--text-muted)">No comments yet.</p>'
-                : comments.map(c => `
+                : comments.map((c, index) => `
                     <div class="comment-item">
                         <div class="comment-text">${c.text}</div>
                         <div class="comment-date">
                             ${new Date(c.date).toLocaleString()}
-                            <button class="delete-comment-btn" data-comment-id="${c.id}" data-author="${c.authorToken || ''}">🗑️</button>
+                            <button class="delete-comment-btn" data-comment-index="${index}" data-author="${c.authorToken || ''}">🗑️</button>
                         </div>
                     </div>
                 `).join('');
 
-            let html = `
+            const html = `
                 <h2>${game.emoji} ${game.title}</h2>
                 <p class="game-description">${game.description}</p>
                 <div class="rating-display">
@@ -763,17 +778,16 @@
             modalContent.innerHTML = html;
             modalOverlay.classList.add('active');
 
-            // ── Star rating logic ──
+            // Star rating logic
             const stars = document.querySelectorAll('#starsContainer .star');
             let selectedRating = 0;
             stars.forEach(star => {
-                star.addEventListener('click', async () => {
+                star.addEventListener('click', () => {
                     selectedRating = parseInt(star.dataset.value);
                     updateStarDisplay(selectedRating);
-                    const newRatingRef = push(gameRef(gameId, 'ratings'));
-                    await set(newRatingRef, selectedRating);
+                    dataManager.addRating(gameId, selectedRating);
                     openRatingModal(gameId);
-                    renderGames(); // refresh cards
+                    renderGames();
                 });
                 star.addEventListener('mouseenter', () => highlightStars(parseInt(star.dataset.value)));
                 star.addEventListener('mouseleave', () => highlightStars(selectedRating));
@@ -784,27 +798,26 @@
             }
             function updateStarDisplay(value) { highlightStars(value); }
 
-            // ── Submit comment ──
-            document.getElementById('submitCommentBtn').addEventListener('click', async () => {
+            // Submit comment
+            document.getElementById('submitCommentBtn').addEventListener('click', () => {
                 const text = document.getElementById('commentText').value.trim();
                 if (!text) return;
-                const newCommentRef = push(gameRef(gameId, 'comments'));
-                await set(newCommentRef, { text: text, date: Date.now(), authorToken: authorToken });
+                dataManager.addComment(gameId, text, authorToken);
                 openRatingModal(gameId);
                 renderGames();
             });
 
-            // ── Delete comment (self or admin) ──
+            // Delete comment (self or admin)
             document.querySelectorAll('.delete-comment-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const commentId = btn.dataset.commentId;
+                    const commentIndex = parseInt(btn.dataset.commentIndex);
                     const commentAuthor = btn.dataset.author;
                     const isOwner = (commentAuthor === authorToken);
 
-                    const deleteAction = async (password) => {
+                    const deleteAction = (password) => {
                         if (isOwner || password === ADMIN_PASSWORD) {
-                            await remove(ref(db, `games/${gameId}/comments/${commentId}`));
+                            dataManager.deleteComment(gameId, commentIndex);
                             openRatingModal(gameId);
                             renderGames();
                         } else if (password !== null) {
@@ -818,18 +831,18 @@
                         }
                     } else {
                         askPassword((password) => {
-                            if (password) deleteAction(password);
+                            if (password !== null) deleteAction(password);
                         });
                     }
                 });
             });
 
-            // ── Reset stars (admin only) ──
+            // Reset stars (admin only)
             document.getElementById('resetStarsBtn').addEventListener('click', () => {
-                askPassword(async (password) => {
+                askPassword((password) => {
                     if (password === ADMIN_PASSWORD) {
                         if (confirm(`Delete all star ratings for "${game.title}"?`)) {
-                            await set(gameRef(gameId, 'ratings'), null);
+                            dataManager.resetRatings(gameId);
                             openRatingModal(gameId);
                             renderGames();
                         }
@@ -840,7 +853,7 @@
             });
         }
 
-        // ── Password modal helpers ──
+        // ── Password Modal ──
         const passwordOverlay = document.getElementById('passwordOverlay');
         const passwordInput = document.getElementById('passwordInput');
         const confirmPasswordBtn = document.getElementById('confirmPasswordBtn');
@@ -872,7 +885,7 @@
             if (e.target === passwordOverlay) hidePasswordOverlay();
         });
 
-        // ── Smooth scroll ──
+        // Smooth scroll
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
                 const href = this.getAttribute('href');
@@ -883,7 +896,7 @@
             });
         });
 
-        console.log('%c🎮 GameVault Ready! %cRatings & comments powered by Firebase.', 'font-size:1.2em; color:#b347ea;', 'color:#8888a0;');
+        console.log('🎮 GameVault Ready! Ratings & comments saved locally.');
     </script>
 </body>
 </html>
