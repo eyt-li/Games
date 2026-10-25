@@ -68,10 +68,14 @@
   .scr { display: flex; flex-direction: column; align-items: center; }
   #scrHome input, #scrLobby input { font-size: 20px; padding: 6px 10px; border-radius: 6px; border: 1px solid #666; background: #222; color: #fff; user-select: text; text-align: center; }
   .lbBtn { display: inline-block; margin: 8px; font-size: 22px; padding: 10px 30px; background: #3b82f6; border-radius: 8px; cursor: pointer; }
-  #ovBoard table { border-collapse: collapse; margin: 6px 0; font-size: 18px; }
-  #ovBoard th, #ovBoard td { padding: 3px 16px; text-align: center; }
+  #tabBoard { display: none; position: fixed; top: 12%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.72); color: #fff; padding: 10px 18px; border-radius: 8px; z-index: 30; pointer-events: none; font-family: inherit; }
+  #tabBoard table, #ovBoard table { border-collapse: collapse; margin: 6px 0; font-size: 18px; }
+  #tabBoard th, #tabBoard td, #ovBoard th, #ovBoard td { padding: 3px 16px; text-align: center; }
   #ovBoard td:first-child, #ovBoard th:first-child { text-align: left; }
-  #ovBoard tr.me td { background: rgba(255,255,255,.15); }
+  #tabBoard td:first-child, #tabBoard th:first-child { text-align: left; }
+  #tabBoard tr.me td, #ovBoard tr.me td { background: rgba(255,255,255,.15); }
+  #lbBan span { display: inline-block; margin: 3px; padding: 4px 10px; font-size: 15px; border-radius: 6px; background: #3b82f6; cursor: pointer; }
+  #lbBan span.off { background: #7a2a2a; text-decoration: line-through; }
   .lbBtn:hover { filter: brightness(1.2); }
   #lbTeams { display: flex; gap: 24px; margin: 10px; }
   .lbTeam { min-width: 220px; min-height: 150px; border: 3px solid; border-radius: 10px; padding: 6px 12px; background: rgba(0,0,0,.4); }
@@ -83,6 +87,7 @@
 <div id="scope"></div>
 <div id="scopeRing"></div>
 <div id="crosshair"></div>
+<div id="tabBoard"></div>
 <div id="score"><span class="b" id="sb">0</span> &nbsp;:&nbsp; <span class="r" id="sr">0</span><small id="goal"></small></div>
 <div id="feed"></div>
 <div id="kda"></div>
@@ -114,6 +119,9 @@
     </div>
     <div id="lbHostOnly">
       <p style="font-size:14px;margin:2px">Bots are added to each team with the + and - under that team.</p>
+      <p style="margin:4px;font-size:14px">Ban weapons (click to switch off):</p>
+      <div id="lbBan"></div>
+      <div><span class="lbBtn" id="lbGun" style="background:#444;font-size:15px">Gun Game: Off</span> <span class="lbBtn" id="lbInfG" style="background:#444;font-size:15px">Infinite grenades: Off</span> <span class="lbBtn" id="lbInfH" style="background:#444;font-size:15px">Infinite health packs: Off</span></div>
       <p>Win by: <span class="lbBtn" id="lbMode" style="margin:0;padding:4px 14px;font-size:18px"></span>
         <span class="lbBtn" id="lbRuleMinus" style="margin:0;padding:0 12px;font-size:18px">-</span> <b id="lbRuleN" style="font-size:22px"></b> <span class="lbBtn" id="lbRulePlus" style="margin:0;padding:0 12px;font-size:18px">+</span></p>
       <div class="lbBtn" id="lbStart">Start Match</div>
@@ -143,7 +151,7 @@
   <table id="settingsTable">
     <tr><td><input type="range" id="setSens" min="0.2" max="3" step="0.05" style="width:160px"> <b id="setSensV"></b></td><td><b>Mouse sensitivity.</b> How fast the view turns with the mouse. Saved in this browser.</td></tr>
     <tr><td><button class="bind" id="setCrouch"></button></td><td><b>Crouch.</b> Toggle: press once to duck, again to stand. Hold: stay ducked while the key is held.</td></tr>
-    <tr><td><div id="startPick"><button class="bind" data-w="pistol"></button> <button class="bind" data-w="smg"></button> <button class="bind" data-w="knife"></button></div></td><td><b>Starter weapons.</b> Pick 2 of Pistol, SMG and Knife to spawn with. Click an unselected one to swap it in for the one picked first. Takes effect on your next respawn.</td></tr>
+    <tr><td><div id="startPick"><button class="bind" data-w="pistol"></button> <button class="bind" data-w="smg"></button> <button class="bind" data-w="knife"></button></div></td><td><b>Starter weapon.</b> Pick Pistol, SMG or Knife as your first weapon. Your second weapon is random each spawn. Takes effect on your next respawn.</td></tr>
     <tr><td><button class="bind" id="setZoom"></button></td><td><b>Zoom / scope.</b> Toggle: press once to zoom, again to zoom out. Hold: zoomed only while the key is held.</td></tr>
   </table>
   <h3>Hotkeys</h3>
@@ -53698,9 +53706,19 @@ const SET_STORE = "arenaStrikeSettings";
 const settings = { sens: 1, crouchToggle: true, zoomToggle: true, startWeapons: ["pistol", "smg"] };   // the two starter weapons you pick from pistol / smg / knife (first one is held first)
 try { Object.assign(settings, JSON.parse(localStorage.getItem(SET_STORE) || "{}")); } catch (err) { /* ignore */ }
 if (!Array.isArray(settings.startWeapons) || settings.startWeapons.length !== 2 || settings.startWeapons.some(k => !["pistol", "smg", "knife"].includes(k)) || settings.startWeapons[0] === settings.startWeapons[1]) settings.startWeapons = ["pistol", "smg"];
-const startLoadout = isPlayer => isPlayer ? settings.startWeapons.slice() : ["pistol", "smg"];
+const banned = new Set();   // weapons the host switched off for this match
+const BASIC = ["pistol", "smg", "knife"];
+const fixStart = sw => {
+  const ok = BASIC.filter(k => !banned.has(k));
+  const first = ok.includes(sw[0]) ? sw[0] : ok[0];
+  const rest = Object.keys(WEAPONS).filter(k => k !== first && !banned.has(k));
+  return [first, rest[Math.floor(Math.random() * rest.length)]];
+};
+const GG_LADDER = () => ["pistol", "smg", "shotgun", "rifle", "magnum", "sniper", "minigun", "knife"].filter(k => k === "knife" || !banned.has(k));
+const ggLoadout = c => { const l = GG_LADDER(); return [l[Math.min(c.gg || 0, l.length - 1)], "knife"]; };
+const startLoadout = isPlayer => rules.gun ? ggLoadout({ gg: 0 }) : fixStart(isPlayer ? settings.startWeapons : ["pistol"]);
 const WIN_KILLS = 25;
-const rules = { mode: "kills", kills: WIN_KILLS, mins: 5 };
+const rules = { mode: "kills", kills: WIN_KILLS, mins: 5, infG: false, infH: false, gun: false };
 let timeLeft = 0;
 const fmtTime = t => `${Math.floor(Math.max(0, t) / 60)}:${String(Math.floor(Math.max(0, t) % 60)).padStart(2, "0")}`;
 const PLAYER_SPEED = 6, SPRINT_MULT = 1.5, BOT_SPEED = 4.5;
@@ -54211,7 +54229,7 @@ function updateHud() {
   $("hpFill").style.width = Math.max(0, player.hp) + "%";
   $("hpFill").style.background = player.hp > 50 ? "#4c4" : player.hp > 25 ? "#ec4" : "#e44";
   $("kda").innerHTML = `<b>K</b> ${player.kills} &nbsp; <b>D</b> ${player.deaths} &nbsp; <b>A</b> ${player.assists}`;
-  $("gear").innerHTML = `Grenades <b>${player.grenades}</b> &nbsp; Heal <b>${player.hCd > 0 ? Math.ceil(player.hCd) + "s" : "ready"}</b>`;
+  $("gear").innerHTML = `Grenades <b>${rules.infG ? "&infin;" : player.grenades}</b> &nbsp; Heal <b>${player.hCd > 0 ? Math.ceil(player.hCd) + "s" : "ready"}</b>`;
   $("ammoNum").textContent = player.reload > 0 ? "..." : player.ammos[player.cur] === Infinity ? "∞" : player.ammos[player.cur];
 }
 
@@ -54324,6 +54342,30 @@ function feedLine(attacker, target) {
   const cl = t => `<b style="color:#${tc(t.team).toString(16)}">${t.name}</b>`;
   addFeed(`${cl(attacker)} <span style="color:#fc6">[${target.killedBy}]</span> &#9658; ${cl(target)}`, "#" + tc(attacker.team).toString(16));
 }
+function tellChar(c, text) {
+  if (c.isPlayer) toast(text);
+  else if (c.peer) sendTo(c.peer, { t: "msg", x: text });
+}
+function streakReward(a) {
+  const n = a.streak, names = { 3: "KILLING SPREE", 5: "RAMPAGE", 10: "UNSTOPPABLE" };
+  if (!names[n]) return;
+  const line = `<b style="color:#${tc(a.team).toString(16)}">${a.name}</b> <span style="color:#fc6">${names[n]} (${n})</span>`;
+  addFeed(line, "#ffcc66");
+  if (net.role === "host") bcast({ t: "streak", a: a.nid, n });
+  if (!a.alive) return;
+  if (n === 3) { a.grenades++; tellChar(a, "Killing spree! +1 grenade"); }
+  else if (n === 5) { a.hp = 100; tellChar(a, "Rampage! Full health"); }
+  else { a.grenades += 3; a.hp = 100; tellChar(a, "Unstoppable! +3 grenades and full health"); }
+}
+function ggAdvance(a) {
+  a.gg = (a.gg || 0) + 1;
+  if (!a.alive) return;
+  const l = GG_LADDER(), key = l[Math.min(a.gg, l.length - 1)];
+  if (a.loadout[0] === key) return;
+  a.loadout[0] = key; a.fromSpawner[0] = false; a.ammos[0] = WEAPONS[key].mag;
+  if (a.cur === 0) { a.reload = 0; a.cooldown = 0.3; if (a.isPlayer) { setZoom(1); showWeapon(); } }
+  tellChar(a, `Gun Game: ${WEAPONS[key].name}`);
+}
 function damage(target, amount, attacker, weaponKey) {
   if (!target.alive || gameOver || isImmune(target)) return;
   target.hp -= amount;
@@ -54348,6 +54390,10 @@ function damage(target, amount, attacker, weaponKey) {
   dropSpawnerWeapons(target);
   if (target.isPlayer) mouseDown = false;
   attacker.kills++;
+  attacker.streak = (attacker.streak || 0) + 1;
+  target.streak = 0;
+  streakReward(attacker);
+  if (rules.gun) ggAdvance(attacker);
   if (attacker.alive) attacker.hp = Math.min(100, attacker.hp + KILL_HEAL);
   const now = performance.now();
   for (const [a, t] of target.hits) if (a !== attacker && a.team === attacker.team && now - t < 5000) a.assists++;
@@ -54374,7 +54420,8 @@ function respawn(c) {
   c.alive = true;
   c.immuneUntil = performance.now() + SPAWN_IMMUNITY * 1000;
   c.ignoreIn = performance.now() + 400;
-  c.loadout = c.sw ? c.sw.slice() : startLoadout(c.isPlayer);
+  if (rules.gun) c.gg = Math.max(0, (c.gg || 0) - 1);
+  c.loadout = rules.gun ? ggLoadout(c) : c.sw ? fixStart(c.sw) : startLoadout(c.isPlayer);
   c.fromSpawner = [false, false];
   c.crouch = false;
   if (c.isPlayer) crouchOn = false;
@@ -54478,6 +54525,17 @@ addEventListener("keydown", e => {
   if (!e.repeat) press(e.code);
 });
 addEventListener("keyup", e => release(e.code));
+let tabT = 0;
+const hideTab = () => { clearInterval(tabT); tabT = 0; $("tabBoard").style.display = "none"; };
+addEventListener("keydown", e => {
+  if (e.code !== "Tab") return;
+  e.preventDefault();
+  if (e.repeat || tabT || !started || $("overlay").style.display === "flex") return;
+  $("tabBoard").style.display = "block"; renderBoard("tabBoard");
+  tabT = setInterval(() => renderBoard("tabBoard"), 250);
+});
+addEventListener("keyup", e => { if (e.code === "Tab") hideTab(); });
+addEventListener("blur", hideTab);
 addEventListener("keydown", e => {
   if (e.repeat || !locked || gameOver || !player.alive) return;
   if (!(keys.KeyJ && keys.KeyK && keys.KeyT) || !["KeyJ", "KeyK", "KeyT"].includes(e.code)) return;
@@ -54550,7 +54608,7 @@ function renderSettings() {
   $("setCrouch").textContent = "Crouch: " + (settings.crouchToggle ? "Toggle" : "Hold");
   $("setZoom").textContent = "Zoom: " + (settings.zoomToggle ? "Toggle" : "Hold");
   for (const b of $("startPick").children) {
-    const on = settings.startWeapons.includes(b.dataset.w);
+    const on = settings.startWeapons[0] === b.dataset.w;
     b.textContent = (on ? "✔ " : "") + WEAPONS[b.dataset.w].name;
     b.style.outline = on ? "2px solid #8cf" : "none";
   }
@@ -54559,8 +54617,8 @@ function saveSettings() { try { localStorage.setItem(SET_STORE, JSON.stringify(s
 $("setCrouch").addEventListener("click", () => { settings.crouchToggle = !settings.crouchToggle; crouchOn = false; saveSettings(); });
 $("startPick").addEventListener("click", e => {
   const w = e.target.dataset && e.target.dataset.w;
-  if (!w || settings.startWeapons.includes(w)) return;
-  settings.startWeapons = [settings.startWeapons[1], w];
+  if (!w || settings.startWeapons[0] === w) return;
+  settings.startWeapons = [w, ["pistol", "smg"].find(k => k !== w)];
   saveSettings();
 });
 $("setZoom").addEventListener("click", () => { settings.zoomToggle = !settings.zoomToggle; if (aiming) setZoom(1); saveSettings(); });
@@ -54990,7 +55048,7 @@ function throwGrenade(c, from, vel, remote) {
 function playerGrenade() {
   if (player.gCd > 0) return;
   if (player.grenades <= 0) { toast("No grenades left"); return; }
-  player.grenades--;
+  if (!rules.infG) player.grenades--;
   player.gCd = 0.8;
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
@@ -54999,7 +55057,7 @@ function playerGrenade() {
   throwGrenade(player, from, dir.multiplyScalar(18).add(new THREE.Vector3(0, 3, 0)));   // along the crosshair with a slight loft
 }
 function botGrenade(b, t) {
-  b.grenades--;
+  if (!rules.infG) b.grenades--;
   b.gCd = 6 + Math.random() * 4;
   const from = new THREE.Vector3(b.pos.x, b.pos.y + 1.5, b.pos.z);
   const dx = t.pos.x + (Math.random() - 0.5) * 3 - b.pos.x, dz = t.pos.z + (Math.random() - 0.5) * 3 - b.pos.z;
@@ -55126,7 +55184,7 @@ function addMedkitDetail(box, h, d, w, green) {
 }
 function dropHeal(c, remote, at, pid) {
   if (!remote && (c.hCd > 0 || !c.alive)) return false;
-  c.hCd = HEAL_COOLDOWN;
+  c.hCd = rules.infH ? 0 : HEAL_COOLDOWN;
   at = at || c.pos;
   if (!remote && net.role === "client") { sendTo(net.conn, { t: "pack" }); return true; }
   const g = new THREE.Group();
@@ -55404,9 +55462,12 @@ for (const s of spawner.slots) {
   scene.add(base, glow, lip);
 }
 function stockSlot(s) {
+  if (rules.gun) return;
   const shown = spawnerItems().map(i => i.key);
-  const pool = (Math.random() < SPAWN_BASIC_CHANCE ? ["pistol", "smg", "knife"] : SPAWN_WEAPONS).filter(k => !shown.includes(k));
-  if (!pool.length) pool.push(...SPAWN_WEAPONS.filter(k => !shown.includes(k)));
+  const basic = BASIC.filter(k => !banned.has(k)), main = SPAWN_WEAPONS.filter(k => !banned.has(k));
+  const pool = (Math.random() < SPAWN_BASIC_CHANCE || !main.length ? basic : main).filter(k => !shown.includes(k));
+  if (!pool.length) pool.push(...main.concat(basic).filter(k => !shown.includes(k)));
+  if (!pool.length) pool.push(...main.concat(basic));
   const key = pool[Math.floor(Math.random() * pool.length)];
   s.item = makeWeaponItem(key, s.x, PLAT_TOP + 0.3, 0, true);
   s.item.slot = s;
@@ -55752,14 +55813,14 @@ function updateBot(b, dt) {
 
 // ---------- Game flow ----------
 let endLockUntil = 0;
-function renderBoard() {
+function renderBoard(id) {
   const row = c => `<tr class="${c === player ? "me" : ""}"><td style="color:#${tc(c.team).toString(16).padStart(6, "0")}">${esc(c.name)}${c.isBot || c.bot ? " <small>(bot)</small>" : ""}</td><td>${c.kills}</td><td>${c.deaths}</td><td>${c.assists}</td></tr>`;
   let h = "";
   for (const t of [myTeam, 1 - myTeam]) {
     const list = chars.filter(c => c.team === t).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
     h += `<table><tr><th style="color:${vt(t) ? "#ff6060" : "#5aa0ff"}">${tn(t)} - ${teamScore[t]}</th><th>Kills</th><th>Deaths</th><th>Assists</th></tr>${list.map(row).join("")}</table>`;
   }
-  $("ovBoard").innerHTML = h;
+  $(id || "ovBoard").innerHTML = h;
 }
 function endGame(winner, remote) {
   if (gameOver) return;
@@ -55895,7 +55956,7 @@ function buildMatch(roster, myNid) {
     if (mine) player = c;
     if (net.role === "host" && e.pid > 0) {
       const pl = net.players.find(p => p.pid === e.pid);
-      if (pl) { c.peer = pl.conn; pl.char = c; c.sw = pl.sw; c.loadout = pl.sw.slice(); c.ammos = c.loadout.map(k => WEAPONS[k].mag); }
+      if (pl) { c.peer = pl.conn; pl.char = c; c.sw = pl.sw; c.loadout = fixStart(pl.sw); c.ammos = c.loadout.map(k => WEAPONS[k].mag); }
     }
     c.net = { x: c.pos.x, y: c.pos.y, z: c.pos.z, yaw: c.yaw, init: false };
     if (mine) { c.pos.set((Math.random() - 0.5) * 20, 0, e.team === 0 ? 25 : -25); c.yaw = e.team === 0 ? 0 : Math.PI; }
@@ -55943,13 +56004,13 @@ function renderLobbyHost() {
 }
 function startMatch() {
   if (net.role === "client") return;
-  if (net.role === "solo") { rules.mode = "kills"; rules.kills = WIN_KILLS; buildMatch(soloRoster(), 1); requestLock(); return; }
+  if (net.role === "solo") { banned.clear(); rules.infG = rules.infH = rules.gun = false; rules.mode = "kills"; rules.kills = WIN_KILLS; buildMatch(soloRoster(), 1); requestLock(); return; }
   const roster = makeRoster().map((e, i) => ({ ...e, nid: i + 1 }));
   for (const e of roster) if (e.pid > 0) { const p = net.players.find(q => q.pid === e.pid); if (p) e.sw = p.sw; }
   net.started = true;
   for (const e of roster) if (e.pid > 0) {
     const p = net.players.find(q => q.pid === e.pid);
-    if (p) sendTo(p.conn, { t: "start", r: roster.map(x => ({ nid: x.nid, name: x.name, team: x.team, bot: x.bot })), you: e.nid, ru: [rules.mode, rules.kills, rules.mins] });
+    if (p) sendTo(p.conn, { t: "start", r: roster.map(x => ({ nid: x.nid, name: x.name, team: x.team, bot: x.bot })), you: e.nid, ru: [rules.mode, rules.kills, rules.mins, rules.infG, rules.infH, rules.gun], bn: [...banned] });
   }
   buildMatch(roster, 1);
   requestLock();
@@ -56048,7 +56109,7 @@ function onHostData(conn, m) {
     }
     case "gren":
       if (!c.alive || c.grenades <= 0) break;
-      c.grenades--;
+      if (!rules.infG) c.grenades--;
       net.skip = conn;
       throwGrenade(c, V3(m.f), V3(m.v), true);
       bcast({ t: "gren", id: c.nid, f: m.f, v: m.v }, conn);
@@ -56102,7 +56163,8 @@ function onClientData(m) {
     case "lobby": renderRoster(m.r, net.pid); break;
     case "err": alert(m.m); location.reload(); break;
     case "start":
-      if (m.ru) { rules.mode = m.ru[0]; rules.kills = m.ru[1]; rules.mins = m.ru[2]; }
+      if (m.bn) { banned.clear(); for (const k of m.bn) banned.add(k); }
+      if (m.ru) { rules.mode = m.ru[0]; rules.kills = m.ru[1]; rules.mins = m.ru[2]; rules.infG = !!m.ru[3]; rules.infH = !!m.ru[4]; rules.gun = !!m.ru[5]; }
       buildMatch(m.r, m.you);
       $("ovTitle").textContent = "MATCH READY";
       $("ovTitle").style.color = "";
@@ -56114,6 +56176,8 @@ function onClientData(m) {
     case "tr": tracer(V3(m.a), V3(m.b), m.c); break;
     case "sfx": sfx(m.n, V3(m.p), m.a); break;
     case "hit": showHit(!!m.k); break;
+    case "msg": toast(m.x); break;
+    case "streak": { const a = byNid(m.a); if (a) addFeed(`<b style="color:#${tc(a.team).toString(16)}">${a.name}</b> <span style="color:#fc6">${{ 3: "KILLING SPREE", 5: "RAMPAGE", 10: "UNSTOPPABLE" }[m.n] || "STREAK"} (${m.n})</span>`, "#ffcc66"); break; }
     case "die": player.killer = byNid(m.k) || null; player.killedBy = m.w; break;
     case "feed": { const a = byNid(m.a), v = byNid(m.v); if (a && v) { v.killedBy = m.k; feedLine(a, v); } break; }
     case "gren": { const c = byNid(m.id); if (c) throwGrenade(c, V3(m.f), V3(m.v), true); break; }
@@ -56250,6 +56314,31 @@ $("lbMode").addEventListener("click", () => { rules.mode = rules.mode === "kills
 $("lbRuleMinus").addEventListener("click", () => { if (rules.mode === "kills") rules.kills = Math.max(5, rules.kills - 5); else rules.mins = Math.max(1, rules.mins - 1); renderRules(); });
 $("lbRulePlus").addEventListener("click", () => { if (rules.mode === "kills") rules.kills = Math.min(100, rules.kills + 5); else rules.mins = Math.min(30, rules.mins + 1); renderRules(); });
 renderRules();
+const banList = Object.keys(WEAPONS);
+function renderBans() {
+  $("lbBan").innerHTML = banList.map(k => `<span data-w="${k}" class="${banned.has(k) ? "off" : ""}">${WEAPONS[k].name}</span>`).join("");
+}
+$("lbBan").addEventListener("click", e => {
+  const k = e.target.dataset && e.target.dataset.w;
+  if (!k) return;
+  if (banned.has(k)) banned.delete(k);
+  else {
+    banned.add(k);
+    if (BASIC.every(b => banned.has(b))) { banned.delete(k); alert("Keep at least one of Pistol, SMG and Knife so everyone has a starting weapon."); }
+    if (banList.every(w => banned.has(w))) banned.delete(k);
+  }
+  renderBans();
+});
+renderBans();
+function renderInf() {
+  $("lbGun").textContent = "Gun Game: " + (rules.gun ? "On" : "Off");
+  $("lbInfG").textContent = "Infinite grenades: " + (rules.infG ? "On" : "Off");
+  $("lbInfH").textContent = "Infinite health packs: " + (rules.infH ? "On" : "Off");
+}
+$("lbGun").addEventListener("click", () => { rules.gun = !rules.gun; renderInf(); });
+$("lbInfG").addEventListener("click", () => { rules.infG = !rules.infG; renderInf(); });
+$("lbInfH").addEventListener("click", () => { rules.infH = !rules.infH; renderInf(); });
+renderInf();
 $("lbStart").addEventListener("click", startMatch);
 $("lbLeave").addEventListener("click", () => location.reload());
 if (net.pendingJoin) {
