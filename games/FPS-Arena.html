@@ -99,7 +99,7 @@
   <h3>Settings</h3>
   <table id="settingsTable">
     <tr><td><button class="bind" id="setCrouch"></button></td><td><b>Crouch.</b> Toggle: press once to duck, again to stand. Hold: stay ducked while the key is held.</td></tr>
-    <tr><td><button class="bind" id="setStart"></button></td><td><b>Starting weapon.</b> Which of the pistol and SMG you hold first when you spawn (you carry both). Takes effect on your next respawn.</td></tr>
+    <tr><td><div id="startPick"><button class="bind" data-w="pistol"></button> <button class="bind" data-w="smg"></button> <button class="bind" data-w="knife"></button></div></td><td><b>Starter weapons.</b> Pick 2 of Pistol, SMG and Knife to spawn with. Click an unselected one to swap it in for the one picked first. Takes effect on your next respawn.</td></tr>
     <tr><td><button class="bind" id="setZoom"></button></td><td><b>Zoom / scope.</b> Toggle: press once to zoom, again to zoom out. Hold: zoomed only while the key is held.</td></tr>
   </table>
   <h3>Hotkeys</h3>
@@ -109,16 +109,18 @@
   <table>
     <tr><td>Rifle</td><td>Balanced, automatic, good at medium range</td></tr>
     <tr><td>SMG</td><td>Very fast fire, weak per bullet, best up close</td></tr>
-    <tr><td>Shotgun</td><td>Eight pellets, deadly close up, weak far away</td></tr>
+    <tr><td>Shotgun</td><td>Eight pellets. Right in front of an enemy it kills; weak far away</td></tr>
     <tr><td>Minigun</td><td>Huge magazine and fire rate, but inaccurate</td></tr>
     <tr><td>Sniper</td><td>One slow, precise shot with high damage and zoom</td></tr>
     <tr><td>Pistol</td><td>Light and quick to reload</td></tr>
+    <tr><td>Knife</td><td>Short reach, fast swings, and one hit kills. Never needs reloading. Appears on the centre spawner as often as a pistol or SMG.</td></tr>
     <tr><td>Magnum</td><td>Slow, hard-hitting shots</td></tr>
   </table>
   <h3>Tips</h3>
   <table>
     <tr><td>Weapon spawner</td><td>The centre platform has 2 weapons (usually a rifle, shotgun, minigun, sniper or magnum, sometimes a pistol or SMG). When one is taken, a random one comes back 15 seconds later, and a weapon nobody takes for a while is swapped for a new random one. You can hold two centre weapons (one per slot); picking one up in a slot that already has a centre weapon drops that one. Look at one and press the pick-up key (E) to swap it into your current slot. If you die holding a weapon from the spawner, you drop it on the ground and anyone can pick it up the same way.</td></tr>
     <tr><td>Sound</td><td>All sounds are generated in the browser: gunshots (different per weapon, quieter with distance), explosions, reloads, hit and kill ticks, pick-ups. Click the game once to enable audio.</td></tr>
+    <tr><td>Kill bonus</td><td>Every kill heals you for 10 hp, up to full health. Bots get it too.</td></tr>
     <tr><td>Crouch</td><td>Press the crouch key (C) to duck below a building's window sills and hide (toggle or hold, set in Settings). You move slower and cannot jump while crouched.</td></tr>
     <tr><td>Scopes</td><td>Zooming with the sniper opens a scope: a sharp circle in the middle with the rest of the screen blurred (your HUD stays clear). Other weapons zoom a little without a scope.</td></tr>
     <tr><td>Pickups</td><td>Grenades and health items mostly appear around the centre. If nobody grabs one for 30 seconds it moves to a random spot.</td></tr>
@@ -53615,27 +53617,30 @@ const HEIGHT = 1.8, GRAVITY = 24, JUMP_V = 9;
 const START_GRENADES = 5;
 const HEAL_AMOUNT = 50, HEAL_COOLDOWN = 20, HEAL_RADIUS = 4, HEAL_TIME = 8, HEAL_REGEN_RATE = 25, HEALTH_ITEMS = 4, HEALTH_ITEM_RESPAWN = 20, PACK_HP = 40;
 const GRENADE_FUSE = 2.2, GRENADE_RADIUS = 5, GRENADE_DMG = 75, GRENADE_DIRECT_DMG = 110, GRENADE_DIRECT_RANGE = 1.5;
+const KILL_HEAL = 10;   // health gained per kill
 const REGEN_DELAY = 3, REGEN_RATE = 20;   // seconds without damage, then hp per second
 const BOT_DMG_SCALE = 0.45;  // bots deal this fraction of a weapon's damage per hit
 // spread is in screen units (player aim); falloff is the bot hit-chance drop per metre; ideal is the bot's preferred range
 const WEAPONS = {
   rifle:   { name: "Rifle",   dmg: 18, head: 2.4, delay: 0.15,  mag: 30,  reload: 0.5, pellets: 1, spread: 0.012, falloff: 0.015, ideal: 15, color: 0x333333, len: 0.5 },
   smg:     { name: "SMG",     dmg: 10, head: 2.0, delay: 0.0833, mag: 40,  reload: 0.5, pellets: 1, spread: 0.030, falloff: 0.022, ideal: 10, color: 0x2a3a2a, len: 0.4 },
-  shotgun: { name: "Shotgun", dmg: 15, head: 1.5, delay: 1.0,  mag: 6,   reload: 0.5, pellets: 8, spread: 0.070, falloff: 0.038, ideal: 6,  color: 0x6b4a2a, len: 0.55 },
+  shotgun: { name: "Shotgun", dmg: 15, head: 1.5, delay: 0.85,  mag: 6,   reload: 0.5, pellets: 8, spread: 0.070, falloff: 0.038, ideal: 6,  color: 0x6b4a2a, len: 0.55 },
   minigun: { name: "Minigun", dmg: 7, head: 1.5, delay: 0.0583, mag: 120, reload: 0.5, pellets: 1, spread: 0.045, falloff: 0.026, ideal: 14, color: 0x555555, len: 0.65 },
   sniper:  { name: "Sniper",  dmg: 90, head: 2.0, delay: 0.75,  mag: 5,   reload: 0.5, pellets: 1, spread: 0.004, falloff: 0.005, ideal: 30, color: 0x1a1a2a, len: 0.8, zoom: 2.8 },
   pistol:  { name: "Pistol",  dmg: 20, head: 2.5, delay: 0.1667,  mag: 12,  reload: 0.5, pellets: 1, spread: 0.012, falloff: 0.019, ideal: 10, color: 0x444444, len: 0.25 },
   magnum:  { name: "Magnum",  dmg: 60, head: 2.0, delay: 0.5,  mag: 6,   reload: 0.5, pellets: 1, spread: 0.010, falloff: 0.011, ideal: 18, color: 0x777766, len: 0.35 },
 };
+WEAPONS.knife = { name: "Knife", dmg: 200, head: 1, delay: 0.35, mag: Infinity, reload: 0, pellets: 1, spread: 0, falloff: 0, ideal: 1.5, color: 0xcccccc, len: 0.3, melee: true, range: 3.4 };   // one hit kills; short reach
 WEAPONS.sniper.zoom = 4; WEAPONS.sniper.scope = true;
 WEAPONS.magnum.zoom = 2.0;   // only the sniper has a scope overlay
 WEAPONS.rifle.zoom = 1.8;
 const SPAWN_WEAPONS = ["rifle", "shotgun", "minigun", "sniper", "magnum"];   // what the centre spawner hands out
-const SPAWNER_TIME = 15, SPAWN_IDLE = 25, SPAWN_BASIC_CHANCE = 0.25;   // refill delay, seconds before an untouched weapon is re-rolled, odds of a pistol/SMG
+const SPAWNER_TIME = 15, SPAWN_IDLE = 25, SPAWN_BASIC_CHANCE = 0.12;   // refill delay, seconds before an untouched weapon is re-rolled, odds of a pistol/SMG
 const SET_STORE = "arenaStrikeSettings";
-const settings = { crouchToggle: true, zoomToggle: true, startWeapon: "pistol" };   // startWeapon: which of pistol / smg you hold first
+const settings = { crouchToggle: true, zoomToggle: true, startWeapons: ["pistol", "smg"] };   // the two starter weapons you pick from pistol / smg / knife (first one is held first)
 try { Object.assign(settings, JSON.parse(localStorage.getItem(SET_STORE) || "{}")); } catch (err) { /* ignore */ }
-const startLoadout = isPlayer => (isPlayer && settings.startWeapon === "smg") ? ["smg", "pistol"] : ["pistol", "smg"];
+if (!Array.isArray(settings.startWeapons) || settings.startWeapons.length !== 2 || settings.startWeapons.some(k => !["pistol", "smg", "knife"].includes(k)) || settings.startWeapons[0] === settings.startWeapons[1]) settings.startWeapons = ["pistol", "smg"];
+const startLoadout = isPlayer => isPlayer ? settings.startWeapons.slice() : ["pistol", "smg"];
 const WIN_KILLS = 25;
 const PLAYER_SPEED = 6, SPRINT_MULT = 1.5, BOT_SPEED = 4.5;
 const CROUCH_MULT = 0.5, CROUCH_EYE = 1.0, CROUCH_HEIGHT = 1.1;   // crouched you are shorter, so tall-ish low cover hides you
@@ -53750,7 +53755,7 @@ function addBuilding(cx, cz, w, d, openings, opt = {}) {
     }
   }
   addBox(cx, cz, w + BT, d + BT, 0.3, opt.roof || 0x5a5f6b, H);   // roof, too high to reach
-  buildings.push({ cx, cz, w, d, doors });
+  buildings.push({ cx, cz, w, d, doors, op: openings, H, stairs: !!opt.stairs });
 }
 // The map is the same turned 180 degrees, so each building comes as a pair
 const flipAt = list => (list || []).map(o => ({ ...o, at: -o.at }));
@@ -53780,10 +53785,10 @@ function addPavilion(cx, cz, size, wallSide) {
   addBox(cx, cz + wallSide * (h - 0.25), size - 2 * P, 0.5, 1.0, col);
   addBox(cx, cz, size + 0.5, size + 0.5, 0.3, 0x8a5a4a, BUILDING_H);
 }
-addBuildingPair(-19, 2, 10, 8, { N: [{ at: -2 }, { at: 3, window: true }], S: [{ at: 2 }, { at: -3, window: true }], W: [{ at: 0, window: true }], E: [{ at: 0 }] });   // warehouse
+addBuildingPair(-19, 2, 10, 8, { N: [{ at: -2 }, { at: 3, window: true }], S: [{ at: 2 }, { at: -3, window: true }], W: [{ at: 0, window: true }], E: [{ at: 0 }] }, { stairs: true });   // warehouse
 addBuildingPair(0, 12, 6, 5, { N: [{ at: 0 }], S: [{ at: 0 }], W: [{ at: 0, window: true, w: 1.6 }], E: [{ at: 0, window: true, w: 1.6 }] });                          // centre houses
-addBuildingPair(-14, 17, 6, 6, { N: [{ at: 0 }], E: [{ at: 0 }], S: [{ at: -1.5, window: true, w: 1.6 }], W: [{ at: 0, window: true, w: 1.6 }] });                     // spawn guard houses
-addBuildingPair(15, 19, 6, 6, { N: [{ at: -1 }], W: [{ at: 0 }], E: [{ at: 0, window: true, w: 1.6 }], S: [{ at: 1, window: true, w: 1.6 }] });
+addBuildingPair(-14, 17, 6, 6, { N: [{ at: 0 }], E: [{ at: 0 }], S: [{ at: -1.5, window: true, w: 1.6 }], W: [{ at: 0, window: true, w: 1.6 }] }, { stairs: true });                     // spawn guard houses
+addBuildingPair(15, 19, 6, 6, { N: [{ at: -1 }], W: [{ at: 0 }], E: [{ at: 0, window: true, w: 1.6 }], S: [{ at: 1, window: true, w: 1.6 }] }, { stairs: true });
 addBuildingPair(-25, 11, 5, 5, { E: [{ at: 0 }], N: [{ at: 0 }], S: [{ at: 0, window: true, w: 1.6 }] });                                                               // flank huts
 // Extra designs: bunkers (green, low, many windows), towers (tall, brown), two-room houses, garages (wide doors), open pavilions
 addBuildingPair(-8, 8, 7, 4, { N: [{ at: -1.8, window: true, w: 1.4 }, { at: 1.8, window: true, w: 1.4 }], S: [{ at: 0 }], E: [{ at: 0, window: true, w: 1.4 }], W: [{ at: 0, window: true, w: 1.4 }] }, { h: 2.6, color: 0x6f7a6a, roof: 0x3d4a3a });
@@ -53793,6 +53798,29 @@ addBuildingPair(-23, -22, 8, 5, { E: [{ at: 0, w: 4.5 }], W: [{ at: 0, w: 4.5 }]
 const pw = Math.random() < 0.5 ? 1 : -1;
 addPavilion(6, 5, 5, pw);
 addPavilion(-6, -5, 5, -pw);
+for (const b of buildings) if (b.stairs) addStairs(b);   // roofs near the spawns and the warehouses can be climbed
+// Crate stairs up to a roof: three steps of equal height against a side with no door or window near the corner
+function addStairs(b) {
+  const roof = b.H + 0.3, sw = 1.5, T = 1.6, col = 0x8b7355;
+  const order = b.cz > 0 ? ["S", "N", "E", "W"] : ["N", "S", "E", "W"];
+  for (const side of order) for (const sgn of [1, -1]) {
+    const alongX = side === "N" || side === "S";
+    const half = (alongX ? b.w : b.d) / 2;
+    const c0 = sgn * (half - sw / 2 + 0.25), lo = c0 - sw / 2 - 0.3, hi = c0 + sw / 2 + 0.3;
+    if ((b.op[side] || []).some(o => o.at + (o.w || 3.2) / 2 > lo && o.at - (o.w || 3.2) / 2 < hi)) continue;
+    const dir = side === "N" || side === "W" ? -1 : 1;
+    const fixed = alongX ? b.cz + dir * (b.d / 2 + BT / 2) : b.cx + dir * (b.w / 2 + BT / 2);
+    const steps = [3, 2, 1].map((k, i) => {
+      const out = fixed + dir * (T * i + T / 2);
+      return alongX ? { x: b.cx + c0, z: out, w: sw, d: T, h: roof * k / 3 } : { x: out, z: b.cz + c0, w: T, d: sw, h: roof * k / 3 };
+    });
+    const clear = steps.every(t => Math.abs(t.x) < ARENA - 1 && Math.abs(t.z) < ARENA - 1 &&
+      !obstacles.some(o => o.minY < 1 && t.x + t.w / 2 - 0.05 > o.minX && t.x - t.w / 2 + 0.05 < o.maxX && t.z + t.d / 2 - 0.05 > o.minZ && t.z - t.d / 2 + 0.05 < o.maxZ));
+    if (!clear) continue;
+    for (const t of steps) addBox(t.x, t.z, t.w, t.d, t.h, col);
+    return;
+  }
+}
 const buildingAt = (x, z) => buildings.find(b => Math.abs(x - b.cx) < b.w / 2 && Math.abs(z - b.cz) < b.d / 2);
 
 // Centre platform with step crates to jump up from
@@ -53946,7 +53974,7 @@ function updateHud() {
   $("hpFill").style.background = player.hp > 50 ? "#4c4" : player.hp > 25 ? "#ec4" : "#e44";
   $("kda").innerHTML = `<b>K</b> ${player.kills} &nbsp; <b>D</b> ${player.deaths} &nbsp; <b>A</b> ${player.assists}`;
   $("gear").innerHTML = `Grenades <b>${player.grenades}</b> &nbsp; Heal <b>${player.hCd > 0 ? Math.ceil(player.hCd) + "s" : "ready"}</b>`;
-  $("ammoNum").textContent = player.reload > 0 ? "..." : player.ammos[player.cur];
+  $("ammoNum").textContent = player.reload > 0 ? "..." : player.ammos[player.cur] === Infinity ? "∞" : player.ammos[player.cur];
 }
 
 // ---------- Sound (synthesised with WebAudio, no files) ----------
@@ -54001,6 +54029,7 @@ const SHOT_SND = {
   magnum: [0.045, 1000, 0.22, 75, 0.20, 0.40, 0.85],
 };
 function gunshot(k, v) {
+  if (k === "knife") { noise(0.12, 0.5 * v, 4500, 0, "bandpass"); tone(1800, 600, 0.1, 0.15 * v, "sine"); return; }
   const [crack, body, bl, th, tl, tail, vol] = SHOT_SND[k];
   noise(crack, vol * 0.9 * v, 3500, 0, "highpass");   // sharp crack
   noise(bl, vol * v, body);                           // powder blast
@@ -54067,6 +54096,7 @@ function damage(target, amount, attacker) {
   dropSpawnerWeapons(target);
   if (target.isPlayer) mouseDown = false;
   attacker.kills++;
+  if (attacker.alive) attacker.hp = Math.min(100, attacker.hp + KILL_HEAL);
   const now = performance.now();
   for (const [a, t] of target.hits) if (a !== attacker && a.team === attacker.team && now - t < 5000) a.assists++;
   target.hits.clear();
@@ -54190,6 +54220,16 @@ addEventListener("keydown", e => {
   if (!e.repeat) press(e.code);
 });
 addEventListener("keyup", e => release(e.code));
+addEventListener("keydown", e => {
+  if (e.repeat || !locked || gameOver || !player.alive) return;
+  if (!(keys.KeyJ && keys.KeyK && keys.KeyT) || !["KeyJ", "KeyK", "KeyT"].includes(e.code)) return;
+  player.loadout[player.cur] = "knife";
+  player.ammos[player.cur] = Infinity;
+  player.fromSpawner[player.cur] = false;
+  player.reload = 0;
+  setZoom(1);
+  showWeapon();
+});
 addEventListener("mousedown", e => press("Mouse" + e.button));
 addEventListener("mouseup", e => release("Mouse" + e.button));
 addEventListener("wheel", e => { if (locked && player.alive) switchWeapon(player, 1 - player.cur); });
@@ -54250,11 +54290,20 @@ $("helpBack").addEventListener("click", () => { rebinding = null; renderBinds();
 function renderSettings() {
   $("setCrouch").textContent = "Crouch: " + (settings.crouchToggle ? "Toggle" : "Hold");
   $("setZoom").textContent = "Zoom: " + (settings.zoomToggle ? "Toggle" : "Hold");
-  $("setStart").textContent = "Start with: " + (settings.startWeapon === "smg" ? "SMG" : "Pistol");
+  for (const b of $("startPick").children) {
+    const on = settings.startWeapons.includes(b.dataset.w);
+    b.textContent = (on ? "✔ " : "") + WEAPONS[b.dataset.w].name;
+    b.style.outline = on ? "2px solid #8cf" : "none";
+  }
 }
 function saveSettings() { try { localStorage.setItem(SET_STORE, JSON.stringify(settings)); } catch (err) { /* ignore */ } renderSettings(); }
 $("setCrouch").addEventListener("click", () => { settings.crouchToggle = !settings.crouchToggle; crouchOn = false; saveSettings(); });
-$("setStart").addEventListener("click", () => { settings.startWeapon = settings.startWeapon === "smg" ? "pistol" : "smg"; saveSettings(); });
+$("startPick").addEventListener("click", e => {
+  const w = e.target.dataset && e.target.dataset.w;
+  if (!w || settings.startWeapons.includes(w)) return;
+  settings.startWeapons = [settings.startWeapons[1], w];
+  saveSettings();
+});
 $("setZoom").addEventListener("click", () => { settings.zoomToggle = !settings.zoomToggle; if (aiming) setZoom(1); saveSettings(); });
 renderSettings();
 renderBinds();
@@ -54290,7 +54339,17 @@ gunHandle.position.set(0, -0.12, 0.12);
 gun.add(gunHandle);
 gun.position.set(0.25, -0.22, -0.5);
 camera.add(gun);
+const knifeView = new THREE.Group();
+const knifeFlip = makeKnifeModel(1);
+knifeFlip.rotation.y = Math.PI;   // blade end leads the swing
+knifeFlip.position.z = -0.25;
+knifeView.add(knifeFlip);
+knifeView.visible = false;
+camera.add(knifeView);
+let slash = 0;   // 1 right after a swing, fades to 0
 
+// Shotgun pellets hit much harder right in front of the target (4 pellets kill), fading to the old falloff by 6 units
+const pelletScale = d => d <= 2.5 ? 1.7 : d < 6 ? 1.7 - (d - 2.5) / 3.5 : Math.max(0.2, 1 - d / 20);
 function showWeapon() {
   const w = WEAPONS[player.loadout[player.cur]];
   gunBody.geometry.dispose();
@@ -54329,7 +54388,8 @@ function playerShoot() {
   const w = WEAPONS[player.loadout[player.cur]];
   player.ammos[player.cur]--;
   player.cooldown = w.delay;
-  recoil = w.dmg >= 50 ? 2 : w.pellets > 1 ? 1.6 : 1;
+  if (w.melee) slash = 1;
+  recoil = w.melee ? 0 : w.dmg >= 50 ? 2 : w.pellets > 1 ? 1.6 : 1;
   sfx("shot", null, player.loadout[player.cur]);
   const targets = obstacleMeshes.concat(hitMeshes.filter(m => m.userData.owner.alive && !m.userData.owner.isPlayer)).concat(healPacks.filter(p => p.team !== player.team).map(p => p.box));
   const muzzle = new THREE.Vector3(0.25, -0.2, -1).applyMatrix4(camera.matrixWorld);
@@ -54337,7 +54397,7 @@ function playerShoot() {
   let marker = false;
   for (let p = 0; p < w.pellets; p++) {
     raycaster.setFromCamera({ x: (Math.random() - 0.5) * 2 * spread, y: (Math.random() - 0.5) * 2 * spread }, camera);
-    raycaster.far = 200;
+    raycaster.far = w.range || 200;
     const hits = raycaster.intersectObjects(targets, false);
     let end = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, 100);
     if (hits.length) {
@@ -54349,12 +54409,12 @@ function playerShoot() {
         marker = true;
       } else if (o && o.team !== player.team) {
         let dmg = w.dmg * (hits[0].object.userData.head ? w.head : 1);
-        if (w.pellets > 1) dmg *= Math.max(0.2, 1 - hits[0].distance / 20);
+        if (w.pellets > 1) dmg *= pelletScale(hits[0].distance);
         damage(o, dmg, player);
         marker = true;
       }
     }
-    tracer(muzzle, end, 0xffee88);
+    if (!w.melee) tracer(muzzle, end, 0xffee88);
   }
   if (marker) {
     const ch = $("crosshair");
@@ -54376,9 +54436,12 @@ function updatePlayer(dt) {
       camera.lookAt(target);
     } else camera.position.set(player.pos.x, player.pos.y + 0.4, player.pos.z);
     gun.visible = false;
+    knifeView.visible = false;
     return;
   }
-  gun.visible = !(aiming && WEAPONS[player.loadout[player.cur]].scope);
+  const heldKnife = !!WEAPONS[player.loadout[player.cur]].melee;
+  gun.visible = !heldKnife && !(aiming && WEAPONS[player.loadout[player.cur]].scope);
+  knifeView.visible = heldKnife;
   player.crouch = settings.crouchToggle ? crouchOn : down("crouch");
   const fwd = (down("forward") ? 1 : 0) - (down("back") ? 1 : 0);
   const side = (down("right") ? 1 : 0) - (down("left") ? 1 : 0);
@@ -54424,6 +54487,11 @@ function updatePlayer(dt) {
   camera.rotation.set(pitch + recoil * 0.015, player.yaw, 0);
   gun.position.set(aiming ? 0.0 : 0.25, aiming ? -0.16 : -0.22, -0.5 + recoil * 0.06);
   gun.rotation.x = recoil * 0.08;
+  slash = Math.max(0, slash - dt / 0.2);
+  const sw = Math.sin((1 - slash) * Math.PI) * (slash > 0 ? 1 : 0);   // 0 -> 1 -> 0 over the swing
+  const prog = 1 - slash;
+  knifeView.position.set(0.3 - sw * 0.38 * prog, -0.28 + sw * 0.1, -0.55 - sw * 0.3);
+  knifeView.rotation.set(-0.5 - sw * 0.5, 0.35 + sw * 0.7 * prog - sw * 0.3, -0.6 + sw * 1.4 * prog);
 }
 
 // ---------- Grenades ----------
@@ -54695,6 +54763,8 @@ function updatePickups(dt) {
     if (p.idle > PICKUP_IDLE) {
       Object.assign(p, randomPickupSpot(pickups.filter(o => o !== p && o.timer <= 0), true));
       p.idle = 0;
+      p.mesh.position.x = p.x;
+      p.mesh.position.z = p.z;
     }
     p.mesh.rotation.y += dt * 2;
     p.mesh.position.y = 0.8 + Math.sin(performance.now() / 300 + p.x) * 0.08;
@@ -54740,8 +54810,22 @@ function makeLabel(text) {
   return s;
 }
 const weaponMeshCache = {};
+function makeKnifeModel(scale) {
+  const g = new THREE.Group();
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.09, 0.42 * scale), new THREE.MeshStandardMaterial({ color: 0xe4e8ee, emissive: 0x555a60, metalness: 0.8, roughness: 0.25 }));
+  blade.position.z = -0.21 * scale;
+  const tip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.1 * scale), blade.material);
+  tip.position.set(0, -0.02, -0.46 * scale);
+  tip.rotation.x = 0.35;
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.03), new THREE.MeshStandardMaterial({ color: 0x555555, emissive: 0x222222 }));
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.2 * scale), new THREE.MeshStandardMaterial({ color: 0x4a2f1a, emissive: 0x201008 }));
+  handle.position.z = 0.11 * scale;
+  g.add(blade, tip, guard, handle);
+  return g;
+}
 function makeWeaponModel(key) {
   const w = WEAPONS[key];
+  if (key === "knife") { const k = makeKnifeModel(1.6); k.rotation.y = Math.PI / 2; return k; }
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, w.len * 1.8), new THREE.MeshStandardMaterial({ color: w.color, emissive: 0x666666 }));
   const grip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.26, 0.12), new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0x333333 }));
@@ -54786,7 +54870,7 @@ for (const s of spawner.slots) {
 }
 function stockSlot(s) {
   const shown = spawnerItems().map(i => i.key);
-  const pool = (Math.random() < SPAWN_BASIC_CHANCE ? ["pistol", "smg"] : SPAWN_WEAPONS).filter(k => !shown.includes(k));
+  const pool = (Math.random() < SPAWN_BASIC_CHANCE ? ["pistol", "smg", "knife"] : SPAWN_WEAPONS).filter(k => !shown.includes(k));
   if (!pool.length) pool.push(...SPAWN_WEAPONS.filter(k => !shown.includes(k)));
   const key = pool[Math.floor(Math.random() * pool.length)];
   s.item = makeWeaponItem(key, s.x, PLAT_TOP + 0.3, 0, true);
@@ -54939,6 +55023,7 @@ function botPhysics(b, dt) {
 
 function botShoot(b, t) {
   const w = WEAPONS[b.loadout[b.cur]];
+  if (w.melee && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) > w.range) { b.cooldown = 0.1; return; }
   b.ammos[b.cur]--;
   b.cooldown = w.delay * (1.1 + Math.random() * 0.5) + 0.05;
   sfx("shot", b.pos, b.loadout[b.cur]);
@@ -54952,10 +55037,10 @@ function botShoot(b, t) {
     const hit = Math.random() < chance;
     const end = to.clone();
     if (!hit) end.add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 3));
-    tracer(muzzle, end, TEAM_COLORS[b.team]);
+    if (!w.melee) tracer(muzzle, end, TEAM_COLORS[b.team]);
     if (hit) {
-      let dmg = w.dmg * BOT_DMG_SCALE;
-      if (w.pellets > 1) dmg *= Math.max(0.2, 1 - dist / 20);
+      let dmg = w.melee ? w.dmg : w.dmg * BOT_DMG_SCALE;
+      if (w.pellets > 1) dmg *= pelletScale(dist);
       damage(t, dmg, b);
       dealt = true;
     }
@@ -54974,6 +55059,23 @@ function updateBot(b, dt) {
     return;
   }
   b.cooldown -= dt;
+  // Crouch only when a low wall (window sill, crouch height < top < 1.5) is right in front, between the bot and its target
+  b.crouchT = (b.crouchT || 0) - dt;
+  if (b.crouchT <= 0) {
+    b.crouchT = 0.25;
+    let behind = false;
+    if (b.target && b.target.alive && !(b.leave > 0)) {
+      const tx = b.target.pos.x - b.pos.x, tz = b.target.pos.z - b.pos.z, tl = Math.hypot(tx, tz) || 1;
+      for (const o of obstacles) {
+        if (o.minY > 0.3 || o.maxY < 1.1 || o.maxY > 1.5) continue;
+        const cx = Math.max(o.minX, Math.min(b.pos.x, o.maxX)), cz = Math.max(o.minZ, Math.min(b.pos.z, o.maxZ));
+        const dx = cx - b.pos.x, dz = cz - b.pos.z, dl = Math.hypot(dx, dz);
+        if (dl < 1.2 && (dl < 0.05 || (dx * tx + dz * tz) / (dl * tl) > 0.5)) { behind = true; break; }
+      }
+    }
+    b.wantCrouch = behind;
+  }
+  b.crouch = b.wantCrouch;
   // After a few seconds inside a building, walk out through its nearest door and ignore targets until outside
   const home = buildingAt(b.pos.x, b.pos.z);
   b.inside = home ? (b.inside || 0) + dt : 0;
@@ -55035,7 +55137,7 @@ function updateBot(b, dt) {
     if (hurt > 0 && !covered) dropHeal(b);
   }
   // Spend a shot on a visible enemy health pack when nobody is in sight
-  if (!b.target && b.cooldown <= 0 && b.reload <= 0 && b.ammos[b.cur] > 0) {
+  if (!b.target && b.cooldown <= 0 && b.reload <= 0 && b.ammos[b.cur] > 0 && !WEAPONS[b.loadout[b.cur]].melee) {
     const eye = new THREE.Vector3(b.pos.x, b.pos.y + 1.45, b.pos.z);
     for (const it of healPacks) {
       if (it.team === b.team) continue;
@@ -55071,9 +55173,10 @@ function updateBot(b, dt) {
     const nx = dx / dist, nz = dz / dist;
     let mx = -nz * b.strafe, mz = nx * b.strafe;
     const ideal = WEAPONS[b.loadout[b.cur]].ideal;
-    if (dist > ideal + 6) { mx += nx * 1.2; mz += nz * 1.2; }
+    if (WEAPONS[b.loadout[b.cur]].melee) { if (dist > 1.5) { mx += nx * 2.5; mz += nz * 2.5; } }
+    else if (dist > ideal + 6) { mx += nx * 1.2; mz += nz * 1.2; }
     else if (dist < ideal - 5) { mx -= nx * 1.2; mz -= nz * 1.2; }
-    moveBot(b, mx, mz, BOT_SPEED * 0.7, dt);
+    moveBot(b, mx, mz, BOT_SPEED * 0.7 * (b.crouch ? CROUCH_MULT : 1), dt);
     moved = true;
 
     b.reaction -= dt;
@@ -55105,6 +55208,7 @@ function updateBot(b, dt) {
   botPhysics(b, dt);
   b.group.position.copy(b.pos);
   b.group.rotation.y = b.yaw;
+  b.group.scale.y += ((b.crouch ? 0.62 : 1) - b.group.scale.y) * Math.min(1, dt * 14);
 }
 
 // ---------- Game flow ----------
