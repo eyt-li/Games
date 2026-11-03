@@ -4,11 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MatchBoard</title>
+<!-- PDF Export Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f9fafb; }
   .match-card { border-left: 4px solid #10b981; border-radius: 8px; background-color: rgba(16, 185, 129, 0.08); }
@@ -48,6 +49,10 @@
   .hidden { display: none !important; }
   .password-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
   .password-box { background: white; padding: 24px; border-radius: 12px; width: 320px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .move-btn { padding: 4px 8px; line-height: 1; }
+  .manual-badge { background: #fef3c7; color: #92400e; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 600; }
+  .warn-badge { background: #fee2e2; color: #b91c1c; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 700; cursor: help; }
 </style>
 </head>
 <body>
@@ -68,6 +73,10 @@
         <span class="w-2 h-2 bg-emerald-500 rounded-full live-pulse"></span>
         <span class="text-xs font-medium text-emerald-700">Live</span>
       </div>
+      <button id="exportPdfBtn" class="header-btn">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Export PDF
+      </button>
       <button id="shareBtn" class="header-btn">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
         Share
@@ -107,17 +116,12 @@
   </div>
   <div class="flex items-center gap-2">
     <span id="matchCount" class="text-xs text-gray-500">0 matches</span>
-    <button id="exportPdfBtn" class="btn flex items-center gap-1.5">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      Export PDF
-    </button>
   </div>
 </div>
 
 <!-- CATEGORY VIEW -->
 <div id="categoryView" class="max-w-7xl mx-auto px-4 pb-12">
   <div class="grid grid-cols-12 gap-4">
-
     <!-- LEFT: SETUP PANEL -->
     <div class="col-span-4">
       <div class="bg-white rounded-lg border border-gray-200 p-4">
@@ -125,12 +129,7 @@
           <svg class="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
           Setup
         </h3>
-
         <div class="space-y-3">
-          <div>
-            <label class="block text-xs font-medium text-gray-700 mb-1">Event name</label>
-            <input type="text" id="eventName" placeholder="e.g. 3 Damansara Floorball Carnival" class="w-full">
-          </div>
           <div>
             <label class="block text-xs font-medium text-gray-700 mb-1">Date</label>
             <input type="date" id="eventDate" class="w-full">
@@ -153,6 +152,10 @@
               <input type="number" id="courts" value="2" class="w-full">
             </div>
           </div>
+          <div id="resetMovesSection" class="hidden border-t border-gray-100 pt-3">
+            <button id="resetMovesBtn" class="btn w-full">Reset manual moves</button>
+            <p class="text-xs text-gray-500 mt-1">Puts every moved match back to its automatic time.</p>
+          </div>
           <div id="passwordSection" class="hidden border-t border-gray-100 pt-3 space-y-2">
             <label class="block text-xs font-medium text-gray-700">Change edit password</label>
             <input type="password" id="newPassword" placeholder="New password" class="w-full">
@@ -166,7 +169,6 @@
 
     <!-- RIGHT: CATEGORIES & MATCHES -->
     <div class="col-span-8 space-y-4">
-
       <!-- NEXT UP -->
       <div class="bg-white rounded-lg border border-gray-200 p-4">
         <div class="flex items-center gap-2 text-xs font-medium text-gray-700 mb-2">
@@ -194,24 +196,8 @@
 <div id="scheduleView" class="max-w-7xl mx-auto px-4 pb-12 hidden">
   <div class="bg-white rounded-lg border border-gray-200 p-4">
     <h2 class="text-base font-semibold text-gray-900 mb-3">Full schedule — <span id="totalMatches">0</span> matches</h2>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-gray-200 text-left text-xs text-gray-500 uppercase">
-            <th class="py-2 px-2">Time</th>
-            <th class="py-2 px-2">Court</th>
-            <th class="py-2 px-2">Category</th>
-            <th class="py-2 px-2">Group</th>
-            <th class="py-2 px-2">Round</th>
-            <th class="py-2 px-2">Status</th>
-            <th class="py-2 px-2 text-right">Home</th>
-            <th class="py-2 px-2 text-center">Score</th>
-            <th class="py-2 px-2">Away</th>
-          </tr>
-        </thead>
-        <tbody id="scheduleBody"></tbody>
-      </table>
-    </div>
+    <p id="moveHint" class="hidden text-xs text-gray-500 mb-3">Use ◀ ▶ to move a match one time slot earlier or later on its court. If another match is in that slot it swaps places. Any move is allowed; a red ⚠ Clash badge appears if it causes a problem (hover it to see why). "Auto" puts a moved match back to its automatic time.</p>
+    <div id="scheduleBody" class="space-y-6"></div>
   </div>
 </div>
 
@@ -239,7 +225,154 @@ try {
 const DB_PATH = 'matchboard/schedule1';
 
 // ============================================
-// HELPERS
+// PDF EXPORT FUNCTION
+// ============================================
+async function exportToPDF() {
+  try {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      toast("PDF library failed to load. Check your internet connection or disable ad-blockers.");
+      return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    if (typeof doc.autoTable !== 'function') {
+      toast("PDF table plugin failed to load. Check your internet connection or disable ad-blockers.");
+      return;
+    }
+
+    const mm = parseInt(state.matchMin) || 10;
+    const list = allMatches(); // [{cat, m}] sorted by slot, then court
+
+    if (list.length === 0) {
+      toast("No matches scheduled to export!");
+      return;
+    }
+
+    // Overall match numbers (by time) so a match keeps the same number everywhere
+    const numberOf = new Map(list.map((x, i) => [x.m, i + 1]));
+    const courtNos = [...new Set(list.map(x => x.m.courtNo))].sort((a, b) => a - b);
+
+    // Parse the date as a LOCAL date (avoids off-by-one-day timezone bug)
+    const eventDate = state.eventDate || defaultDate();
+    const [y0, mo, d0] = eventDate.split('-').map(Number);
+    const dateOf = offset => new Date(y0, mo - 1, d0 + offset)
+      .toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
+
+    const tint = (hex, a = 0.22) => {
+      const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+      return [r, g, b].map(v => Math.round(v * a + 255 * (1 - a)));
+    };
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(0);
+    doc.text('TOURNAMENT SCHEDULE', 14, 18);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`${list.length} matches  |  ${courtNos.length} court(s)  |  ${mm} min per match`, 14, 25);
+
+    const pageH = doc.internal.pageSize.getHeight();
+    let y = 34;
+
+    courtNos.forEach(cn => {
+      const rows = list.filter(x => x.m.courtNo === cn);
+      if (y > pageH - 45) { doc.addPage(); y = 18; }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(30, 58, 138);
+      doc.text(`COURT ${cn}  -  ${rows.length} match${rows.length === 1 ? '' : 'es'}`, 14, y);
+
+      const body = [], meta = [];
+      let lastDay = -1;
+      rows.forEach(({ cat, m }) => {
+        if (m.day !== lastDay) {
+          lastDay = m.day;
+          body.push([{
+            content: `DAY ${m.day + 1}: ${dateOf(m.day)}`,
+            colSpan: 4,
+            styles: { fillColor: [229, 231, 235], fontStyle: 'bold', textColor: [31, 41, 55] }
+          }]);
+          meta.push(null);
+        }
+        const isKO = m.stage === 'ko';
+        body.push([
+          `M${numberOf.get(m)}`,
+          `${m.time} - ${formatTime(m.timeMin + mm)}`,
+          `${displayName(cat, m, 1)} vs ${displayName(cat, m, 2)}`,
+          `${cat.name}${m.group ? ` (Group ${m.group})` : ''}${isKO ? ` - ${m.round}` : ''}`
+        ]);
+        meta.push({ color: cat.color, isKO });
+      });
+
+      doc.autoTable({
+        startY: y + 3,
+        head: [['Match #', 'Time', 'Game', 'Category']],
+        body,
+        margin: { left: 14, right: 14, top: 15, bottom: 16 },
+        columnStyles: {
+          0: { cellWidth: 18, fontStyle: 'bold' },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 70 },
+          3: { cellWidth: 'auto' }
+        },
+        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+        bodyStyles: { fontSize: 9, cellPadding: 3 },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+        didParseCell: function (data) {
+          if (data.section !== 'body') return;
+          const info = meta[data.row.index];
+          if (!info) return; // day header row
+          if (data.column.index === 0 || data.column.index === 3) {
+            data.cell.styles.fillColor = tint(info.color);
+          }
+          if (info.isKO && data.column.index === 0) {
+            data.cell.styles.fillColor = [255, 235, 59];
+            data.cell.styles.textColor = [0, 0, 0];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      });
+      y = ((doc.lastAutoTable && doc.lastAutoTable.finalY) || (y + 20)) + 12;
+    });
+
+    // Page numbers
+    const pages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(128);
+      doc.text(`Page ${i} of ${pages}`, 14, pageH - 8);
+    }
+
+    // Save to the browser's downloads (Blob download)
+    const fileName = `Tournament_Schedule_${eventDate.replace(/-/g, '_')}.pdf`;
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    if (/iP(hone|ad|od)/.test(navigator.userAgent)) {
+      // iOS Safari ignores the download attribute, so open the PDF in a new tab
+      window.open(url, '_blank');
+    } else {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    setTimeout(() => { URL.revokeObjectURL(url); }, 60000);
+    toast("PDF exported successfully!");
+  } catch (error) {
+    console.error("PDF Export Error:", error);
+    toast("Error exporting PDF. Check console for details.");
+  }
+}
+
+document.getElementById('exportPdfBtn').addEventListener('click', exportToPDF);
+
+// ============================================
+// HELPER FUNCTIONS
 // ============================================
 function defaultDate() {
   const d = new Date(); d.setDate(d.getDate() + 1);
@@ -264,7 +397,6 @@ function formatTime(totalMinutes) {
   const h = Math.floor(totalMinutes / 60) % 24, m = totalMinutes % 60;
   return `${h % 12 || 12}:${m.toString().padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
-// The date comes from shared state, so every viewer sees the same day
 function dayHeader(d) {
   if (!state.eventDate) return `DAY ${d + 1}`;
   const [y, m, day] = state.eventDate.split('-').map(Number);
@@ -284,18 +416,15 @@ function alignGroups(cat) {
 // ============================================
 // STATE
 // ============================================
-let state = { pwHash: '', eventName: '3 Damansara Floorball Carnival', eventDate: defaultDate(), dayStarts: "08:30", playUntil: "11:30", matchMin: 10, courts: 2, categories: [] };
+let state = { pwHash: '', eventDate: defaultDate(), dayStarts: "08:30", playUntil: "11:30", matchMin: 10, courts: 2, categories: [] };
 let editMode = false;
 let echo = false;
-let loaded = !db;          // never write to Firebase before its first snapshot has arrived
+let loaded = !db;
 let pendingRemote = null;
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 let savedGroupSelections = {};
-// Used until a new password is set from the Setup panel. The new password is stored as a hash
-// in the shared data. This only hides the edit buttons: protect writes with Firebase Auth +
-// database rules (e.g. ".write": "auth != null") if you need real security.
 const DEFAULT_PASSWORD = 'admin123';
-const SETUP_IDS = ['eventName', 'eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts'];
+const SETUP_IDS = ['eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts'];
 
 // ============================================
 // PASSWORD MODAL / EDIT MODE
@@ -358,11 +487,13 @@ async function checkPassword() {
 function closePasswordModal() { document.getElementById('passwordModal').classList.add('hidden'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePasswordModal(); });
 
-// View-only users can't touch the setup or add categories
 function applyModeUI() {
   SETUP_IDS.forEach(id => { document.getElementById(id).disabled = !editMode; });
   document.getElementById('addCategoryBtn').classList.toggle('hidden', !editMode);
   document.getElementById('passwordSection').classList.toggle('hidden', !editMode);
+  const anyPin = state.categories.some(c => c.matches.some(m => m.pin));
+  document.getElementById('resetMovesSection').classList.toggle('hidden', !(editMode && anyPin));
+  document.getElementById('moveHint').classList.toggle('hidden', !editMode);
 }
 
 // ============================================
@@ -383,7 +514,7 @@ function saveScore(cat, m, side, value) {
 }
 function normalize(d) {
   const arr = x => Array.isArray(x) ? x.filter(v => v != null) : (x ? Object.values(x) : []);
-  const s = { pwHash: d.pwHash || '', eventName: d.eventName ?? '', eventDate: d.eventDate || defaultDate(), dayStarts: d.dayStarts || '08:30', playUntil: d.playUntil || '11:30', matchMin: +d.matchMin || 10, courts: +d.courts || 2, categories: arr(d.categories) };
+  const s = { pwHash: d.pwHash || '', eventDate: d.eventDate || defaultDate(), dayStarts: d.dayStarts || '08:30', playUntil: d.playUntil || '11:30', matchMin: +d.matchMin || 10, courts: +d.courts || 2, categories: arr(d.categories) };
   s.categories.forEach(c => {
     c.teams = arr(c.teams); c.teamGroups = arr(c.teamGroups); c.matches = arr(c.matches);
     c.matches.forEach(m => {
@@ -393,7 +524,6 @@ function normalize(d) {
   });
   return s;
 }
-// Read-only score boxes don't count as "typing", so viewers keep getting live updates
 const isTyping = () => {
   const a = document.activeElement;
   return a && ((a.tagName === 'INPUT' && !a.readOnly) || a.tagName === 'SELECT');
@@ -467,13 +597,14 @@ function buildMatches(cat) {
       const prev = old[pairKey(group, a, b)];
       const m = { id: safeId(`g_${group || 'x'}_${a}_${b}`), stage: 'group', round: 'Group stage', group, team1: a, team2: b, score1: '', score2: '' };
       if (prev) { const same = prev.team1 === a; m.score1 = same ? prev.score1 : prev.score2; m.score2 = same ? prev.score2 : prev.score1; }
+      if (prev && prev.pin) m.pin = prev.pin;
       list.push(m);
     }));
   }
   const groupIds = list.map(m => m.id);
   koDefs(cat, groups, groupIds).forEach(k => {
     const prev = old['ko:' + k.id];
-    if (prev) { k.score1 = prev.score1; k.score2 = prev.score2; }
+    if (prev) { k.score1 = prev.score1; k.score2 = prev.score2; if (prev.pin) k.pin = prev.pin; }
     list.push(k);
   });
   cat.matches = list;
@@ -488,14 +619,35 @@ function scheduleAll() {
   const start = toMin(state.dayStarts);
   const perDay = Math.max(1, Math.floor((toMin(state.playUntil) - start) / mm));
   const cats = state.categories;
-  const pend = cats.map(c => [...c.matches]);
+
+  // Manually moved ("pinned") matches keep their slot + court
+  const pins = {};
+  cats.forEach((c, ci) => c.matches.forEach(m => {
+    const p = m.pin;
+    if (!p) return;
+    const sl = Number(p.slot), ct = Number(p.court);
+    if (Number.isInteger(sl) && sl >= 0 && Number.isInteger(ct) && ct >= 1 && ct <= courts && !(pins[sl] && pins[sl][ct])) {
+      (pins[sl] = pins[sl] || {})[ct] = [ci, m];
+    } else delete m.pin;
+  }));
+  const pinned = new Set();
+  Object.values(pins).forEach(o => Object.values(o).forEach(x => pinned.add(x[1])));
+
+  const pend = cats.map(c => c.matches.filter(m => !pinned.has(m)));
   const slotOf = cats.map(() => ({}));
-  let left = pend.reduce((s, p) => s + p.length, 0), slot = 0;
+  let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
   let prev = cats.map(() => new Set());
 
   while (left > 0 && slot < 5000) {
     const used = cats.map(() => new Set());
-    let n = 0, progress = true;
+    const taken = new Set();
+    const place = (ci, m, court) => {
+      left--; taken.add(court);
+      slotOf[ci][m.id] = slot;
+      used[ci].add(m.team1); used[ci].add(m.team2);
+      const t = start + (slot % perDay) * mm;
+      Object.assign(m, { slot, day: Math.floor(slot / perDay), timeMin: t, time: formatTime(t), courtNo: court, court: 'C' + court });
+    };
     const pick = (ci, rest) => {
       const idx = pend[ci].findIndex(m => {
         if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
@@ -505,17 +657,22 @@ function scheduleAll() {
       });
       return idx < 0 ? null : pend[ci].splice(idx, 1)[0];
     };
-    while (n < courts && progress) {
+
+    // 1) matches the user placed by hand
+    const here = pins[slot] || {};
+    Object.keys(here).forEach(ct => place(here[ct][0], here[ct][1], +ct));
+
+    // 2) fill the remaining courts automatically
+    let progress = true;
+    while (taken.size < courts && progress) {
       progress = false;
-      for (let k = 0; k < cats.length && n < courts; k++) {
+      for (let k = 0; k < cats.length && taken.size < courts; k++) {
         const ci = (k + slot) % cats.length;
         const m = pick(ci, true) || pick(ci, false);
         if (!m) continue;
-        n++; left--; progress = true;
-        slotOf[ci][m.id] = slot;
-        used[ci].add(m.team1); used[ci].add(m.team2);
-        const t = start + (slot % perDay) * mm;
-        Object.assign(m, { slot, day: Math.floor(slot / perDay), timeMin: t, time: formatTime(t), courtNo: n, court: 'C' + n });
+        let court = 1; while (taken.has(court)) court++;
+        place(ci, m, court);
+        progress = true;
       }
     }
     prev = used;
@@ -678,6 +835,8 @@ function renderMatchesByTimeSlot(cat) {
         <div class="flex items-center gap-3">
           <span class="text-xs font-semibold text-gray-700 whitespace-nowrap" style="min-width:104px">${m.time} – ${formatTime(m.timeMin + (parseInt(state.matchMin) || 10))}</span>
           <span class="court-badge">${m.court}</span>
+          ${m.pin ? '<span class="manual-badge">Moved</span>' : ''}
+          ${warnBadge(cat, m)}
           <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|1">${esc(displayName(cat, m, 1))}</span>
           <span class="text-gray-500 text-xs">vs</span>
           <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|2">${esc(displayName(cat, m, 2))}</span>
@@ -685,6 +844,7 @@ function renderMatchesByTimeSlot(cat) {
           ${m.stage === 'ko' ? `<span class="group-badge">${m.round}</span>` : ''}
         </div>
         <div class="flex items-center gap-2">
+          ${moveButtons(cat, m)}
           <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score1 !== '' ? 'filled' : ''}" value="${m.score1}" data-cat="${cat.id}" data-match="${m.id}" data-side="1" ${!editMode ? 'readonly' : ''}>
           <span class="text-gray-400 font-medium text-xs">–</span>
           <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score2 !== '' ? 'filled' : ''}" value="${m.score2}" data-cat="${cat.id}" data-match="${m.id}" data-side="2" ${!editMode ? 'readonly' : ''}>
@@ -739,34 +899,74 @@ function allMatches() {
   return list.sort((a, b) => matchOrder(a.m, b.m));
 }
 
-function renderSchedule() {
-  const tbody = document.getElementById('scheduleBody');
-  const all = allMatches();
+function moveButtons(cat, m) {
+  if (!editMode) return '';
+  const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+  return `<div class="flex items-center gap-1">
+    <button class="btn move-btn" ${d} data-dir="-1" title="Move one time slot earlier" ${m.slot <= 0 ? 'disabled' : ''}>◀</button>
+    <button class="btn move-btn" ${d} data-dir="1" title="Move one time slot later">▶</button>
+    ${m.pin ? `<button class="btn unpin-btn" ${d} title="Back to the automatic time">Auto</button>` : ''}
+  </div>`;
+}
 
-  if (state.categories.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="py-6 text-center text-gray-500 text-sm">No categories added yet</td></tr>';
+function renderSchedule() {
+  const box = document.getElementById('scheduleBody');
+  const all = allMatches();
+  if (all.length === 0) {
+    box.innerHTML = `<p class="py-6 text-center text-gray-500 text-sm">${state.categories.length ? 'No matches scheduled yet' : 'No categories added yet'}</p>`;
     return;
   }
-  let html = '', lastDay = -1;
-  all.forEach(({ cat, m }) => {
-    if (m.day !== lastDay) {
-      lastDay = m.day;
-      html += `<tr><td colspan="9" class="py-2 px-2 font-semibold text-gray-700 text-xs uppercase tracking-wide">${dayHeader(m.day)}</td></tr>`;
-    }
-    html += `
+  const courtNos = [...new Set(all.map(x => x.m.courtNo))].sort((a, b) => a - b);
+  const colSpan = editMode ? 9 : 8;
+  box.innerHTML = courtNos.map(cn => {
+    const rows = all.filter(x => x.m.courtNo === cn);
+    let lastDay = -1;
+    const body = rows.map(({ cat, m }) => {
+      let head = '';
+      if (m.day !== lastDay) {
+        lastDay = m.day;
+        head = `<tr><td colspan="${colSpan}" class="py-2 px-2 font-semibold text-gray-700 text-xs uppercase tracking-wide">${dayHeader(m.day)}</td></tr>`;
+      }
+      return head + `
       <tr class="schedule-row border-b border-gray-100">
-        <td class="py-2 px-2 font-medium text-emerald-600 text-xs">${m.time}</td>
-        <td class="py-2 px-2"><span class="court-badge">${m.court}</span></td>
-        <td class="py-2 px-2 flex items-center gap-1.5"><span class="cat-dot" style="background:${cat.color}"></span><span class="font-medium text-xs">${esc(cat.name)}</span></td>
+        <td class="py-2 px-2 font-medium text-emerald-600 text-xs whitespace-nowrap">${m.time} ${m.pin ? '<span class="manual-badge">Moved</span>' : ''} ${warnBadge(cat, m)}</td>
+        <td class="py-2 px-2"><div class="flex items-center gap-1.5"><span class="cat-dot" style="background:${cat.color}"></span><span class="font-medium text-xs">${esc(cat.name)}</span></div></td>
         <td class="py-2 px-2">${m.group ? `<span class="group-badge">${m.group}</span>` : '—'}</td>
         <td class="py-2 px-2 text-gray-600 text-xs">${m.round}</td>
         <td class="py-2 px-2">${done(m) ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Done</span>' : ''}</td>
         <td class="py-2 px-2 text-right font-semibold text-xs">${esc(displayName(cat, m, 1))}</td>
         <td class="py-2 px-2 text-center font-medium text-xs">${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}</td>
         <td class="py-2 px-2 font-semibold text-xs">${esc(displayName(cat, m, 2))}</td>
+        ${editMode ? `<td class="py-2 px-2">${moveButtons(cat, m)}</td>` : ''}
       </tr>`;
-  });
-  tbody.innerHTML = html;
+    }).join('');
+    return `
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <span class="court-badge">C${cn}</span>
+          <h3 class="font-semibold text-gray-900 text-sm">Court ${cn}</h3>
+          <span class="text-xs text-gray-500">${rows.length} match${rows.length === 1 ? '' : 'es'}</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-gray-200 text-left text-xs text-gray-500 uppercase">
+                <th class="py-2 px-2">Time</th>
+                <th class="py-2 px-2">Category</th>
+                <th class="py-2 px-2">Group</th>
+                <th class="py-2 px-2">Round</th>
+                <th class="py-2 px-2">Status</th>
+                <th class="py-2 px-2 text-right">Home</th>
+                <th class="py-2 px-2 text-center">Score</th>
+                <th class="py-2 px-2">Away</th>
+                ${editMode ? '<th class="py-2 px-2">Move</th>' : ''}
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function renderNextUp() {
@@ -850,6 +1050,71 @@ function changed(cat) {
   render();
   save();
 }
+
+// ---- Moving matches earlier / later ----
+function findAt(slot, courtNo) {
+  for (const cat of state.categories) {
+    const m = cat.matches.find(x => x.slot === slot && x.courtNo === courtNo);
+    if (m) return { cat, m };
+  }
+  return null;
+}
+// Lists scheduling problems for one match (empty list = no problems)
+function matchWarnings(cat, m) {
+  const w = [];
+  const name = x => `${displayName(cat, x, 1)} vs ${displayName(cat, x, 2)}`;
+  if (m.stage !== 'ko') {
+    cat.matches.forEach(x => {
+      if (x === m || x.stage === 'ko' || x.slot !== m.slot) return;
+      const shared = [m.team1, m.team2].filter(t => t === x.team1 || t === x.team2);
+      if (shared.length) w.push(`${shared.join(' & ')} also plays at the same time (${name(x)}, ${x.court}).`);
+    });
+  }
+  (m.deps || []).forEach(d => {
+    const dm = cat.matches.find(x => x.id === d);
+    if (dm && dm.slot >= m.slot) w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
+  });
+  cat.matches.forEach(x => {
+    if ((x.deps || []).includes(m.id) && x.slot <= m.slot) w.push(`${x.round} is scheduled at or before this match.`);
+  });
+  return [...new Set(w)];
+}
+function warnBadge(cat, m) {
+  const w = matchWarnings(cat, m);
+  return w.length ? `<span class="warn-badge" title="${esc(w.join(' '))}">⚠ Clash</span>` : '';
+}
+function moveMatch(catId, matchId, delta) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m) return;
+  const from = m.slot, target = from + delta;
+  if (target < 0) { toast('This is already the first time slot.'); return; }
+  const other = findAt(target, m.courtNo); // same court, neighbouring slot
+  m.pin = { slot: target, court: m.courtNo };
+  if (other) other.m.pin = { slot: from, court: m.courtNo };
+  changed();
+  const w = matchWarnings(cat, m).concat(other ? matchWarnings(other.cat, other.m) : []);
+  if (w.length) toast('Moved, but: ' + w[0]);
+}
+function unpinMatch(catId, matchId) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m) return;
+  delete m.pin;
+  changed();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.move-btn, .unpin-btn');
+  if (!b || b.disabled) return;
+  if (b.classList.contains('unpin-btn')) unpinMatch(b.dataset.cat, b.dataset.match);
+  else moveMatch(b.dataset.cat, b.dataset.match, parseInt(b.dataset.dir));
+});
+document.getElementById('resetMovesBtn').addEventListener('click', () => {
+  confirmDialog('Put every manually moved match back to its automatic time?', () => {
+    state.categories.forEach(c => c.matches.forEach(m => { delete m.pin; }));
+    changed();
+  }, 'Reset');
+});
 
 function updateCatName(catId, name) { getCat(catId).name = name.trim() || 'Untitled'; render(); save(); }
 function updateCatColor(catId, color) { getCat(catId).color = color; render(); save(); }
@@ -966,78 +1231,7 @@ SETUP_IDS.forEach(id => {
 });
 
 // ============================================
-// EXPORT PDF
-// ============================================
-function exportPDF() {
-  if (!window.jspdf || !window.jspdf.jsPDF) { toast('The PDF library could not load. Check your internet connection and try again.'); return; }
-  const all = allMatches();
-  if (!all.length) { toast('There are no matches to export yet.'); return; }
-  const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
-  if (typeof doc.autoTable !== 'function') { toast('The PDF table plugin could not load. Please try again.'); return; }
-
-  const mm = parseInt(state.matchMin) || 10;
-  const showCourt = (parseInt(state.courts) || 1) > 1;
-  const hhmm = t => { t = ((t % 1440) + 1440) % 1440; return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
-  const title = ((state.eventName || '').trim() + ' SCHEDULE').trim().toUpperCase();
-  const number = new Map();
-  all.forEach((x, i) => number.set(x.m, i + 1));
-
-  const pdfName = (cat, m, side) => {
-    if (m.stage !== 'ko') return side === 1 ? m.team1 : m.team2;
-    const ref = side === 1 ? m.ref1 : m.ref2;
-    const n = resolveRef(cat, ref);
-    if (n) return n;
-    if (ref.t === 'seed') return ref.g ? `${ref.p}${ref.g}` : ord(ref.p) + ' place';
-    const src = cat.matches.find(x => x.id === ref.m);
-    return 'Winner ' + (src ? src.round.replace('Semi-final ', 'SF') : '?');
-  };
-  const catLabel = (cat, m) => {
-    if (m.stage === 'ko') return `${cat.name} (${m.round === 'Final' ? 'FINAL' : m.round.replace('Semi-final', 'Semi-Final')})`;
-    if (m.group) return `${cat.name} (Group ${m.group})`;
-    return `${cat.name} (${cat.format === 'round-robin' ? 'Single Group RR' : 'Round Robin'})`;
-  };
-  const dayLabel = d => {
-    if (!state.eventDate) return `DAY ${d + 1}`;
-    const [y, mo, da] = state.eventDate.split('-').map(Number);
-    return `DAY ${d + 1}: ` + new Date(y, mo - 1, da + d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
-  };
-
-  const head = ['Match #', 'Time'].concat(showCourt ? ['Court'] : [], ['Game', 'Category']);
-  const days = [...new Set(all.map(x => x.m.day))].sort((a, b) => a - b);
-  days.forEach((d, di) => {
-    if (di > 0) doc.addPage();
-    doc.setFont('times', 'normal'); doc.setFontSize(11); doc.setTextColor(0);
-    doc.text(title, 40, 50);
-    doc.text(dayLabel(d), 40, 80);
-    const rows = all.filter(x => x.m.day === d).map(({ cat, m }) => ({
-      ko: m.stage === 'ko',
-      cells: ['M' + number.get(m), `${hhmm(m.timeMin)}-${hhmm(m.timeMin + mm)}`]
-        .concat(showCourt ? [m.court] : [], [`${pdfName(cat, m, 1)} vs ${pdfName(cat, m, 2)}`, catLabel(cat, m)])
-    }));
-    const columnStyles = showCourt
-      ? { 0: { cellWidth: 42 }, 1: { cellWidth: 66 }, 2: { cellWidth: 36 }, 4: { cellWidth: 150 } }
-      : { 0: { cellWidth: 42 }, 1: { cellWidth: 66 }, 3: { cellWidth: 160 } };
-    doc.autoTable({
-      startY: 96,
-      head: [head],
-      body: rows.map(r => r.cells),
-      theme: 'grid',
-      margin: { left: 40, right: 40, top: 40, bottom: 40 },
-      styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.5, halign: 'center', valign: 'middle', lineColor: [0, 0, 0], lineWidth: 0.4, textColor: 0 },
-      headStyles: { fillColor: [31, 78, 121], textColor: 255, fontStyle: 'bold' },
-      columnStyles,
-      didParseCell: data => {
-        if (data.section === 'body' && rows[data.row.index].ko) data.cell.styles.fillColor = [255, 255, 0];
-      }
-    });
-  });
-  const fname = ((state.eventName || 'matchboard').trim() || 'matchboard').replace(/[^\w\- ]+/g, '').replace(/\s+/g, '-').toLowerCase();
-  doc.save(fname + '-schedule.pdf');
-}
-document.getElementById('exportPdfBtn').addEventListener('click', exportPDF);
-
-// ============================================
-// SHARE
+// SHARE & UTILS
 // ============================================
 function toast(text) {
   let t = document.getElementById('toast');
@@ -1054,8 +1248,6 @@ function toast(text) {
   t._h = setTimeout(() => { t.style.opacity = '0'; }, 2800);
 }
 
-
-// In-page dialogs (browsers block alert/confirm/prompt inside embedded previews)
 function showModal(html) {
   const o = document.createElement('div');
   o.className = 'password-modal';
@@ -1092,10 +1284,9 @@ function linkDialog(url, note) {
     toast(ok ? 'Link copied' : 'Press Ctrl/Cmd + C to copy the link');
   };
 }
-// Compact share links: only the essentials are kept (matches/times are rebuilt on open), then deflated
 function compactState() {
   return {
-    n: state.eventName, d: state.eventDate, s: state.dayStarts, u: state.playUntil, m: state.matchMin, c: state.courts,
+    d: state.eventDate, s: state.dayStarts, u: state.playUntil, m: state.matchMin, c: state.courts,
     k: state.categories.map(cat => {
       const tmp = { ...cat, teams: [...cat.teams], teamGroups: [...(cat.teamGroups || [])], matches: [] };
       buildMatches(tmp);
@@ -1103,17 +1294,20 @@ function compactState() {
         const r = cat.matches.find(x => x.id === m.id);
         return r && (r.score1 !== '' || r.score2 !== '') ? r.score1 + '-' + r.score2 : '';
       }).join(',').replace(/,+$/, '');
-      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc];
+      const pn = tmp.matches.map(m => { const r = cat.matches.find(x => x.id === m.id); return r && r.pin ? r.pin.slot + ':' + r.pin.court : ''; }).join(',').replace(/,+$/, '');
+      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn];
     })
   };
 }
 function expandState(o) {
-  const st = { pwHash: '', eventName: o.n ?? '', eventDate: o.d, dayStarts: o.s, playUntil: o.u, matchMin: o.m, courts: o.c, categories: [] };
+  const st = { pwHash: '', eventDate: o.d, dayStarts: o.s, playUntil: o.u, matchMin: o.m, courts: o.c, categories: [] };
   o.k.forEach((k, i) => {
     const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), matches: [] };
     buildMatches(cat);
     const sc = k[6].split(',');
     cat.matches.forEach((m, j) => { if (sc[j]) { const [a, b] = sc[j].split('-'); m.score1 = a; m.score2 = b ?? ''; } });
+    const pn = (k[7] || '').split(',');
+    cat.matches.forEach((m, j) => { if (pn[j]) { const [sl, ct] = pn[j].split(':').map(Number); m.pin = { slot: sl, court: ct }; } });
     st.categories.push(cat);
   });
   state = st;
@@ -1143,7 +1337,6 @@ async function shareLink() {
   let url = location.href.split('#')[0];
   const live = !!db;
   if (!db) {
-    // No database: the link carries a compressed snapshot of the schedule (no password hash)
     url += '#d=' + await packData(compactState());
   }
   let note = live ? 'Anyone with this link can follow along live.' : 'Snapshot link: it will not update live.';
@@ -1163,7 +1356,6 @@ async function shareLink() {
 }
 document.getElementById('shareBtn').addEventListener('click', shareLink);
 
-// Open a snapshot link (only used when Firebase is not connected)
 function openSnapshotFromHash() {
   if (db || !location.hash.startsWith('#d=')) return;
   unpackData(location.hash.slice(3))
