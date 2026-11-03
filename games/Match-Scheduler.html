@@ -293,7 +293,7 @@ async function exportToPDF() {
           lastDay = m.day;
           body.push([{
             content: `DAY ${m.day + 1}: ${dateOf(m.day)}`,
-            colSpan: 4,
+            colSpan: 5,
             styles: { fillColor: [229, 231, 235], fontStyle: 'bold', textColor: [31, 41, 55] }
           }]);
           meta.push(null);
@@ -303,6 +303,7 @@ async function exportToPDF() {
           `M${numberOf.get(m)}`,
           `${m.time} - ${formatTime(m.timeMin + mm)}`,
           `${displayName(cat, m, 1)} vs ${displayName(cat, m, 2)}`,
+          (m.score1 !== '' || m.score2 !== '') ? `${m.score1 !== '' ? m.score1 : '0'} - ${m.score2 !== '' ? m.score2 : '0'}` : '',
           `${cat.name}${m.group ? ` (Group ${m.group})` : ''}${isKO ? ` - ${m.round}` : ''}`
         ]);
         meta.push({ color: cat.color, isKO });
@@ -310,14 +311,17 @@ async function exportToPDF() {
 
       doc.autoTable({
         startY: y + 3,
-        head: [['Match #', 'Time', 'Game', 'Category']],
+        theme: 'grid',
+        styles: { lineColor: [170, 178, 190], lineWidth: 0.25 },
+        head: [['Match #', 'Time', 'Game', 'Score', 'Category']],
         body,
         margin: { left: 14, right: 14, top: 15, bottom: 16 },
         columnStyles: {
           0: { cellWidth: 18, fontStyle: 'bold' },
-          1: { cellWidth: 40 },
-          2: { cellWidth: 70 },
-          3: { cellWidth: 'auto' }
+          1: { cellWidth: 36 },
+          2: { cellWidth: 62 },
+          3: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+          4: { cellWidth: 'auto' }
         },
         headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', fontSize: 10 },
         bodyStyles: { fontSize: 9, cellPadding: 3 },
@@ -326,7 +330,7 @@ async function exportToPDF() {
           if (data.section !== 'body') return;
           const info = meta[data.row.index];
           if (!info) return; // day header row
-          if (data.column.index === 0 || data.column.index === 3) {
+          if (data.column.index === 0 || data.column.index === 4) {
             data.cell.styles.fillColor = tint(info.color);
           }
           if (info.isKO && data.column.index === 0) {
