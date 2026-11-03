@@ -53,6 +53,9 @@
   .move-btn { padding: 4px 8px; line-height: 1; }
   .manual-badge { background: #fef3c7; color: #92400e; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 600; }
   .warn-badge { background: #fee2e2; color: #b91c1c; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 700; cursor: help; }
+  .court-chip { padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid #d1d5db; background: white; color: #4b5563; cursor: pointer; }
+  .court-chip:hover { background: #f9fafb; }
+  .court-chip.on { background: #10b981; border-color: #10b981; color: white; }
 </style>
 </head>
 <body>
@@ -517,6 +520,7 @@ function normalize(d) {
   const s = { pwHash: d.pwHash || '', eventDate: d.eventDate || defaultDate(), dayStarts: d.dayStarts || '08:30', playUntil: d.playUntil || '11:30', matchMin: +d.matchMin || 10, courts: +d.courts || 2, categories: arr(d.categories) };
   s.categories.forEach(c => {
     c.teams = arr(c.teams); c.teamGroups = arr(c.teamGroups); c.matches = arr(c.matches);
+    c.courts = arr(c.courts).map(Number);
     c.matches.forEach(m => {
       m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? '';
       m.team1 = m.team1 ?? null; m.team2 = m.team2 ?? null; m.group = m.group ?? null; m.deps = arr(m.deps);
@@ -633,6 +637,13 @@ function scheduleAll() {
   const pinned = new Set();
   Object.values(pins).forEach(o => Object.values(o).forEach(x => pinned.add(x[1])));
 
+  // Which courts each category may use (empty / missing = all courts)
+  const allowedCourts = cats.map(c => {
+    const a = (c.courts || []).map(Number).filter(n => n >= 1 && n <= courts);
+    return a.length ? a : null;
+  });
+  const allowed = (ci, ct) => !allowedCourts[ci] || allowedCourts[ci].includes(ct);
+
   const pend = cats.map(c => c.matches.filter(m => !pinned.has(m)));
   const slotOf = cats.map(() => ({}));
   let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
@@ -662,17 +673,16 @@ function scheduleAll() {
     const here = pins[slot] || {};
     Object.keys(here).forEach(ct => place(here[ct][0], here[ct][1], +ct));
 
-    // 2) fill the remaining courts automatically
-    let progress = true;
-    while (taken.size < courts && progress) {
-      progress = false;
-      for (let k = 0; k < cats.length && taken.size < courts; k++) {
-        const ci = (k + slot) % cats.length;
+    // 2) fill the remaining courts automatically, respecting each category's courts
+    for (let court = 1; court <= courts; court++) {
+      if (taken.has(court)) continue;
+      for (let k = 0; k < cats.length; k++) {
+        const ci = (k + slot + court - 1) % cats.length;
+        if (!allowed(ci, court)) continue;
         const m = pick(ci, true) || pick(ci, false);
         if (!m) continue;
-        let court = 1; while (taken.has(court)) court++;
         place(ci, m, court);
-        progress = true;
+        break;
       }
     }
     prev = used;
@@ -778,6 +788,11 @@ function renderCategories() {
               <input type="color" value="${cat.color}" onchange="updateCatColor('${cat.id}', this.value)">
             </div>` : ''}
           </div>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-gray-600">Courts</span>
+          ${courtChips(cat)}
         </div>
 
         <div class="border-t border-gray-100 pt-3">
@@ -898,6 +913,36 @@ function allMatches() {
   state.categories.forEach(cat => cat.matches.forEach(m => list.push({ cat, m })));
   return list.sort((a, b) => matchOrder(a.m, b.m));
 }
+
+function catCourts(cat) {
+  const total = Math.max(1, Math.min(20, parseInt(state.courts) || 1));
+  return (cat.courts || []).map(Number).filter(n => n >= 1 && n <= total);
+}
+function courtChips(cat) {
+  const total = Math.max(1, Math.min(20, parseInt(state.courts) || 1));
+  const sel = catCourts(cat);
+  if (!editMode) return `<span class="text-xs font-medium text-gray-900">${sel.length ? sel.map(n => 'C' + n).join(', ') : 'All courts'}</span>`;
+  const chip = (label, val, on) => `<button type="button" class="court-chip ${on ? 'on' : ''}" data-cat="${esc(cat.id)}" data-court="${val}">${label}</button>`;
+  return chip('All', 'all', sel.length === 0) +
+    Array.from({ length: total }, (_, i) => chip('C' + (i + 1), i + 1, sel.includes(i + 1))).join('');
+}
+function toggleCatCourt(catId, court) {
+  if (!editMode) return;
+  const cat = getCat(catId);
+  if (!cat) return;
+  const total = Math.max(1, Math.min(20, parseInt(state.courts) || 1));
+  if (court === 'all') cat.courts = [];
+  else {
+    const n = Number(court), cur = catCourts(cat);
+    let next = cur.length === 0 ? [n] : (cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n].sort((a, b) => a - b));
+    cat.courts = (next.length === 0 || next.length === total) ? [] : next;
+  }
+  changed();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.court-chip');
+  if (b) toggleCatCourt(b.dataset.cat, b.dataset.court);
+});
 
 function moveButtons(cat, m) {
   if (!editMode) return '';
@@ -1070,6 +1115,8 @@ function matchWarnings(cat, m) {
       if (shared.length) w.push(`${shared.join(' & ')} also plays at the same time (${name(x)}, ${x.court}).`);
     });
   }
+  const cc = (cat.courts || []).map(Number);
+  if (cc.length && !cc.includes(m.courtNo)) w.push(`${cat.name} is assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
   (m.deps || []).forEach(d => {
     const dm = cat.matches.find(x => x.id === d);
     if (dm && dm.slot >= m.slot) w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
@@ -1295,14 +1342,14 @@ function compactState() {
         return r && (r.score1 !== '' || r.score2 !== '') ? r.score1 + '-' + r.score2 : '';
       }).join(',').replace(/,+$/, '');
       const pn = tmp.matches.map(m => { const r = cat.matches.find(x => x.id === m.id); return r && r.pin ? r.pin.slot + ':' + r.pin.court : ''; }).join(',').replace(/,+$/, '');
-      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn];
+      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || []];
     })
   };
 }
 function expandState(o) {
   const st = { pwHash: '', eventDate: o.d, dayStarts: o.s, playUntil: o.u, matchMin: o.m, courts: o.c, categories: [] };
   o.k.forEach((k, i) => {
-    const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), matches: [] };
+    const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), courts: k[8] || [], matches: [] };
     buildMatches(cat);
     const sc = k[6].split(',');
     cat.matches.forEach((m, j) => { if (sc[j]) { const [a, b] = sc[j].split('-'); m.score1 = a; m.score2 = b ?? ''; } });
