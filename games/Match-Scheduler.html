@@ -155,6 +155,16 @@
               <input type="number" id="courts" value="2" class="w-full">
             </div>
           </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">Break starts</label>
+              <input type="time" id="breakStart" class="w-full">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">Break (min)</label>
+              <input type="number" id="breakMin" value="0" min="0" class="w-full">
+            </div>
+          </div>
           <div id="resetMovesSection" class="hidden border-t border-gray-100 pt-3">
             <button id="resetMovesBtn" class="btn w-full">Reset manual moves</button>
             <p class="text-xs text-gray-500 mt-1">Puts every moved match back to its automatic time.</p>
@@ -288,7 +298,13 @@ async function exportToPDF() {
 
       const body = [], meta = [];
       let lastDay = -1;
+      let prevM = null;
       rows.forEach(({ cat, m }) => {
+        if (needsBreakRow(prevM, m)) {
+          body.push([{ content: breakText(), colSpan: 5, styles: { fillColor: [254, 243, 199], textColor: [146, 64, 14], fontStyle: 'bold', halign: 'center' } }]);
+          meta.push(null);
+        }
+        prevM = m;
         if (m.day !== lastDay) {
           lastDay = m.day;
           body.push([{
@@ -420,10 +436,33 @@ function alignGroups(cat) {
   cat.teamGroups.length = cat.teams.length;
 }
 
+function breakInfo() {
+  const bm = parseInt(state.breakMin) || 0;
+  if (!bm || !state.breakStart) return null;
+  const mm = Math.max(1, parseInt(state.matchMin) || 10);
+  const start = toMin(state.dayStarts), end = toMin(state.playUntil), bs = toMin(state.breakStart);
+  if (bs <= start || bs >= end) return null;
+  const before = Math.round((bs - start) / mm);
+  if (before <= 0) return null;
+  const startMin = start + before * mm;
+  return { before, startMin, endMin: startMin + bm, bm };
+}
+function needsBreakRow(prev, m) {
+  const br = breakInfo();
+  return !!(br && prev && m && prev.day === m.day && prev.timeMin < br.startMin && m.timeMin >= br.endMin);
+}
+function breakText() {
+  const br = breakInfo();
+  return br ? `BREAK  ${formatTime(br.startMin)} - ${formatTime(br.endMin)}` : '';
+}
+function breakRowHtml(colSpan) {
+  return `<tr><td colspan="${colSpan}" class="py-1.5 px-2 text-center text-xs font-semibold bg-amber-50 text-amber-800">☕ ${breakText()}</td></tr>`;
+}
+
 // ============================================
 // STATE
 // ============================================
-let state = { pwHash: '', eventDate: defaultDate(), dayStarts: "08:30", playUntil: "11:30", matchMin: 10, courts: 2, categories: [] };
+let state = { pwHash: '', eventDate: defaultDate(), dayStarts: "08:30", playUntil: "11:30", matchMin: 10, courts: 2, breakStart: '', breakMin: 0, categories: [] };
 let editMode = false;
 let echo = false;
 let loaded = !db;
@@ -431,7 +470,7 @@ let pendingRemote = null;
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 let savedGroupSelections = {};
 const DEFAULT_PASSWORD = 'admin123';
-const SETUP_IDS = ['eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts'];
+const SETUP_IDS = ['eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts', 'breakStart', 'breakMin'];
 
 // ============================================
 // PASSWORD MODAL / EDIT MODE
@@ -521,10 +560,13 @@ function saveScore(cat, m, side, value) {
 }
 function normalize(d) {
   const arr = x => Array.isArray(x) ? x.filter(v => v != null) : (x ? Object.values(x) : []);
-  const s = { pwHash: d.pwHash || '', eventDate: d.eventDate || defaultDate(), dayStarts: d.dayStarts || '08:30', playUntil: d.playUntil || '11:30', matchMin: +d.matchMin || 10, courts: +d.courts || 2, categories: arr(d.categories) };
+  const s = { pwHash: d.pwHash || '', eventDate: d.eventDate || defaultDate(), dayStarts: d.dayStarts || '08:30', playUntil: d.playUntil || '11:30', matchMin: +d.matchMin || 10, courts: +d.courts || 2, breakStart: d.breakStart || '', breakMin: +d.breakMin || 0, categories: arr(d.categories) };
   s.categories.forEach(c => {
     c.teams = arr(c.teams); c.teamGroups = arr(c.teamGroups); c.matches = arr(c.matches);
-    c.courts = arr(c.courts).map(Number);
+    c.courts = arr(c.courts).map(Number); c.sfCourts = arr(c.sfCourts).map(Number); c.finalCourts = arr(c.finalCourts).map(Number);
+    const legacyKo = arr(c.koCourts).map(Number); // older single "knockout courts" setting
+    if (legacyKo.length) { if (!c.sfCourts.length) c.sfCourts = legacyKo.slice(); if (!c.finalCourts.length) c.finalCourts = legacyKo.slice(); }
+    delete c.koCourts;
     c.matches.forEach(m => {
       m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? '';
       m.team1 = m.team1 ?? null; m.team2 = m.team2 ?? null; m.group = m.group ?? null; m.deps = arr(m.deps);
@@ -538,6 +580,8 @@ const isTyping = () => {
 };
 function applyRemote(d) {
   state = normalize(d);
+  state.categories.forEach(buildMatches);
+  scheduleAll();
   syncSetupInputs();
   render();
 }
@@ -584,6 +628,7 @@ function koDefs(cat, groups, groupIds) {
   if (q.length === 4) return [
     mk('sf1', 'Semi-final 1', q[0], q[1], groupIds),
     mk('sf2', 'Semi-final 2', q[2], q[3], groupIds),
+    mk('third', '3rd/4th place', { t: 'lose', m: 'sf1' }, { t: 'lose', m: 'sf2' }, ['sf1', 'sf2']),
     mk('final', 'Final', { t: 'win', m: 'sf1' }, { t: 'win', m: 'sf2' }, ['sf1', 'sf2'])
   ];
   if (q.length === 2) return [mk('final', 'Final', q[0], q[1], groupIds)];
@@ -625,7 +670,8 @@ function scheduleAll() {
   const courts = Math.max(1, parseInt(state.courts) || 1);
   const mm = Math.max(1, parseInt(state.matchMin) || 10);
   const start = toMin(state.dayStarts);
-  const perDay = Math.max(1, Math.floor((toMin(state.playUntil) - start) / mm));
+  const br = breakInfo();
+  const perDay = Math.max(1, Math.floor((toMin(state.playUntil) - start - (br ? br.bm : 0)) / mm));
   const cats = state.categories;
 
   // Manually moved ("pinned") matches keep their slot + court
@@ -646,7 +692,17 @@ function scheduleAll() {
     const a = (c.courts || []).map(Number).filter(n => n >= 1 && n <= courts);
     return a.length ? a : null;
   });
-  const allowed = (ci, ct) => !allowedCourts[ci] || allowedCourts[ci].includes(ct);
+  const clean = a => { const l = (a || []).map(Number).filter(n => n >= 1 && n <= courts); return l.length ? l : null; };
+  const sfCourtsOf = cats.map(c => clean(c.sfCourts));
+  const finCourtsOf = cats.map(c => clean(c.finalCourts));
+  const courtOK = (ci, m, ct) => {
+    let list = allowedCourts[ci];
+    if (m.stage === 'ko') {
+      const k = (m.id === 'sf1' || m.id === 'sf2') ? sfCourtsOf[ci] : finCourtsOf[ci];
+      if (k) list = k;
+    }
+    return !list || list.includes(ct);
+  };
 
   const pend = cats.map(c => c.matches.filter(m => !pinned.has(m)));
   const slotOf = cats.map(() => ({}));
@@ -660,11 +716,13 @@ function scheduleAll() {
       left--; taken.add(court);
       slotOf[ci][m.id] = slot;
       used[ci].add(m.team1); used[ci].add(m.team2);
-      const t = start + (slot % perDay) * mm;
+      const si = slot % perDay;
+      const t = start + si * mm + (br && si >= br.before ? br.bm : 0);
       Object.assign(m, { slot, day: Math.floor(slot / perDay), timeMin: t, time: formatTime(t), courtNo: court, court: 'C' + court });
     };
-    const pick = (ci, rest) => {
+    const pick = (ci, rest, court) => {
       const idx = pend[ci].findIndex(m => {
+        if (!courtOK(ci, m, court)) return false;
         if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
         if (m.stage === 'ko') return true;
         if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
@@ -682,8 +740,7 @@ function scheduleAll() {
       if (taken.has(court)) continue;
       for (let k = 0; k < cats.length; k++) {
         const ci = (k + slot + court - 1) % cats.length;
-        if (!allowed(ci, court)) continue;
-        const m = pick(ci, true) || pick(ci, false);
+        const m = pick(ci, true, court) || pick(ci, false, court);
         if (!m) continue;
         place(ci, m, court);
         break;
@@ -730,7 +787,9 @@ function resolveRef(cat, ref) {
   if (!m || !done(m)) return null;
   const a = +m.score1, b = +m.score2;
   if (a === b) return null;
-  return a > b ? resolveRef(cat, m.ref1) : resolveRef(cat, m.ref2);
+  const firstWon = a > b;
+  if (ref.t === 'lose') return resolveRef(cat, firstWon ? m.ref2 : m.ref1);
+  return resolveRef(cat, firstWon ? m.ref1 : m.ref2);
 }
 function displayName(cat, m, side) {
   if (m.stage !== 'ko') return side === 1 ? m.team1 : m.team2;
@@ -739,7 +798,7 @@ function displayName(cat, m, side) {
   if (name) return name;
   if (ref.t === 'seed') return ord(ref.p) + (ref.g ? ` Group ${ref.g}` : ' place');
   const src = cat.matches.find(x => x.id === ref.m);
-  return 'Winner ' + (src ? src.round.replace('Semi-final ', 'SF') : '?');
+  return (ref.t === 'lose' ? 'Loser ' : 'Winner ') + (src ? src.round.replace('Semi-final ', 'SF') : '?');
 }
 
 // ============================================
@@ -798,7 +857,14 @@ function renderCategories() {
           <span class="text-xs text-gray-600">Courts</span>
           ${courtChips(cat)}
         </div>
-
+        ${(cat.format !== 'round-robin' && (editMode || catCourts(cat, 'sfCourts').length)) ? `<div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-gray-600">Semi-finals on</span>
+          ${courtChips(cat, 'sfCourts')}
+        </div>` : ''}
+        ${(cat.format !== 'round-robin' && (editMode || catCourts(cat, 'finalCourts').length)) ? `<div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-gray-600">Final &amp; 3rd/4th on</span>
+          ${courtChips(cat, 'finalCourts')}
+        </div>` : ''}
         <div class="border-t border-gray-100 pt-3">
           <p class="text-xs font-medium text-gray-700 mb-2">Teams (${cat.teams.length}/16)</p>
           ${editMode ? `<div class="flex gap-2 mb-2">
@@ -839,10 +905,11 @@ function renderMatchesByTimeSlot(cat) {
   const slots = [];
   cat.matches.forEach(m => {
     let s = slots.find(x => x.slot === m.slot);
-    if (!s) { s = { slot: m.slot, time: m.time, day: m.day, matches: [] }; slots.push(s); }
+    if (!s) { s = { slot: m.slot, time: m.time, timeMin: m.timeMin, day: m.day, matches: [] }; slots.push(s); }
     s.matches.push(m);
   });
-  return slots.map(s => `
+  return slots.map((s, si) => `
+    ${needsBreakRow(slots[si - 1], s) ? `<div class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5 mb-2 text-center">☕ ${breakText()}</div>` : ''}
     <div class="time-slot-header">
       <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       <span class="clock">${s.time}</span>
@@ -918,34 +985,38 @@ function allMatches() {
   return list.sort((a, b) => matchOrder(a.m, b.m));
 }
 
-function catCourts(cat) {
+function catCourts(cat, field) {
   const total = Math.max(1, Math.min(20, parseInt(state.courts) || 1));
-  return (cat.courts || []).map(Number).filter(n => n >= 1 && n <= total);
+  return (cat[field || 'courts'] || []).map(Number).filter(n => n >= 1 && n <= total);
 }
-function courtChips(cat) {
+function courtChips(cat, field) {
+  field = field || 'courts';
   const total = Math.max(1, Math.min(20, parseInt(state.courts) || 1));
-  const sel = catCourts(cat);
-  if (!editMode) return `<span class="text-xs font-medium text-gray-900">${sel.length ? sel.map(n => 'C' + n).join(', ') : 'All courts'}</span>`;
-  const chip = (label, val, on) => `<button type="button" class="court-chip ${on ? 'on' : ''}" data-cat="${esc(cat.id)}" data-court="${val}">${label}</button>`;
-  return chip('All', 'all', sel.length === 0) +
+  const sel = catCourts(cat, field);
+  const none = field === 'courts' ? 'All' : 'Same';
+  if (!editMode) return `<span class="text-xs font-medium text-gray-900">${sel.length ? sel.map(n => 'C' + n).join(', ') : (field === 'courts' ? 'All courts' : 'Same courts')}</span>`;
+  const chip = (label, val, on) => `<button type="button" class="court-chip ${on ? 'on' : ''}" data-cat="${esc(cat.id)}" data-field="${field}" data-court="${val}">${label}</button>`;
+  return chip(none, 'all', sel.length === 0) +
     Array.from({ length: total }, (_, i) => chip('C' + (i + 1), i + 1, sel.includes(i + 1))).join('');
 }
-function toggleCatCourt(catId, court) {
+function toggleCatCourt(catId, court, field) {
   if (!editMode) return;
+  field = field || 'courts';
   const cat = getCat(catId);
   if (!cat) return;
   const total = Math.max(1, Math.min(20, parseInt(state.courts) || 1));
-  if (court === 'all') cat.courts = [];
+  if (court === 'all') cat[field] = [];
   else {
-    const n = Number(court), cur = catCourts(cat);
-    let next = cur.length === 0 ? [n] : (cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n].sort((a, b) => a - b));
-    cat.courts = (next.length === 0 || next.length === total) ? [] : next;
+    const n = Number(court), cur = catCourts(cat, field);
+    const next = cur.length === 0 ? [n] : (cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n].sort((a, b) => a - b));
+    // for group courts "every court" = All; for knockout courts keep the explicit list
+    cat[field] = (next.length === 0 || (field === 'courts' && next.length === total)) ? [] : next;
   }
   changed();
 }
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('.court-chip');
-  if (b) toggleCatCourt(b.dataset.cat, b.dataset.court);
+  if (b) toggleCatCourt(b.dataset.cat, b.dataset.court, b.dataset.field);
 });
 
 function moveButtons(cat, m) {
@@ -969,14 +1040,16 @@ function renderSchedule() {
   const colSpan = editMode ? 9 : 8;
   box.innerHTML = courtNos.map(cn => {
     const rows = all.filter(x => x.m.courtNo === cn);
-    let lastDay = -1;
+    let lastDay = -1, prevM = null;
     const body = rows.map(({ cat, m }) => {
-      let head = '';
+      let head = '', brk = '';
+      if (needsBreakRow(prevM, m)) brk = breakRowHtml(colSpan);
+      prevM = m;
       if (m.day !== lastDay) {
         lastDay = m.day;
         head = `<tr><td colspan="${colSpan}" class="py-2 px-2 font-semibold text-gray-700 text-xs uppercase tracking-wide">${dayHeader(m.day)}</td></tr>`;
       }
-      return head + `
+      return head + brk + `
       <tr class="schedule-row border-b border-gray-100">
         <td class="py-2 px-2 font-medium text-emerald-600 text-xs whitespace-nowrap">${m.time} ${m.pin ? '<span class="manual-badge">Moved</span>' : ''} ${warnBadge(cat, m)}</td>
         <td class="py-2 px-2"><div class="flex items-center gap-1.5"><span class="cat-dot" style="background:${cat.color}"></span><span class="font-medium text-xs">${esc(cat.name)}</span></div></td>
@@ -1119,8 +1192,10 @@ function matchWarnings(cat, m) {
       if (shared.length) w.push(`${shared.join(' & ')} also plays at the same time (${name(x)}, ${x.court}).`);
     });
   }
-  const cc = (cat.courts || []).map(Number);
-  if (cc.length && !cc.includes(m.courtNo)) w.push(`${cat.name} is assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
+  const koList = m.stage === 'ko' ? ((m.id === 'sf1' || m.id === 'sf2') ? cat.sfCourts : cat.finalCourts) : null;
+  const useKo = !!(koList && koList.length);
+  const cc = (useKo ? koList : (cat.courts || [])).map(Number);
+  if (cc.length && !cc.includes(m.courtNo)) w.push(`${cat.name}${useKo ? ' ' + m.round + ' is' : ' is'} assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
   (m.deps || []).forEach(d => {
     const dm = cat.matches.find(x => x.id === d);
     if (dm && dm.slot >= m.slot) w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
@@ -1273,6 +1348,7 @@ SETUP_IDS.forEach(id => {
       if (id === 'courts') v = Math.min(v, 20);
       e.target.value = v;
     }
+    if (id === 'breakMin') { v = Math.max(0, parseInt(v) || 0); e.target.value = v; }
     if (id === 'eventDate' && !v) { v = defaultDate(); e.target.value = v; }
     state[id] = v;
     scheduleAll();
@@ -1337,7 +1413,7 @@ function linkDialog(url, note) {
 }
 function compactState() {
   return {
-    d: state.eventDate, s: state.dayStarts, u: state.playUntil, m: state.matchMin, c: state.courts,
+    d: state.eventDate, s: state.dayStarts, u: state.playUntil, m: state.matchMin, c: state.courts, bs: state.breakStart, bm: state.breakMin,
     k: state.categories.map(cat => {
       const tmp = { ...cat, teams: [...cat.teams], teamGroups: [...(cat.teamGroups || [])], matches: [] };
       buildMatches(tmp);
@@ -1346,14 +1422,14 @@ function compactState() {
         return r && (r.score1 !== '' || r.score2 !== '') ? r.score1 + '-' + r.score2 : '';
       }).join(',').replace(/,+$/, '');
       const pn = tmp.matches.map(m => { const r = cat.matches.find(x => x.id === m.id); return r && r.pin ? r.pin.slot + ':' + r.pin.court : ''; }).join(',').replace(/,+$/, '');
-      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || []];
+      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || [], cat.sfCourts || [], cat.finalCourts || []];
     })
   };
 }
 function expandState(o) {
-  const st = { pwHash: '', eventDate: o.d, dayStarts: o.s, playUntil: o.u, matchMin: o.m, courts: o.c, categories: [] };
+  const st = { pwHash: '', eventDate: o.d, dayStarts: o.s, playUntil: o.u, matchMin: o.m, courts: o.c, breakStart: o.bs || '', breakMin: o.bm || 0, categories: [] };
   o.k.forEach((k, i) => {
-    const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), courts: k[8] || [], matches: [] };
+    const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), courts: k[8] || [], sfCourts: k[9] || [], finalCourts: (k[10] === undefined ? k[9] : k[10]) || [], matches: [] };
     buildMatches(cat);
     const sc = k[6].split(',');
     cat.matches.forEach((m, j) => { if (sc[j]) { const [a, b] = sc[j].split('-'); m.score1 = a; m.score2 = b ?? ''; } });
