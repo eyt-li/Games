@@ -563,11 +563,12 @@ function normalize(d) {
   const s = { pwHash: d.pwHash || '', eventDate: d.eventDate || defaultDate(), dayStarts: d.dayStarts || '08:30', playUntil: d.playUntil || '11:30', matchMin: +d.matchMin || 10, courts: +d.courts || 2, breakStart: d.breakStart || '', breakMin: +d.breakMin || 0, categories: arr(d.categories) };
   s.categories.forEach(c => {
     c.teams = arr(c.teams); c.teamGroups = arr(c.teamGroups); c.matches = arr(c.matches);
-    c.courts = arr(c.courts).map(Number); c.sfCourts = arr(c.sfCourts).map(Number); c.finalCourts = arr(c.finalCourts).map(Number);
-    const legacyKo = arr(c.koCourts).map(Number); // older single "knockout courts" setting
-    if (legacyKo.length) { if (!c.sfCourts.length) c.sfCourts = legacyKo.slice(); if (!c.finalCourts.length) c.finalCourts = legacyKo.slice(); }
-    delete c.koCourts;
-    c.matches.forEach(m => {
+    c.courts = arr(c.courts).map(Number); const km = {}, src = c.koMatchCourts || {};
+    Object.keys(src).forEach(id => { const l = arr(src[id]).map(Number); if (l.length) km[id] = l; });
+    const legacy = (ids, list) => { list = arr(list).map(Number); if (list.length) ids.forEach(id => { if (!km[id]) km[id] = list.slice(); }); };
+    legacy(['sf1', 'sf2'], c.sfCourts); legacy(['third', 'final'], c.finalCourts); legacy(['sf1', 'sf2', 'third', 'final'], c.koCourts);
+    c.koMatchCourts = km; delete c.sfCourts; delete c.finalCourts; delete c.koCourts;
+        c.matches.forEach(m => {
       m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? '';
       m.team1 = m.team1 ?? null; m.team2 = m.team2 ?? null; m.group = m.group ?? null; m.deps = arr(m.deps);
     });
@@ -693,14 +694,14 @@ function scheduleAll() {
     return a.length ? a : null;
   });
   const clean = a => { const l = (a || []).map(Number).filter(n => n >= 1 && n <= courts); return l.length ? l : null; };
-  const sfCourtsOf = cats.map(c => clean(c.sfCourts));
-  const finCourtsOf = cats.map(c => clean(c.finalCourts));
+  const koMap = cats.map(c => {
+    const o = {};
+    Object.keys(c.koMatchCourts || {}).forEach(id => { o[id] = clean(c.koMatchCourts[id]); });
+    return o;
+  });
   const courtOK = (ci, m, ct) => {
     let list = allowedCourts[ci];
-    if (m.stage === 'ko') {
-      const k = (m.id === 'sf1' || m.id === 'sf2') ? sfCourtsOf[ci] : finCourtsOf[ci];
-      if (k) list = k;
-    }
+    if (m.stage === 'ko' && koMap[ci][m.id]) list = koMap[ci][m.id];
     return !list || list.includes(ct);
   };
 
@@ -857,14 +858,11 @@ function renderCategories() {
           <span class="text-xs text-gray-600">Courts</span>
           ${courtChips(cat)}
         </div>
-        ${(cat.format !== 'round-robin' && (editMode || catCourts(cat, 'sfCourts').length)) ? `<div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xs text-gray-600">Semi-finals on</span>
-          ${courtChips(cat, 'sfCourts')}
-        </div>` : ''}
-        ${(cat.format !== 'round-robin' && (editMode || catCourts(cat, 'finalCourts').length)) ? `<div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xs text-gray-600">Final &amp; 3rd/4th on</span>
-          ${courtChips(cat, 'finalCourts')}
-        </div>` : ''}
+        ${cat.matches.filter(m => m.stage === 'ko' && (editMode || catCourts(cat, 'ko:' + m.id).length)).map(m => `<div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-gray-600">${esc(m.round)} on</span>
+          ${courtChips(cat, 'ko:' + m.id)}
+        </div>`).join('')}
+
         <div class="border-t border-gray-100 pt-3">
           <p class="text-xs font-medium text-gray-700 mb-2">Teams (${cat.teams.length}/16)</p>
           ${editMode ? `<div class="flex gap-2 mb-2">
@@ -985,9 +983,19 @@ function allMatches() {
   return list.sort((a, b) => matchOrder(a.m, b.m));
 }
 
+function getCourtList(cat, field) {
+  if (field.startsWith('ko:')) return (cat.koMatchCourts || {})[field.slice(3)] || [];
+  return cat[field] || [];
+}
+function setCourtList(cat, field, list) {
+  if (field.startsWith('ko:')) {
+    cat.koMatchCourts = cat.koMatchCourts || {};
+    if (list.length) cat.koMatchCourts[field.slice(3)] = list; else delete cat.koMatchCourts[field.slice(3)];
+  } else cat[field] = list;
+}
 function catCourts(cat, field) {
   const total = Math.max(1, Math.min(20, parseInt(state.courts) || 1));
-  return (cat[field || 'courts'] || []).map(Number).filter(n => n >= 1 && n <= total);
+  return getCourtList(cat, field || 'courts').map(Number).filter(n => n >= 1 && n <= total);
 }
 function courtChips(cat, field) {
   field = field || 'courts';
@@ -995,7 +1003,7 @@ function courtChips(cat, field) {
   const sel = catCourts(cat, field);
   const none = field === 'courts' ? 'All' : 'Same';
   if (!editMode) return `<span class="text-xs font-medium text-gray-900">${sel.length ? sel.map(n => 'C' + n).join(', ') : (field === 'courts' ? 'All courts' : 'Same courts')}</span>`;
-  const chip = (label, val, on) => `<button type="button" class="court-chip ${on ? 'on' : ''}" data-cat="${esc(cat.id)}" data-field="${field}" data-court="${val}">${label}</button>`;
+  const chip = (label, val, on) => `<button type="button" class="court-chip ${on ? 'on' : ''}" data-cat="${esc(cat.id)}" data-field="${esc(field)}" data-court="${val}">${label}</button>`;
   return chip(none, 'all', sel.length === 0) +
     Array.from({ length: total }, (_, i) => chip('C' + (i + 1), i + 1, sel.includes(i + 1))).join('');
 }
@@ -1005,12 +1013,12 @@ function toggleCatCourt(catId, court, field) {
   const cat = getCat(catId);
   if (!cat) return;
   const total = Math.max(1, Math.min(20, parseInt(state.courts) || 1));
-  if (court === 'all') cat[field] = [];
+  if (court === 'all') setCourtList(cat, field, []);
   else {
     const n = Number(court), cur = catCourts(cat, field);
     const next = cur.length === 0 ? [n] : (cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n].sort((a, b) => a - b));
-    // for group courts "every court" = All; for knockout courts keep the explicit list
-    cat[field] = (next.length === 0 || (field === 'courts' && next.length === total)) ? [] : next;
+    // for group courts "every court" = All; for a knockout match keep the explicit list
+    setCourtList(cat, field, (next.length === 0 || (field === 'courts' && next.length === total)) ? [] : next);
   }
   changed();
 }
@@ -1192,7 +1200,7 @@ function matchWarnings(cat, m) {
       if (shared.length) w.push(`${shared.join(' & ')} also plays at the same time (${name(x)}, ${x.court}).`);
     });
   }
-  const koList = m.stage === 'ko' ? ((m.id === 'sf1' || m.id === 'sf2') ? cat.sfCourts : cat.finalCourts) : null;
+  const koList = m.stage === 'ko' ? (cat.koMatchCourts || {})[m.id] : null;
   const useKo = !!(koList && koList.length);
   const cc = (useKo ? koList : (cat.courts || [])).map(Number);
   if (cc.length && !cc.includes(m.courtNo)) w.push(`${cat.name}${useKo ? ' ' + m.round + ' is' : ' is'} assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
@@ -1422,14 +1430,14 @@ function compactState() {
         return r && (r.score1 !== '' || r.score2 !== '') ? r.score1 + '-' + r.score2 : '';
       }).join(',').replace(/,+$/, '');
       const pn = tmp.matches.map(m => { const r = cat.matches.find(x => x.id === m.id); return r && r.pin ? r.pin.slot + ':' + r.pin.court : ''; }).join(',').replace(/,+$/, '');
-      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || [], cat.sfCourts || [], cat.finalCourts || []];
+      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || [], cat.koMatchCourts || {}];
     })
   };
 }
 function expandState(o) {
   const st = { pwHash: '', eventDate: o.d, dayStarts: o.s, playUntil: o.u, matchMin: o.m, courts: o.c, breakStart: o.bs || '', breakMin: o.bm || 0, categories: [] };
   o.k.forEach((k, i) => {
-    const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), courts: k[8] || [], sfCourts: k[9] || [], finalCourts: (k[10] === undefined ? k[9] : k[10]) || [], matches: [] };
+    const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), courts: k[8] || [], koMatchCourts: (k[9] && !Array.isArray(k[9])) ? k[9] : {}, matches: [] };
     buildMatches(cat);
     const sc = k[6].split(',');
     cat.matches.forEach((m, j) => { if (sc[j]) { const [a, b] = sc[j].split('-'); m.score1 = a; m.score2 = b ?? ''; } });
