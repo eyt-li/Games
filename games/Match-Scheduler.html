@@ -48,7 +48,7 @@
   .header-btn.active:hover { background: #059669; }
   .hidden { display: none !important; }
   .password-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
-  .password-box { background: white; padding: 24px; border-radius: 12px; width: 340px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  .password-box { background: white; padding: 24px; border-radius: 12px; width: 320px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .move-btn { padding: 4px 8px; line-height: 1; }
   .manual-badge { background: #fef3c7; color: #92400e; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 600; }
@@ -64,16 +64,11 @@
 <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <div class="flex items-center gap-2 cursor-pointer" onclick="switchMainView('home')">
-        <svg class="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
-        <span class="font-semibold text-gray-900 text-sm">MatchBoard</span>
-      </div>
-      <button id="navHomeBtn" class="header-btn" onclick="switchMainView('home')">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 00-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-        Home
-      </button>
+      <svg class="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
+      <span class="font-semibold text-gray-900 text-sm">MatchBoard</span>
       <span class="text-gray-400 text-xs">/</span>
-      <select id="scheduleName" class="border-0 bg-transparent font-medium text-gray-900 focus:ring-0 p-0 text-sm" onchange="selectTournament(this.value)">
+      <select id="scheduleName" class="border-0 bg-transparent font-medium text-gray-900 focus:ring-0 p-0 text-sm">
+        <option>Schedule 1</option>
       </select>
     </div>
     <div class="flex items-center gap-2">
@@ -97,154 +92,131 @@
   </div>
 </header>
 
-<!-- HOMEPAGE VIEW -->
-<div id="homeView" class="max-w-7xl mx-auto px-4 py-8">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold text-gray-900">Shared Tournaments</h1>
-      <p class="text-sm text-gray-500">View and manage all active tournament schedules</p>
+<!-- PASSWORD MODAL -->
+<div id="passwordModal" class="password-modal hidden">
+  <div class="password-box">
+    <h3 class="font-semibold text-gray-900 mb-3">Enter Password</h3>
+    <input type="password" id="passwordInput" placeholder="Password" class="w-full mb-3" onkeypress="if(event.key==='Enter') checkPassword()">
+    <div class="flex gap-2">
+      <button onclick="closePasswordModal()" class="btn flex-1">Cancel</button>
+      <button onclick="checkPassword()" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600">Unlock</button>
     </div>
-    <button class="header-btn active" onclick="createNewTournament()">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-      Create New Tournament
-    </button>
-  </div>
-  <div id="tournamentsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <p id="passwordError" class="text-red-500 text-xs mt-2 hidden">Incorrect password</p>
   </div>
 </div>
 
-<!-- TOURNAMENT DETAIL VIEW -->
-<div id="tournamentContainer" class="hidden">
-  <!-- PASSWORD MODAL -->
-  <div id="passwordModal" class="password-modal hidden">
-    <div class="password-box">
-      <h3 class="font-semibold text-gray-900 mb-3">Enter Password</h3>
-      <input type="password" id="passwordInput" placeholder="Password" class="w-full mb-3" onkeypress="if(event.key==='Enter') checkPassword()">
-      <div class="flex gap-2">
-        <button onclick="closePasswordModal()" class="btn flex-1">Cancel</button>
-        <button onclick="checkPassword()" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600">Unlock</button>
-      </div>
-      <p id="passwordError" class="text-red-500 text-xs mt-2 hidden">Incorrect password</p>
-    </div>
+<!-- TABS -->
+<div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+  <div class="flex gap-2">
+    <button id="tabCategory" class="tab-active px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+      Category
+    </button>
+    <button id="tabSchedule" class="tab-inactive px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 text-gray-600">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+      Full schedule
+    </button>
   </div>
-
-  <!-- TABS -->
-  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-    <div class="flex gap-2">
-      <button id="tabCategory" class="tab-active px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
-        Category
-      </button>
-      <button id="tabSchedule" class="tab-inactive px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 text-gray-600">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-        Full schedule
-      </button>
-    </div>
-    <div class="flex items-center gap-2">
-      <span id="matchCount" class="text-xs text-gray-500">0 matches</span>
-    </div>
+  <div class="flex items-center gap-2">
+    <span id="matchCount" class="text-xs text-gray-500">0 matches</span>
   </div>
+</div>
 
-  <!-- CATEGORY VIEW -->
-  <div id="categoryView" class="max-w-7xl mx-auto px-4 pb-12">
-    <div class="grid grid-cols-12 gap-4">
-      <!-- LEFT: SETUP PANEL -->
-      <div class="col-span-4">
-        <div class="bg-white rounded-lg border border-gray-200 p-4">
-          <h3 class="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-            <svg class="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
-            Setup
-          </h3>
-          <div class="space-y-3">
+<!-- CATEGORY VIEW -->
+<div id="categoryView" class="max-w-7xl mx-auto px-4 pb-12">
+  <div class="grid grid-cols-12 gap-4">
+    <!-- LEFT: SETUP PANEL -->
+    <div class="col-span-4">
+      <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <h3 class="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
+          Setup
+        </h3>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Date</label>
+            <input type="date" id="eventDate" class="w-full">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Day starts</label>
+            <input type="time" id="dayStarts" value="08:30" class="w-full">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Play until</label>
+            <input type="time" id="playUntil" value="11:30" class="w-full">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Tournament Name</label>
-              <input type="text" id="tNameInput" class="w-full">
+              <label class="block text-xs font-medium text-gray-700 mb-1">Match (min)</label>
+              <input type="number" id="matchMin" value="10" class="w-full">
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Date</label>
-              <input type="date" id="eventDate" class="w-full">
+              <label class="block text-xs font-medium text-gray-700 mb-1">Courts</label>
+              <input type="number" id="courts" value="2" class="w-full">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">Break starts</label>
+              <input type="time" id="breakStart" class="w-full">
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Day starts</label>
-              <input type="time" id="dayStarts" value="08:30" class="w-full">
+              <label class="block text-xs font-medium text-gray-700 mb-1">Break (min)</label>
+              <input type="number" id="breakMin" value="0" min="0" class="w-full">
             </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Play until</label>
-              <input type="time" id="playUntil" value="11:30" class="w-full">
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">Match (min)</label>
-                <input type="number" id="matchMin" value="10" class="w-full">
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">Courts</label>
-                <input type="number" id="courts" value="2" class="w-full">
-              </div>
-            </div>
-
-            <!-- MULTIPLE BREAKS SECTION -->
-            <div class="border-t border-gray-100 pt-3">
-              <div class="flex items-center justify-between mb-2">
-                <label class="block text-xs font-medium text-gray-700">Break Times</label>
-                <button id="addBreakBtn" class="btn text-xs py-0.5 px-2" onclick="addBreak()">+ Add Break</button>
-              </div>
-              <div id="breaksList" class="space-y-2"></div>
-            </div>
-
-            <div id="resetMovesSection" class="hidden border-t border-gray-100 pt-3">
-              <button id="resetMovesBtn" class="btn w-full">Reset manual moves</button>
-              <p class="text-xs text-gray-500 mt-1">Puts every moved match back to its automatic time.</p>
-            </div>
-            <div id="passwordSection" class="hidden border-t border-gray-100 pt-3 space-y-2">
-              <label class="block text-xs font-medium text-gray-700">Change edit password</label>
-              <input type="password" id="newPassword" placeholder="New password" class="w-full">
-              <input type="password" id="confirmPassword" placeholder="Confirm new password" class="w-full" onkeypress="if(event.key==='Enter') changePassword()">
-              <button class="btn w-full" onclick="changePassword()">Update password</button>
-              <p id="passwordMsg" class="text-xs hidden"></p>
-            </div>
+          </div>
+          <div id="resetMovesSection" class="hidden border-t border-gray-100 pt-3">
+            <button id="resetMovesBtn" class="btn w-full">Reset manual moves</button>
+            <p class="text-xs text-gray-500 mt-1">Puts every moved match back to its automatic time.</p>
+          </div>
+          <div id="passwordSection" class="hidden border-t border-gray-100 pt-3 space-y-2">
+            <label class="block text-xs font-medium text-gray-700">Change edit password</label>
+            <input type="password" id="newPassword" placeholder="New password" class="w-full">
+            <input type="password" id="confirmPassword" placeholder="Confirm new password" class="w-full" onkeypress="if(event.key==='Enter') changePassword()">
+            <button class="btn w-full" onclick="changePassword()">Update password</button>
+            <p id="passwordMsg" class="text-xs hidden"></p>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- RIGHT: CATEGORIES & MATCHES -->
-      <div class="col-span-8 space-y-4">
-        <!-- NEXT UP -->
-        <div class="bg-white rounded-lg border border-gray-200 p-4">
-          <div class="flex items-center gap-2 text-xs font-medium text-gray-700 mb-2">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            Next up
-          </div>
-          <div id="nextUp" class="text-gray-900 text-sm">
-            <span class="text-gray-500">No matches scheduled yet</span>
-          </div>
+    <!-- RIGHT: CATEGORIES & MATCHES -->
+    <div class="col-span-8 space-y-4">
+      <!-- NEXT UP -->
+      <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <div class="flex items-center gap-2 text-xs font-medium text-gray-700 mb-2">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          Next up
         </div>
-
-        <!-- CATEGORIES CONTAINER -->
-        <div id="categoriesContainer"></div>
-
-        <!-- ADD CATEGORY -->
-        <button id="addCategoryBtn" class="hidden w-full bg-white border-2 border-dashed border-gray-300 rounded-lg py-3 text-gray-700 text-sm font-medium hover:border-gray-400 hover:bg-gray-50 transition flex items-center justify-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          Add category (<span id="catCount">0</span>/12)
-        </button>
+        <div id="nextUp" class="text-gray-900 text-sm">
+          <span class="text-gray-500">No matches scheduled yet</span>
+        </div>
       </div>
+
+      <!-- CATEGORIES CONTAINER -->
+      <div id="categoriesContainer"></div>
+
+      <!-- ADD CATEGORY -->
+      <button id="addCategoryBtn" class="hidden w-full bg-white border-2 border-dashed border-gray-300 rounded-lg py-3 text-gray-700 text-sm font-medium hover:border-gray-400 hover:bg-gray-50 transition flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add category (<span id="catCount">0</span>/12)
+      </button>
     </div>
   </div>
+</div>
 
-  <!-- FULL SCHEDULE VIEW -->
-  <div id="scheduleView" class="max-w-7xl mx-auto px-4 pb-12 hidden">
-    <div class="bg-white rounded-lg border border-gray-200 p-4">
-      <h2 class="text-base font-semibold text-gray-900 mb-3">Full schedule — <span id="totalMatches">0</span> matches</h2>
-      <p id="moveHint" class="hidden text-xs text-gray-500 mb-3">Use ◀ ▶ to move a match one time slot earlier or later on its court. If another match is in that slot it swaps places. Any move is allowed; a red ⚠ Clash badge appears if it causes a problem (hover it to see why). "Auto" puts a moved match back to its automatic time.</p>
-      <div id="scheduleBody" class="space-y-6"></div>
-    </div>
+<!-- FULL SCHEDULE VIEW -->
+<div id="scheduleView" class="max-w-7xl mx-auto px-4 pb-12 hidden">
+  <div class="bg-white rounded-lg border border-gray-200 p-4">
+    <h2 class="text-base font-semibold text-gray-900 mb-3">Full schedule — <span id="totalMatches">0</span> matches</h2>
+    <p id="moveHint" class="hidden text-xs text-gray-500 mb-3">Use ◀ ▶ to move a match one time slot earlier or later on its court. If another match is in that slot it swaps places. Any move is allowed; a red ⚠ Clash badge appears if it causes a problem (hover it to see why). "Auto" puts a moved match back to its automatic time.</p>
+    <div id="scheduleBody" class="space-y-6"></div>
   </div>
 </div>
 
 <script>
 // ============================================
-// FIREBASE CONFIG & SCHEDULER STATE
+// FIREBASE CONFIG
 // ============================================
 const firebaseConfig = {
   apiKey: "YOUR_API_KEY",
@@ -263,35 +235,7 @@ try {
     db = firebase.database();
   }
 } catch (e) { console.log("Firebase not configured"); }
-
-let currentScheduleId = 'schedule1';
-let tournamentList = { 'schedule1': { id: 'schedule1', name: 'Schedule 1' } };
-
-// LocalStorage Persistence Fallback for Shared Tournaments
-function getStoredTournaments() {
-  try {
-    const data = localStorage.getItem('matchboard_tournaments');
-    return data ? JSON.parse(data) : { 'schedule1': { id: 'schedule1', name: 'Schedule 1' } };
-  } catch(e) { return { 'schedule1': { id: 'schedule1', name: 'Schedule 1' } }; }
-}
-function saveStoredTournaments(list) {
-  try { localStorage.setItem('matchboard_tournaments', JSON.stringify(list)); } catch(e){}
-}
-function getStoredScheduleData(id) {
-  try {
-    const data = localStorage.getItem('matchboard_data_' + id);
-    return data ? JSON.parse(data) : null;
-  } catch(e) { return null; }
-}
-function saveStoredScheduleData(id, d) {
-  try { localStorage.setItem('matchboard_data_' + id, JSON.stringify(d)); } catch(e){}
-}
-
-tournamentList = getStoredTournaments();
-
-function getDbPath() {
-  return 'matchboard/' + currentScheduleId;
-}
+const DB_PATH = 'matchboard/schedule1';
 
 // ============================================
 // PDF EXPORT FUNCTION
@@ -310,16 +254,18 @@ async function exportToPDF() {
     }
 
     const mm = parseInt(state.matchMin) || 10;
-    const list = allMatches();
+    const list = allMatches(); // [{cat, m}] sorted by slot, then court
 
     if (list.length === 0) {
       toast("No matches scheduled to export!");
       return;
     }
 
+    // Overall match numbers (by time) so a match keeps the same number everywhere
     const numberOf = new Map(list.map((x, i) => [x.m, i + 1]));
     const courtNos = [...new Set(list.map(x => x.m.courtNo))].sort((a, b) => a - b);
 
+    // Parse the date as a LOCAL date (avoids off-by-one-day timezone bug)
     const eventDate = state.eventDate || defaultDate();
     const [y0, mo, d0] = eventDate.split('-').map(Number);
     const dateOf = offset => new Date(y0, mo - 1, d0 + offset)
@@ -333,7 +279,7 @@ async function exportToPDF() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.setTextColor(0);
-    doc.text((state.tName || 'TOURNAMENT SCHEDULE').toUpperCase(), 14, 18);
+    doc.text('TOURNAMENT SCHEDULE', 14, 18);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.text(`${list.length} matches  |  ${courtNos.length} court(s)  |  ${mm} min per match`, 14, 25);
@@ -354,9 +300,8 @@ async function exportToPDF() {
       let lastDay = -1;
       let prevM = null;
       rows.forEach(({ cat, m }) => {
-        const brk = checkBreakBetween(prevM, m);
-        if (brk) {
-          body.push([{ content: `☕ ${brk.label.toUpperCase()} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})`, colSpan: 5, styles: { fillColor: [254, 243, 199], textColor: [146, 64, 14], fontStyle: 'bold', halign: 'center' } }]);
+        if (needsBreakRow(prevM, m)) {
+          body.push([{ content: breakText(), colSpan: 5, styles: { fillColor: [254, 243, 199], textColor: [146, 64, 14], fontStyle: 'bold', halign: 'center' } }]);
           meta.push(null);
         }
         prevM = m;
@@ -400,7 +345,7 @@ async function exportToPDF() {
         didParseCell: function (data) {
           if (data.section !== 'body') return;
           const info = meta[data.row.index];
-          if (!info) return;
+          if (!info) return; // day header row
           if (data.column.index === 0 || data.column.index === 4) {
             data.cell.styles.fillColor = tint(info.color);
           }
@@ -414,6 +359,7 @@ async function exportToPDF() {
       y = ((doc.lastAutoTable && doc.lastAutoTable.finalY) || (y + 20)) + 12;
     });
 
+    // Page numbers
     const pages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pages; i++) {
       doc.setPage(i);
@@ -423,10 +369,12 @@ async function exportToPDF() {
       doc.text(`Page ${i} of ${pages}`, 14, pageH - 8);
     }
 
+    // Save to the browser's downloads (Blob download)
     const fileName = `Tournament_Schedule_${eventDate.replace(/-/g, '_')}.pdf`;
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
     if (/iP(hone|ad|od)/.test(navigator.userAgent)) {
+      // iOS Safari ignores the download attribute, so open the PDF in a new tab
       window.open(url, '_blank');
     } else {
       const a = document.createElement('a');
@@ -488,178 +436,41 @@ function alignGroups(cat) {
   cat.teamGroups.length = cat.teams.length;
 }
 
-// ============================================
-// MULTIPLE BREAKS ENGINE
-// ============================================
-function getActiveBreaks() {
+function breakInfo() {
+  const bm = parseInt(state.breakMin) || 0;
+  if (!bm || !state.breakStart) return null;
   const mm = Math.max(1, parseInt(state.matchMin) || 10);
-  const start = toMin(state.dayStarts), end = toMin(state.playUntil);
-  const list = (state.breaks || []).map((b, idx) => {
-    const bm = parseInt(b.min) || 0;
-    const bs = toMin(b.start);
-    if (!bm || !b.start || bs <= start || bs >= end) return null;
-    const before = Math.round((bs - start) / mm);
-    if (before <= 0) return null;
-    return {
-      id: b.id || ('b_' + idx),
-      label: b.label || `Break ${idx + 1}`,
-      before,
-      bm,
-      startMin: bs,
-      endMin: bs + bm
-    };
-  }).filter(Boolean);
-  return list.sort((a, b) => a.startMin - b.startMin);
+  const start = toMin(state.dayStarts), end = toMin(state.playUntil), bs = toMin(state.breakStart);
+  if (bs <= start || bs >= end) return null;
+  const before = Math.round((bs - start) / mm);
+  if (before <= 0) return null;
+  const startMin = start + before * mm;
+  return { before, startMin, endMin: startMin + bm, bm };
 }
-
-function getTotalBreakTimeAtSlot(slotIdx) {
-  const active = getActiveBreaks();
-  let added = 0;
-  active.forEach(b => {
-    if (slotIdx >= b.before) added += b.bm;
-  });
-  return added;
+function needsBreakRow(prev, m) {
+  const br = breakInfo();
+  return !!(br && prev && m && prev.day === m.day && prev.timeMin < br.startMin && m.timeMin >= br.endMin);
 }
-
-function checkBreakBetween(prevM, m) {
-  if (!prevM || !m || prevM.day !== m.day) return null;
-  const active = getActiveBreaks();
-  for (const b of active) {
-    if (prevM.timeMin < b.startMin && m.timeMin >= b.startMin) {
-      return b;
-    }
-  }
-  return null;
+function breakText() {
+  const br = breakInfo();
+  return br ? `BREAK  ${formatTime(br.startMin)} - ${formatTime(br.endMin)}` : '';
+}
+function breakRowHtml(colSpan) {
+  return `<tr><td colspan="${colSpan}" class="py-1.5 px-2 text-center text-xs font-semibold bg-amber-50 text-amber-800">☕ ${breakText()}</td></tr>`;
 }
 
 // ============================================
-// STATE & NAVIGATION
+// STATE
 // ============================================
-let state = { tName: 'Schedule 1', pwHash: '', eventDate: defaultDate(), dayStarts: "08:30", playUntil: "11:30", matchMin: 10, courts: 2, breaks: [], categories: [] };
+let state = { pwHash: '', eventDate: defaultDate(), dayStarts: "08:30", playUntil: "11:30", matchMin: 10, courts: 2, breakStart: '', breakMin: 0, categories: [] };
 let editMode = false;
 let echo = false;
 let loaded = !db;
 let pendingRemote = null;
-let currentView = 'home'; // 'home' | 'tournament'
-
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 let savedGroupSelections = {};
 const DEFAULT_PASSWORD = 'admin123';
-const SETUP_IDS = ['tNameInput', 'eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts'];
-
-function switchMainView(view) {
-  currentView = view;
-  if (view === 'home') {
-    document.getElementById('homeView').classList.remove('hidden');
-    document.getElementById('tournamentContainer').classList.add('hidden');
-    renderHome();
-  } else {
-    document.getElementById('homeView').classList.add('hidden');
-    document.getElementById('tournamentContainer').classList.remove('hidden');
-    render();
-  }
-}
-
-function updateTournamentSelectDropdown() {
-  const sel = document.getElementById('scheduleName');
-  sel.innerHTML = Object.values(tournamentList).map(t =>
-    `<option value="${t.id}" ${t.id === currentScheduleId ? 'selected' : ''}>${esc(t.name)}</option>`
-  ).join('');
-}
-
-function selectTournament(id) {
-  if (currentScheduleId === id) return;
-  if (db) db.ref(getDbPath()).off();
-  currentScheduleId = id;
-  updateTournamentSelectDropdown();
-  if (db) {
-    db.ref(getDbPath()).on('value', snap => {
-      if (echo) return;
-      loaded = true;
-      const d = snap.val();
-      if (!d) return;
-      if (isTyping()) { pendingRemote = d; return; }
-      applyRemote(d);
-    });
-  } else {
-    const cached = getStoredScheduleData(id);
-    if (cached) applyRemote(cached);
-    else {
-      state = { tName: tournamentList[id]?.name || 'New Tournament', pwHash: '', eventDate: defaultDate(), dayStarts: "08:30", playUntil: "11:30", matchMin: 10, courts: 2, breaks: [], categories: [] };
-      scheduleAll();
-      syncSetupInputs();
-      render();
-    }
-  }
-  switchMainView('tournament');
-}
-
-function createNewTournament() {
-  const id = 'tourn_' + Date.now();
-  const name = prompt("Enter tournament name:", "New Tournament");
-  if (!name) return;
-  tournamentList[id] = { id, name };
-  saveStoredTournaments(tournamentList);
-  if (db) db.ref('matchboard_list/' + id).set({ id, name });
-  selectTournament(id);
-}
-
-function deleteTournament(id, e) {
-  if (e) e.stopPropagation();
-  if (Object.keys(tournamentList).length <= 1) {
-    toast("Cannot delete the only tournament.");
-    return;
-  }
-  confirmDialog(`Are you sure you want to delete tournament "${tournamentList[id]?.name}"?`, () => {
-    delete tournamentList[id];
-    saveStoredTournaments(tournamentList);
-    if (db) {
-      db.ref('matchboard_list/' + id).remove();
-      db.ref('matchboard/' + id).remove();
-    }
-    if (currentScheduleId === id) {
-      selectTournament(Object.keys(tournamentList)[0]);
-    } else {
-      renderHome();
-    }
-  }, 'Delete');
-}
-
-function renderHome() {
-  updateTournamentSelectDropdown();
-  const grid = document.getElementById('tournamentsGrid');
-  grid.innerHTML = Object.values(tournamentList).map(t => {
-    const isCurrent = t.id === currentScheduleId;
-    return `
-      <div class="bg-white rounded-lg border border-gray-200 p-5 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col justify-between" onclick="selectTournament('${t.id}')">
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <span class="font-bold text-gray-900 text-base">${esc(t.name)}</span>
-            ${isCurrent ? '<span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Active</span>' : ''}
-          </div>
-          <p class="text-xs text-gray-500 mb-4">ID: ${t.id}</p>
-        </div>
-        <div class="flex items-center justify-between border-t border-gray-100 pt-3">
-          <span class="text-xs font-medium text-emerald-600 hover:text-emerald-700">Open Schedule &rarr;</span>
-          <button class="text-xs text-red-500 hover:text-red-700 p-1" onclick="deleteTournament('${t.id}', event)">Delete</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-// Listen to online tournament list if Firebase configured
-if (db) {
-  db.ref('matchboard_list').on('value', snap => {
-    const val = snap.val();
-    if (val) {
-      tournamentList = val;
-      saveStoredTournaments(val);
-      renderHome();
-      updateTournamentSelectDropdown();
-    }
-  });
-}
+const SETUP_IDS = ['eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts', 'breakStart', 'breakMin'];
 
 // ============================================
 // PASSWORD MODAL / EDIT MODE
@@ -723,10 +534,7 @@ function closePasswordModal() { document.getElementById('passwordModal').classLi
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePasswordModal(); });
 
 function applyModeUI() {
-  SETUP_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = !editMode; });
-  document.querySelectorAll('.break-input').forEach(el => el.disabled = !editMode);
-  const addB = document.getElementById('addBreakBtn');
-  if (addB) addB.style.display = editMode ? 'inline-block' : 'none';
+  SETUP_IDS.forEach(id => { document.getElementById(id).disabled = !editMode; });
   document.getElementById('addCategoryBtn').classList.toggle('hidden', !editMode);
   document.getElementById('passwordSection').classList.toggle('hidden', !editMode);
   const anyPin = state.categories.some(c => c.matches.some(m => m.pin));
@@ -738,39 +546,29 @@ function applyModeUI() {
 // PERSISTENCE
 // ============================================
 function save() {
-  saveStoredScheduleData(currentScheduleId, state);
   if (!db || !loaded) return;
   echo = true;
-  try { db.ref(getDbPath()).set(JSON.parse(JSON.stringify(state))); } catch (e) { console.error(e); }
+  try { db.ref(DB_PATH).set(JSON.parse(JSON.stringify(state))); } catch (e) { console.error(e); }
   echo = false;
 }
 function saveScore(cat, m, side, value) {
-  saveStoredScheduleData(currentScheduleId, state);
   if (!db || !loaded) return;
   const ci = state.categories.indexOf(cat), mi = cat.matches.indexOf(m);
   echo = true;
-  try { db.ref(`${getDbPath()}/categories/${ci}/matches/${mi}/score${side}`).set(value); } catch (e) { console.error(e); }
+  try { db.ref(`${DB_PATH}/categories/${ci}/matches/${mi}/score${side}`).set(value); } catch (e) { console.error(e); }
   echo = false;
 }
 function normalize(d) {
   const arr = x => Array.isArray(x) ? x.filter(v => v != null) : (x ? Object.values(x) : []);
-  const s = {
-    tName: d.tName || tournamentList[currentScheduleId]?.name || 'Schedule 1',
-    pwHash: d.pwHash || '',
-    eventDate: d.eventDate || defaultDate(),
-    dayStarts: d.dayStarts || '08:30',
-    playUntil: d.playUntil || '11:30',
-    matchMin: +d.matchMin || 10,
-    courts: +d.courts || 2,
-    breaks: arr(d.breaks),
-    categories: arr(d.categories)
-  };
+  const s = { pwHash: d.pwHash || '', eventDate: d.eventDate || defaultDate(), dayStarts: d.dayStarts || '08:30', playUntil: d.playUntil || '11:30', matchMin: +d.matchMin || 10, courts: +d.courts || 2, breakStart: d.breakStart || '', breakMin: +d.breakMin || 0, categories: arr(d.categories) };
   s.categories.forEach(c => {
     c.teams = arr(c.teams); c.teamGroups = arr(c.teamGroups); c.matches = arr(c.matches);
     c.courts = arr(c.courts).map(Number); const km = {}, src = c.koMatchCourts || {};
     Object.keys(src).forEach(id => { const l = arr(src[id]).map(Number); if (l.length) km[id] = l; });
-    c.koMatchCourts = km;
-    c.matches.forEach(m => {
+    const legacy = (ids, list) => { list = arr(list).map(Number); if (list.length) ids.forEach(id => { if (!km[id]) km[id] = list.slice(); }); };
+    legacy(['sf1', 'sf2'], c.sfCourts); legacy(['third', 'final'], c.finalCourts); legacy(['sf1', 'sf2', 'third', 'final'], c.koCourts);
+    c.koMatchCourts = km; delete c.sfCourts; delete c.finalCourts; delete c.koCourts;
+        c.matches.forEach(m => {
       m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? '';
       m.team1 = m.team1 ?? null; m.team2 = m.team2 ?? null; m.group = m.group ?? null; m.deps = arr(m.deps);
     });
@@ -783,71 +581,13 @@ const isTyping = () => {
 };
 function applyRemote(d) {
   state = normalize(d);
-  if (state.tName && tournamentList[currentScheduleId]) {
-    tournamentList[currentScheduleId].name = state.tName;
-    saveStoredTournaments(tournamentList);
-    updateTournamentSelectDropdown();
-  }
   state.categories.forEach(buildMatches);
   scheduleAll();
   syncSetupInputs();
   render();
 }
 function syncSetupInputs() {
-  SETUP_IDS.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (id === 'tNameInput') el.value = state.tName || '';
-    else el.value = state[id] || '';
-  });
-  renderBreaksInputs();
-}
-
-// ============================================
-// BREAK MANAGEMENT FUNCTIONS
-// ============================================
-function renderBreaksInputs() {
-  const box = document.getElementById('breaksList');
-  if (!box) return;
-  if (!state.breaks) state.breaks = [];
-  if (state.breaks.length === 0) {
-    box.innerHTML = `<p class="text-xs text-gray-400">No breaks scheduled</p>`;
-    return;
-  }
-  box.innerHTML = state.breaks.map((b, idx) => `
-    <div class="flex items-center gap-1.5 bg-gray-50 p-1.5 rounded border border-gray-200">
-      <input type="text" placeholder="Break Name" value="${esc(b.label || '')}" class="break-input text-xs flex-1" onchange="updateBreak(${idx}, 'label', this.value)">
-      <input type="time" value="${b.start || ''}" class="break-input text-xs w-20" onchange="updateBreak(${idx}, 'start', this.value)">
-      <input type="number" placeholder="min" value="${b.min || 0}" min="0" class="break-input text-xs w-14" onchange="updateBreak(${idx}, 'min', this.value)">
-      ${editMode ? `<button class="text-red-500 hover:text-red-700 p-1 text-xs" onclick="removeBreak(${idx})">&times;</button>` : ''}
-    </div>
-  `).join('');
-}
-
-function addBreak() {
-  if (!editMode) return;
-  if (!state.breaks) state.breaks = [];
-  state.breaks.push({ id: 'b_' + Date.now(), label: 'Break ' + (state.breaks.length + 1), start: '12:00', min: 30 });
-  scheduleAll();
-  render();
-  save();
-}
-
-function updateBreak(index, field, value) {
-  if (!editMode || !state.breaks[index]) return;
-  if (field === 'min') value = Math.max(0, parseInt(value) || 0);
-  state.breaks[index][field] = value;
-  scheduleAll();
-  render();
-  save();
-}
-
-function removeBreak(index) {
-  if (!editMode || !state.breaks[index]) return;
-  state.breaks.splice(index, 1);
-  scheduleAll();
-  render();
-  save();
+  SETUP_IDS.forEach(id => { document.getElementById(id).value = state[id]; });
 }
 
 // ============================================
@@ -931,11 +671,11 @@ function scheduleAll() {
   const courts = Math.max(1, parseInt(state.courts) || 1);
   const mm = Math.max(1, parseInt(state.matchMin) || 10);
   const start = toMin(state.dayStarts);
-  
-  const totalBreaksTime = (state.breaks || []).reduce((sum, b) => sum + (parseInt(b.min) || 0), 0);
-  const perDay = Math.max(1, Math.floor((toMin(state.playUntil) - start - totalBreaksTime) / mm));
+  const br = breakInfo();
+  const perDay = Math.max(1, Math.floor((toMin(state.playUntil) - start - (br ? br.bm : 0)) / mm));
   const cats = state.categories;
 
+  // Manually moved ("pinned") matches keep their slot + court
   const pins = {};
   cats.forEach((c, ci) => c.matches.forEach(m => {
     const p = m.pin;
@@ -948,6 +688,7 @@ function scheduleAll() {
   const pinned = new Set();
   Object.values(pins).forEach(o => Object.values(o).forEach(x => pinned.add(x[1])));
 
+  // Which courts each category may use (empty / missing = all courts)
   const allowedCourts = cats.map(c => {
     const a = (c.courts || []).map(Number).filter(n => n >= 1 && n <= courts);
     return a.length ? a : null;
@@ -977,8 +718,7 @@ function scheduleAll() {
       slotOf[ci][m.id] = slot;
       used[ci].add(m.team1); used[ci].add(m.team2);
       const si = slot % perDay;
-      const bOffset = getTotalBreakTimeAtSlot(si);
-      const t = start + si * mm + bOffset;
+      const t = start + si * mm + (br && si >= br.before ? br.bm : 0);
       Object.assign(m, { slot, day: Math.floor(slot / perDay), timeMin: t, time: formatTime(t), courtNo: court, court: 'C' + court });
     };
     const pick = (ci, rest, court) => {
@@ -992,9 +732,11 @@ function scheduleAll() {
       return idx < 0 ? null : pend[ci].splice(idx, 1)[0];
     };
 
+    // 1) matches the user placed by hand
     const here = pins[slot] || {};
     Object.keys(here).forEach(ct => place(here[ct][0], here[ct][1], +ct));
 
+    // 2) fill the remaining courts automatically, respecting each category's courts
     for (let court = 1; court <= courts; court++) {
       if (taken.has(court)) continue;
       for (let k = 0; k < cats.length; k++) {
@@ -1065,7 +807,6 @@ function displayName(cat, m, side) {
 // ============================================
 function render() {
   applyModeUI();
-  renderBreaksInputs();
   renderCategories();
   renderSchedule();
   renderNextUp();
@@ -1165,12 +906,8 @@ function renderMatchesByTimeSlot(cat) {
     if (!s) { s = { slot: m.slot, time: m.time, timeMin: m.timeMin, day: m.day, matches: [] }; slots.push(s); }
     s.matches.push(m);
   });
-  return slots.map((s, si) => {
-    const prevMatch = slots[si - 1] ? slots[si - 1].matches[0] : null;
-    const curMatch = s.matches[0];
-    const brk = checkBreakBetween(prevMatch, curMatch);
-    return `
-    ${brk ? `<div class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5 mb-2 text-center">☕ ${esc(brk.label.toUpperCase())} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})</div>` : ''}
+  return slots.map((s, si) => `
+    ${needsBreakRow(slots[si - 1], s) ? `<div class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5 mb-2 text-center">☕ ${breakText()}</div>` : ''}
     <div class="time-slot-header">
       <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       <span class="clock">${s.time}</span>
@@ -1197,8 +934,7 @@ function renderMatchesByTimeSlot(cat) {
           <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score2 !== '' ? 'filled' : ''}" value="${m.score2}" data-cat="${cat.id}" data-match="${m.id}" data-side="2" ${!editMode ? 'readonly' : ''}>
         </div>
       </div>`).join('')}
-  `;
-  }).join('');
+  `).join('');
 }
 
 function getFormatLabel(format) {
@@ -1281,6 +1017,7 @@ function toggleCatCourt(catId, court, field) {
   else {
     const n = Number(court), cur = catCourts(cat, field);
     const next = cur.length === 0 ? [n] : (cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n].sort((a, b) => a - b));
+    // for group courts "every court" = All; for a knockout match keep the explicit list
     setCourtList(cat, field, (next.length === 0 || (field === 'courts' && next.length === total)) ? [] : next);
   }
   changed();
@@ -1313,17 +1050,14 @@ function renderSchedule() {
     const rows = all.filter(x => x.m.courtNo === cn);
     let lastDay = -1, prevM = null;
     const body = rows.map(({ cat, m }) => {
-      let head = '', brkHtml = '';
-      const brk = checkBreakBetween(prevM, m);
-      if (brk) {
-        brkHtml = `<tr><td colspan="${colSpan}" class="py-1.5 px-2 text-center text-xs font-semibold bg-amber-50 text-amber-800">☕ ${esc(brk.label.toUpperCase())} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})</td></tr>`;
-      }
+      let head = '', brk = '';
+      if (needsBreakRow(prevM, m)) brk = breakRowHtml(colSpan);
       prevM = m;
       if (m.day !== lastDay) {
         lastDay = m.day;
         head = `<tr><td colspan="${colSpan}" class="py-2 px-2 font-semibold text-gray-700 text-xs uppercase tracking-wide">${dayHeader(m.day)}</td></tr>`;
       }
-      return head + brkHtml + `
+      return head + brk + `
       <tr class="schedule-row border-b border-gray-100">
         <td class="py-2 px-2 font-medium text-emerald-600 text-xs whitespace-nowrap">${m.time} ${m.pin ? '<span class="manual-badge">Moved</span>' : ''} ${warnBadge(cat, m)}</td>
         <td class="py-2 px-2"><div class="flex items-center gap-1.5"><span class="cat-dot" style="background:${cat.color}"></span><span class="font-medium text-xs">${esc(cat.name)}</span></div></td>
@@ -1447,6 +1181,7 @@ function changed(cat) {
   save();
 }
 
+// ---- Moving matches earlier / later ----
 function findAt(slot, courtNo) {
   for (const cat of state.categories) {
     const m = cat.matches.find(x => x.slot === slot && x.courtNo === courtNo);
@@ -1454,7 +1189,7 @@ function findAt(slot, courtNo) {
   }
   return null;
 }
-
+// Lists scheduling problems for one match (empty list = no problems)
 function matchWarnings(cat, m) {
   const w = [];
   const name = x => `${displayName(cat, x, 1)} vs ${displayName(cat, x, 2)}`;
@@ -1488,7 +1223,7 @@ function moveMatch(catId, matchId, delta) {
   if (!m) return;
   const from = m.slot, target = from + delta;
   if (target < 0) { toast('This is already the first time slot.'); return; }
-  const other = findAt(target, m.courtNo);
+  const other = findAt(target, m.courtNo); // same court, neighbouring slot
   m.pin = { slot: target, court: m.courtNo };
   if (other) other.m.pin = { slot: from, court: m.courtNo };
   changed();
@@ -1613,28 +1348,17 @@ document.getElementById('addCategoryBtn').addEventListener('click', () => {
 });
 
 SETUP_IDS.forEach(id => {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.addEventListener('change', e => {
+  document.getElementById(id).addEventListener('change', e => {
     if (!editMode) return;
     let v = e.target.value;
-    if (id === 'tNameInput') {
-      v = v.trim() || 'Schedule 1';
-      state.tName = v;
-      if (tournamentList[currentScheduleId]) {
-        tournamentList[currentScheduleId].name = v;
-        saveStoredTournaments(tournamentList);
-        updateTournamentSelectDropdown();
-      }
-    } else {
-      if (id === 'matchMin' || id === 'courts') {
-        v = Math.max(1, parseInt(v) || 1);
-        if (id === 'courts') v = Math.min(v, 20);
-        e.target.value = v;
-      }
-      if (id === 'eventDate' && !v) { v = defaultDate(); e.target.value = v; }
-      state[id] = v;
+    if (id === 'matchMin' || id === 'courts') {
+      v = Math.max(1, parseInt(v) || 1);
+      if (id === 'courts') v = Math.min(v, 20);
+      e.target.value = v;
     }
+    if (id === 'breakMin') { v = Math.max(0, parseInt(v) || 0); e.target.value = v; }
+    if (id === 'eventDate' && !v) { v = defaultDate(); e.target.value = v; }
+    state[id] = v;
     scheduleAll();
     render();
     save();
@@ -1697,7 +1421,7 @@ function linkDialog(url, note) {
 }
 function compactState() {
   return {
-    tn: state.tName, d: state.eventDate, s: state.dayStarts, u: state.playUntil, m: state.matchMin, c: state.courts, brk: state.breaks,
+    d: state.eventDate, s: state.dayStarts, u: state.playUntil, m: state.matchMin, c: state.courts, bs: state.breakStart, bm: state.breakMin,
     k: state.categories.map(cat => {
       const tmp = { ...cat, teams: [...cat.teams], teamGroups: [...(cat.teamGroups || [])], matches: [] };
       buildMatches(tmp);
@@ -1711,7 +1435,7 @@ function compactState() {
   };
 }
 function expandState(o) {
-  const st = { tName: o.tn || 'Schedule 1', pwHash: '', eventDate: o.d, dayStarts: o.s, playUntil: o.u, matchMin: o.m, courts: o.c, breaks: o.brk || [], categories: [] };
+  const st = { pwHash: '', eventDate: o.d, dayStarts: o.s, playUntil: o.u, matchMin: o.m, courts: o.c, breakStart: o.bs || '', breakMin: o.bm || 0, categories: [] };
   o.k.forEach((k, i) => {
     const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), courts: k[8] || [], koMatchCourts: (k[9] && !Array.isArray(k[9])) ? k[9] : {}, matches: [] };
     buildMatches(cat);
@@ -1745,7 +1469,7 @@ async function unpackData(t) {
 }
 
 async function shareLink() {
-  let url = location.href.split('#')[0] + '?t=' + currentScheduleId;
+  let url = location.href.split('#')[0];
   const live = !!db;
   if (!db) {
     url += '#d=' + await packData(compactState());
@@ -1755,7 +1479,7 @@ async function shareLink() {
     note = 'Heads up: this page is not on a public website, so this link will only open on this computer. Upload the file to a host (Netlify, GitHub Pages, etc.) and share that address. ' + note;
   }
   if (navigator.share) {
-    try { await navigator.share({ title: 'MatchBoard - ' + state.tName, text: 'Live match schedule', url }); return; }
+    try { await navigator.share({ title: 'MatchBoard', text: 'Live match schedule', url }); return; }
     catch (e) { if (e.name === 'AbortError') return; }
   }
   try {
@@ -1768,27 +1492,19 @@ async function shareLink() {
 document.getElementById('shareBtn').addEventListener('click', shareLink);
 
 function openSnapshotFromHash() {
-  const params = new URLSearchParams(window.location.search);
-  const tid = params.get('t');
-  if (tid && tid !== currentScheduleId) {
-    if (!tournamentList[tid]) {
-      tournamentList[tid] = { id: tid, name: 'Shared Tournament (' + tid + ')' };
-      saveStoredTournaments(tournamentList);
-    }
-    selectTournament(tid);
-  }
   if (db || !location.hash.startsWith('#d=')) return;
   unpackData(location.hash.slice(3))
     .then(o => { expandState(o); syncSetupInputs(); render(); })
     .catch(e => { console.error('Bad share link', e); toast('That share link could not be opened.'); });
 }
-
-// Initial setup on page load
 openSnapshotFromHash();
 window.addEventListener('hashchange', openSnapshotFromHash);
 
+// ============================================
+// FIREBASE LIVE SYNC
+// ============================================
 if (db) {
-  db.ref(getDbPath()).on('value', snap => {
+  db.ref(DB_PATH).on('value', snap => {
     if (echo) return;
     loaded = true;
     const d = snap.val();
@@ -1799,8 +1515,8 @@ if (db) {
 }
 
 // Initial render
-updateTournamentSelectDropdown();
-switchMainView('home');
+syncSetupInputs();
+render();
 </script>
 </body>
 </html>
