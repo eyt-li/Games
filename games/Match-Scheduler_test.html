@@ -58,6 +58,9 @@
   .court-chip.on { background: #10b981; border-color: #10b981; color: white; }
   .score-pill { min-width: 68px; text-align: center; padding: 6px 10px; border-radius: 6px; border: 2px solid #e5e7eb; background: white; font-weight: 700; font-size: 14px; color: #9ca3af; white-space: nowrap; }
   .score-pill.filled { background: #f0fdf4; border-color: #10b981; color: #065f46; }
+  .standings-table th, .standings-table td, .schedule-table th, .schedule-table td { border-bottom: 1px solid #cbd5e1; }
+  .standings-table th, .schedule-table th { border-bottom-color: #94a3b8; }
+  .standings-table th:not(:last-child), .standings-table td:not(:last-child), .schedule-table th:not(:last-child), .schedule-table td:not(:last-child) { border-right: 1px solid #e2e8f0; }
 </style>
 </head>
 <body>
@@ -106,6 +109,12 @@
     <div>
       <h1 class="text-2xl font-bold text-gray-900">Shared Tournaments</h1>
       <p class="text-sm text-gray-500">View and manage all active tournament schedules</p>
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button class="btn" onclick="recoverDialog()">Recover tournaments</button>
+        <button class="btn" onclick="exportBackup()">Download backup</button>
+        <button class="btn" onclick="document.getElementById('importFile').click()">Import backup</button>
+        <input type="file" id="importFile" accept=".json,application/json" class="hidden">
+      </div>
 
 
     </div>
@@ -698,7 +707,11 @@ function attachDbListener() {
     if (echo) return;
     loaded = true;
     const d = snap.val();
-    if (!d) return;
+    if (!d) {
+      const local = getStoredScheduleData(currentScheduleId);
+      if (local && looksLikeState(local) && isOwner(tournamentList[currentScheduleId])) { applyRemote(local); save(); }
+      return;
+    }
     if (isTyping()) { pendingRemote = d; return; }
     applyRemote(d);
   });
@@ -810,6 +823,118 @@ function renderHome() {
     `;
   }).join('');
 }
+
+// ---- Getting old tournaments back ----
+const toArr = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+function looksLikeState(d) { return !!d && typeof d === 'object' && !Array.isArray(d) && d.categories != null && typeof d.categories === 'object'; }
+function describeData(d) {
+  const cats = toArr(d && d.categories);
+  const teams = cats.reduce((n, c) => n + toArr(c.teams).length, 0);
+  return `${cats.length} categor${cats.length === 1 ? 'y' : 'ies'}, ${teams} team${teams === 1 ? '' : 's'}`;
+}
+function localCandidates() {
+  const found = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || k === 'matchboard_tournaments' || k === 'matchboard_fb') continue;
+      let v; try { v = JSON.parse(localStorage.getItem(k)); } catch (e) { continue; }
+      if (!looksLikeState(v)) continue;
+      const id = k.startsWith('matchboard_data_') ? k.slice('matchboard_data_'.length) : 'old_' + k.replace(/[^A-Za-z0-9_-]/g, '_');
+      if (tournamentList[id]) continue;
+      found.push({ src: 'local', id, name: v.tName || (tournamentList[id] && tournamentList[id].name) || id, data: v });
+    }
+  } catch (e) {}
+  return found;
+}
+async function onlineCandidates() {
+  if (!db) return [];
+  const [ls, ds] = await Promise.all([db.ref('matchboard_list').once('value'), db.ref('matchboard').once('value')]);
+  const list = ls.val() || {}, data = ds.val() || {};
+  return [...new Set([...Object.keys(list), ...Object.keys(data)])]
+    .filter(id => !tournamentList[id] && (looksLikeState(data[id]) || list[id]))
+    .map(id => ({ src: 'online', id, name: (list[id] && list[id].name) || (data[id] && data[id].tName) || id, owner: list[id] ? list[id].owner : undefined, data: data[id] }));
+}
+function restoreCandidates(items) {
+  items.forEach(c => {
+    const mine = c.src === 'local' || !c.owner || c.owner === MY_ID; // older versions had no owner
+    tournamentList[c.id] = mine ? { id: c.id, name: c.name, owner: MY_ID } : { id: c.id, name: c.name, shared: true };
+    if (c.src === 'local') saveStoredScheduleData(c.id, c.data);
+    if (db && mine) {
+      db.ref('matchboard_list/' + c.id).set({ id: c.id, name: c.name, owner: MY_ID });
+      if (c.data) db.ref('matchboard/' + c.id).once('value').then(x => { if (!x.val()) db.ref('matchboard/' + c.id).set(c.data); });
+    }
+  });
+  saveStoredTournaments(tournamentList);
+  renderHome();
+}
+async function recoverDialog() {
+  const o = showModal(`<h3 class="font-semibold text-gray-900 mb-2">Recover tournaments</h3><p class="text-xs text-gray-500">Looking…</p>`);
+  o.firstElementChild.style.width = '440px';
+  let items = localCandidates(), err = '';
+  try { items = items.concat(await onlineCandidates()); } catch (e) { err = 'Could not read the online database: ' + (e.message || e); }
+  const row = (c, i) => `<label class="flex items-start gap-2 py-2 border-b border-gray-100 text-sm">
+      <input type="checkbox" data-i="${i}" ${c.src === 'online' && c.owner && c.owner !== MY_ID ? '' : 'checked'} style="margin-top:3px">
+      <span><span class="font-medium text-gray-900">${esc(c.name)}</span><br>
+      <span class="text-xs text-gray-500">${c.src === 'local' ? 'Found in this browser' : (c.owner && c.owner !== MY_ID ? 'Online · created by someone else (added as shared)' : 'Online')}${c.data ? ' · ' + esc(describeData(c.data)) : ''}</span></span>
+    </label>`;
+  o.firstElementChild.innerHTML = `<h3 class="font-semibold text-gray-900 mb-1">Recover tournaments</h3>
+    <p class="text-xs text-gray-500 mb-2">${db ? 'Searched this browser and the online database.' : 'Searched this browser. Connect Firebase (Share → Set up live sharing) to also search online.'}</p>
+    ${err ? `<p class="text-xs text-red-500 mb-2">${esc(err)}</p>` : ''}
+    <div style="max-height:50vh;overflow:auto">${items.length ? items.map(row).join('') : '<p class="text-sm text-gray-500 py-3">Nothing new found. If your old tournaments were saved on another computer, browser or web address, use Download backup there and Import backup here.</p>'}</div>
+    <div class="flex gap-2 mt-3"><button class="btn flex-1" data-c>Close</button>${items.length ? '<button class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-r>Restore selected</button>' : ''}</div>`;
+  o.querySelector('[data-c]').onclick = () => o.remove();
+  const r = o.querySelector('[data-r]');
+  if (r) r.onclick = () => {
+    const picked = [...o.querySelectorAll('input[type=checkbox]')].filter(x => x.checked).map(x => items[+x.dataset.i]);
+    if (!picked.length) { toast('Nothing selected.'); return; }
+    restoreCandidates(picked);
+    o.remove();
+    toast(`Restored ${picked.length} tournament${picked.length === 1 ? '' : 's'}.`);
+  };
+}
+function exportBackup() {
+  const items = Object.values(tournamentList).map(t => {
+    const data = (t.id === currentScheduleId && state && toArr(state.categories).length) ? state : getStoredScheduleData(t.id);
+    return data ? { id: t.id, name: t.name, data } : null;
+  }).filter(Boolean);
+  if (!items.length) { toast('Nothing to back up yet. Open a tournament first so its data is saved here.'); return; }
+  const blob = new Blob([JSON.stringify({ app: 'matchboard', version: 1, tournaments: items }, null, 1)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'MatchBoard_backup_' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast(`Backup of ${items.length} tournament${items.length === 1 ? '' : 's'} saved.`);
+}
+document.getElementById('importFile').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const j = JSON.parse(rd.result);
+      const items = toArr(j.tournaments).filter(t => t && looksLikeState(t.data));
+      if (!items.length) { toast('That file has no tournaments in it.'); return; }
+      items.forEach(t => {
+        let id = t.id || newTid(), name = t.name || t.data.tName || 'Imported tournament';
+        if (tournamentList[id]) { id = newTid(); name += ' (imported)'; }
+        t.data.tName = name;
+        tournamentList[id] = { id, name, owner: MY_ID };
+        saveStoredScheduleData(id, t.data);
+        if (db) {
+          db.ref('matchboard_list/' + id).set({ id, name, owner: MY_ID });
+          db.ref('matchboard/' + id).set(JSON.parse(JSON.stringify(t.data)));
+        }
+      });
+      saveStoredTournaments(tournamentList);
+      renderHome();
+      toast(`Imported ${items.length} tournament${items.length === 1 ? '' : 's'}.`);
+    } catch (err) { toast('That file could not be read.'); }
+  };
+  rd.readAsText(f);
+});
 
 // Online list: used only to keep names up to date. Other people's tournaments are never added to your list.
 if (db) {
@@ -1377,16 +1502,11 @@ function renderMatchesByTimeSlot(cat) {
     const brk = checkBreakBetween(prevMatch, curMatch);
     return `
     ${brk ? `<div class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5 mb-2 text-center">☕ ${esc(brk.label.toUpperCase())} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})</div>` : ''}
-    <div class="time-slot-header">
-      <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-      <span class="clock">${s.time}</span>
-      ${s.day > 0 ? `<span class="text-xs text-gray-500 font-normal">Day ${s.day + 1}</span>` : ''}
-      <span class="text-xs text-gray-500 font-normal">(${s.matches.length} match${s.matches.length > 1 ? 'es' : ''})</span>
-    </div>
     ${s.matches.map(m => `
       <div class="match-card px-4 py-3 flex items-center justify-between mb-1.5" style="border-left-color: ${cat.color}; background-color: ${m.group ? hexToRgba(groupColor(m.group, cat), 0.7) : hexToRgba(cat.color, 0.08)}">
         <div class="flex items-center gap-3">
           <span class="text-xs font-semibold text-gray-700 whitespace-nowrap" style="min-width:104px">${m.time} – ${formatTime(m.timeMin + (parseInt(state.matchMin) || 10))}</span>
+          ${m.day > 0 ? `<span class="text-xs text-gray-500">Day ${m.day + 1}</span>` : ''}
           <span class="court-badge">${m.court}</span>
           ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''}
           ${warnBadge(cat, m)}
@@ -1573,7 +1693,7 @@ function renderSchedule() {
           <span class="text-xs text-gray-500">${rows.length} match${rows.length === 1 ? '' : 'es'}</span>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full text-sm">
+          <table class="w-full text-sm schedule-table">
             <thead>
               <tr class="border-b border-gray-200 text-left text-xs text-gray-500 uppercase">
                 <th class="py-2 px-2">Time</th>
