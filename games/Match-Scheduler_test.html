@@ -230,6 +230,9 @@
               <button id="resetMovesBtn" class="btn w-full">Reset manual moves</button>
               <p class="text-xs text-gray-500 mt-1">Puts every moved match back to its automatic time.</p>
             </div>
+            <div class="border-t border-gray-100 pt-3">
+              <button id="deleteTournamentBtn" class="btn w-full" style="color:#dc2626;border-color:#fca5a5" onclick="deleteTournament(currentScheduleId)">Delete tournament</button>
+            </div>
             <div id="passwordSection" class="hidden border-t border-gray-100 pt-3 space-y-2">
               <label class="block text-xs font-medium text-gray-700">Change edit password</label>
               <input type="password" id="newPassword" placeholder="New password" class="w-full">
@@ -436,13 +439,6 @@ async function exportToPDF() {
 
     courtNos.forEach(cn => {
       const rows = list.filter(x => x.m.courtNo === cn);
-      if (y > pageH - 45) { doc.addPage(); y = 18; }
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.setTextColor(30, 58, 138);
-      doc.text(`COURT ${cn}  -  ${rows.length} match${rows.length === 1 ? '' : 'es'}`, 14, y);
-
       const body = [], meta = [];
       let lastDay = -1;
       let prevM = null;
@@ -475,8 +471,20 @@ async function exportToPDF() {
         meta.push({ color: cat.color, gcolor: m.group ? groupColor(m.group, cat) : null, isKO, s1: m.score1, s2: m.score2 });
       });
 
+      // keep this court's schedule on a single page whenever it can fit
+      const usable = pageH - 15 - 16 - 14;                    // page height minus margins and the court title
+      const estimate = rh => 10 + body.length * rh + 4;       // header row + every row
+      let rowH = 11;
+      while (rowH > 8 && estimate(rowH) > usable) rowH -= 0.5; // squeeze rows a little if needed
+      if (y + 14 + estimate(rowH) > pageH - 16 && estimate(rowH) <= usable) { doc.addPage(); y = 18; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(30, 58, 138);
+      doc.text(`COURT ${cn}  -  ${rows.length} match${rows.length === 1 ? '' : 'es'}`, 14, y);
+
       doc.autoTable({
         startY: y + 3,
+        rowPageBreak: 'avoid',
         theme: 'grid',
         styles: { lineColor: [170, 178, 190], lineWidth: 0.25 },
         head: [['Match #', 'Time', { content: 'Team 1', styles: { halign: 'right' } }, { content: 'Score', colSpan: 2, styles: { halign: 'center' } }, 'Team 2', 'Category']],
@@ -492,7 +500,7 @@ async function exportToPDF() {
           6: { cellWidth: 'auto' }
         },
         headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', fontSize: 10 },
-        bodyStyles: { fontSize: 9, cellPadding: 3, minCellHeight: 11, valign: 'middle' },
+        bodyStyles: { fontSize: 9, cellPadding: rowH >= 10 ? 3 : 2, minCellHeight: rowH, valign: 'middle' },
         alternateRowStyles: { fillColor: [245, 247, 250] },
         didParseCell: function (data) {
           if (data.section !== 'body') return;
@@ -515,7 +523,7 @@ async function exportToPDF() {
           const info = meta[data.row.index];
           if (!info) return;
           const val = data.column.index === 3 ? info.s1 : info.s2;
-          const w = 9, h = 7.5;
+          const w = 9, h = Math.min(7.5, data.cell.height - 2.5);
           const bx = data.cell.x + (data.cell.width - w) / 2;
           const top = data.cell.y + (data.cell.height - h) / 2;
           doc.setDrawColor(60); doc.setLineWidth(0.35);
@@ -759,9 +767,9 @@ function createNewTournament() {
 
 function leaveCurrentIf(id) {
   if (currentScheduleId !== id) { renderHome(); return; }
+  leaveEditMode();
   currentScheduleId = '';
-  const next = Object.keys(tournamentList)[0];
-  if (next) selectTournament(next); else switchMainView('home');
+  switchMainView('home');
 }
 
 function deleteTournament(id, e) {
@@ -817,7 +825,6 @@ function renderHome() {
         </div>
         <div class="flex items-center justify-between border-t border-gray-100 pt-3">
           <span class="text-xs font-medium text-emerald-600 hover:text-emerald-700">${mine ? 'Open Schedule' : 'View Schedule'} &rarr;</span>
-          <button class="text-xs text-red-500 hover:text-red-700 p-1" onclick="deleteTournament('${t.id}', event)">${mine ? 'Delete' : 'Remove'}</button>
         </div>
       </div>
     `;
@@ -1040,6 +1047,7 @@ function applyModeUI() {
   document.getElementById('moveHint').classList.toggle('hidden', !editMode);
   // viewing mode: hide the whole setup panel and show a read-only summary instead
   document.getElementById('setupCol').classList.toggle('hidden', !editMode);
+  document.getElementById('deleteTournamentBtn').textContent = isOwner(tournamentList[currentScheduleId]) ? 'Delete tournament' : 'Remove from my list';
   const mc = document.getElementById('mainCol');
   mc.classList.toggle('col-span-8', editMode);
   mc.classList.toggle('col-span-12', !editMode);
