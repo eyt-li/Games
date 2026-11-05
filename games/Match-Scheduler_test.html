@@ -412,7 +412,12 @@ async function exportToPDF() {
     }
 
 
-    const numberOf = new Map(list.map((x, i) => [x.m, i + 1]));
+    let seq = 0;
+    const labelOf = new Map(list.map(x => {
+      const m = x.m;
+      if (m.stage !== 'ko') return [m, 'M' + (++seq)];
+      return [m, { sf1: 'SF1', sf2: 'SF2', third: '3/4', final: 'Finals' }[m.id] || String(m.round).toUpperCase()];
+    }));
     const courtNos = [...new Set(list.map(x => x.m.courtNo))].sort((a, b) => a - b);
 
 
@@ -427,26 +432,28 @@ async function exportToPDF() {
     };
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.setTextColor(0);
-    doc.text((state.tName || 'TOURNAMENT SCHEDULE').toUpperCase(), 14, 18);
+    doc.text((state.tName || 'TOURNAMENT SCHEDULE').toUpperCase(), 8, 11);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`${list.length} matches  |  ${courtNos.length} court(s)  |  ${mm} min per match`, 14, 25);
+    doc.setFontSize(9);
+    doc.text(`${list.length} matches  |  ${courtNos.length} court(s)  |  ${mm} min per match`, 8, 16.5);
 
     const pageH = doc.internal.pageSize.getHeight();
-    let y = 34;
+    let y = 24;
 
     courtNos.forEach(cn => {
       const rows = list.filter(x => x.m.courtNo === cn);
       const body = [], meta = [];
       let lastDay = -1;
+      let nBreaks = 0;
       let prevM = null;
       rows.forEach(({ cat, m }) => {
         const brk = checkBreakBetween(prevM, m);
         if (brk) {
-          body.push([{ content: `☕ ${brk.label.toUpperCase()} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})`, colSpan: 7, styles: { fillColor: [254, 243, 199], textColor: [146, 64, 14], fontStyle: 'bold', halign: 'center' } }]);
+          body.push([{ content: `${brk.label.toUpperCase()} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})`, colSpan: 7, styles: { fillColor: [254, 243, 199], textColor: [146, 64, 14], fontStyle: 'bold', halign: 'center', fontSize: 7, cellPadding: 1, minCellHeight: 5 } }]);
           meta.push(null);
+          nBreaks++;
         }
         prevM = m;
         if (m.day !== lastDay) {
@@ -460,27 +467,27 @@ async function exportToPDF() {
         }
         const isKO = m.stage === 'ko';
         body.push([
-          `M${numberOf.get(m)}`,
+          labelOf.get(m),
           `${m.time} - ${formatTime(m.timeMin + mm)}`,
           displayName(cat, m, 1),
-          '',
-          '',
+          m.score1 !== '' ? String(m.score1) : '',
+          m.score2 !== '' ? String(m.score2) : '',
           displayName(cat, m, 2),
-          `${cat.name}${m.group ? ` (Group ${m.group})` : ''}${isKO ? ` - ${m.round}` : ''}`
+          `${cat.name}${m.group ? ` (${m.group})` : ''}${isKO ? ` - ${m.round}` : ''}`
         ]);
         meta.push({ color: cat.color, gcolor: m.group ? groupColor(m.group, cat) : null, isKO, s1: m.score1, s2: m.score2 });
       });
 
       // keep this court's schedule on a single page whenever it can fit
       const usable = pageH - 15 - 16 - 14;                    // page height minus margins and the court title
-      const estimate = rh => 10 + body.length * rh + 4;       // header row + every row
+      const estimate = rh => 10 + (body.length - nBreaks) * rh + nBreaks * 5 + 4;       // header row + every row
       let rowH = 11;
       while (rowH > 8 && estimate(rowH) > usable) rowH -= 0.5; // squeeze rows a little if needed
       if (y + 14 + estimate(rowH) > pageH - 16 && estimate(rowH) <= usable) { doc.addPage(); y = 18; }
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
       doc.setTextColor(30, 58, 138);
-      doc.text(`COURT ${cn}  -  ${rows.length} match${rows.length === 1 ? '' : 'es'}`, 14, y);
+      doc.text(`COURT ${cn}  -  ${rows.length} match${rows.length === 1 ? '' : 'es'}`, 8, y);
 
       doc.autoTable({
         startY: y + 3,
@@ -489,14 +496,14 @@ async function exportToPDF() {
         styles: { lineColor: [170, 178, 190], lineWidth: 0.25 },
         head: [['Match #', 'Time', { content: 'Team 1', styles: { halign: 'right' } }, { content: 'Score', colSpan: 2, styles: { halign: 'center' } }, 'Team 2', 'Category']],
         body,
-        margin: { left: 14, right: 14, top: 15, bottom: 16 },
+        margin: { left: 8, right: 8, top: 15, bottom: 16 },
         columnStyles: {
-          0: { cellWidth: 14, fontStyle: 'bold' },
+          0: { cellWidth: 15, fontStyle: 'bold' },
           1: { cellWidth: 36 },
-          2: { cellWidth: 34, halign: 'right', fontStyle: 'bold' },
-          3: { cellWidth: 13 },
-          4: { cellWidth: 13 },
-          5: { cellWidth: 34, fontStyle: 'bold' },
+          2: { cellWidth: 38, halign: 'right', fontStyle: 'bold' },
+          3: { cellWidth: 14, halign: 'center', fontStyle: 'bold', fontSize: 11 },
+          4: { cellWidth: 14, halign: 'center', fontStyle: 'bold', fontSize: 11 },
+          5: { cellWidth: 38, fontStyle: 'bold' },
           6: { cellWidth: 'auto' }
         },
         headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', fontSize: 10 },
@@ -517,22 +524,6 @@ async function exportToPDF() {
             data.cell.styles.textColor = [0, 0, 0];
             data.cell.styles.fontStyle = 'bold';
           }
-        },
-        didDrawCell: function (data) {
-          if (data.section !== 'body' || (data.column.index !== 3 && data.column.index !== 4)) return;
-          const info = meta[data.row.index];
-          if (!info) return;
-          const val = data.column.index === 3 ? info.s1 : info.s2;
-          const w = 9, h = Math.min(7.5, data.cell.height - 2.5);
-          const bx = data.cell.x + (data.cell.width - w) / 2;
-          const top = data.cell.y + (data.cell.height - h) / 2;
-          doc.setDrawColor(60); doc.setLineWidth(0.35);
-          doc.rect(bx, top, w, h, 'S');
-          if (val !== '' && val != null) {
-            doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(0);
-            doc.text(String(val), bx + w / 2, top + h / 2 + 1.5, { align: 'center' });
-          }
-          doc.setDrawColor(170, 178, 190); doc.setLineWidth(0.25);
         }
       });
       y = ((doc.lastAutoTable && doc.lastAutoTable.finalY) || (y + 20)) + 12;
@@ -545,7 +536,7 @@ async function exportToPDF() {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(128);
-      doc.text(`Page ${i} of ${pages}`, 14, pageH - 8);
+      doc.text(`Page ${i} of ${pages}`, 8, pageH - 8);
     }
 
 
