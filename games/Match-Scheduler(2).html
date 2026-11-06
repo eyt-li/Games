@@ -1945,6 +1945,186 @@ updateTournamentSelectDropdown();
   label.textContent = 'Local only'; label.className = 'text-xs font-medium text-gray-600';
   box.className = 'flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200';
 })();
+  // ============================================================
+// MOBILE LAYOUT + "SHOW ONE TEAM" FILTER
+// Paste this whole block at the very end of your main script block,
+// just above its closing script tag. It does not change any of your existing code.
+// ============================================================
+(function () {
+  // ---------- Styles (desktop stays exactly as it is) ----------
+  const css = `
+    .password-box { width: min(340px, 92vw); }
+    .m-sub { display: none; }
+    .team-hit { color: #047857 !important; font-weight: 700 !important; }
+    .team-banner { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+      background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; border-radius: 8px; padding: 8px 12px;
+      font-size: 13px; margin-bottom: 16px; }
+    .team-banner button { font-size: 12px; font-weight: 600; text-decoration: underline; cursor: pointer; }
+    #teamFilterSelect.active { border-color: #10b981; background: #ecfdf5; color: #065f46; font-weight: 600; }
+    .setup-toggle { display: none; }
+
+    /* Tablet and phone: stack the setup panel above the categories */
+    @media (max-width: 1023px) {
+      #categoryView > .grid { grid-template-columns: minmax(0, 1fr) !important; }
+      #categoryView > .grid > div { grid-column: 1 / -1 !important; min-width: 0; }
+      .setup-head { cursor: pointer; }
+      .setup-toggle { display: inline-flex; }
+      .setup-body.collapsed { display: none; }
+    }
+
+    /* Phone */
+    @media (max-width: 639px) {
+      header > div { flex-wrap: wrap; gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+      header > div > div:first-child { flex-wrap: wrap; gap: 8px; min-width: 0; }
+      header > div > div:first-child > span.text-gray-400 { display: none; }
+      #scheduleName { max-width: 46vw; }
+      header .header-btn { padding: 8px 10px; }
+      #navHomeBtn, #exportPdfBtn, #shareBtn { font-size: 0; gap: 0; }
+      header > div > div:last-child > div:first-child > span:last-child { display: none; }
+
+      #homeView { padding-top: 20px; padding-bottom: 20px; }
+      #homeView > div:first-child { flex-wrap: wrap; gap: 12px; }
+      #homeView h1 { font-size: 1.4rem; }
+
+      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView) { flex-wrap: wrap; gap: 8px; }
+      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView) > div:last-child { width: 100%; justify-content: space-between; }
+      #teamFilterSelect { flex: 1; min-width: 0; max-width: none; }
+
+      html input, html select, html textarea { font-size: 16px !important; }
+      .btn { padding: 8px 12px; }
+      .move-btn { padding: 8px 12px; }
+      .court-chip { padding: 6px 12px; }
+      .color-dot { width: 28px; height: 28px; }
+      .score-box { width: 48px; height: 42px; }
+      #breaksList > div { flex-wrap: wrap; }
+
+      .match-card { flex-wrap: wrap; gap: 8px; padding: 10px 12px !important; }
+      .match-card > div:first-child { flex: 1 1 100%; flex-wrap: wrap; gap: 6px 10px !important; min-width: 0; }
+      .match-card span[style*="min-width"] { min-width: 0 !important; }
+      .match-card > div:last-child { margin-left: auto; }
+      .match-card .font-semibold { word-break: break-word; }
+
+      .standings-table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+
+      /* Full schedule: keep Time / Home / Score / Away, move the rest under the time */
+      #scheduleBody thead th:nth-child(n+2):nth-child(-n+5),
+      #scheduleBody tr.schedule-row > :nth-child(n+2):nth-child(-n+5) { display: none; }
+      .m-sub { display: block; font-size: 10px; font-weight: 500; color: #6b7280; white-space: normal; margin-top: 2px; }
+      #scheduleBody td, #scheduleBody th { padding-left: 6px; padding-right: 6px; }
+    }
+  `;
+  const st = document.createElement('style');
+  st.id = 'mobileAndFilterStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  // ---------- Setup panel: collapsible on phones ----------
+  const setupBody = document.getElementById('tNameInput').closest('.space-y-3');
+  const setupHead = setupBody.parentElement.querySelector('h3');
+  setupBody.classList.add('setup-body', 'collapsed');
+  setupHead.classList.add('setup-head');
+  setupHead.insertAdjacentHTML('beforeend', '<span class="setup-toggle ml-auto text-gray-400" id="setupChev">▾</span>');
+  setupHead.addEventListener('click', () => {
+    const c = setupBody.classList.toggle('collapsed');
+    document.getElementById('setupChev').textContent = c ? '▾' : '▴';
+  });
+
+  // ---------- Team filter ----------
+  let teamFilter = '';
+  let filterScope = false;
+  let editSeen = false;
+  const inF = (cat, m) => !teamFilter || displayName(cat, m, 1) === teamFilter || displayName(cat, m, 2) === teamFilter;
+
+  const countEl = document.getElementById('matchCount');
+  countEl.parentElement.insertAdjacentHTML('afterbegin',
+    `<select id="teamFilterSelect" class="btn text-xs" style="max-width:220px" title="Show only one team's matches"><option value="">All teams</option></select>`);
+  const sel = document.getElementById('teamFilterSelect');
+
+  function renderTeamFilter() {
+    const map = new Map();
+    state.categories.forEach(c => c.teams.forEach(t => { if (!map.has(t)) map.set(t, []); map.get(t).push(c.name); }));
+    if (teamFilter && !map.has(teamFilter)) teamFilter = '';
+    const multi = state.categories.length > 1;
+    sel.innerHTML = '<option value="">All teams</option>' + [...map.keys()].sort((a, b) => a.localeCompare(b)).map(n =>
+      `<option value="${esc(n)}" ${n === teamFilter ? 'selected' : ''}>${esc(n)}${multi ? ` (${esc(map.get(n).join(', '))})` : ''}</option>`).join('');
+    sel.classList.toggle('active', !!teamFilter);
+  }
+
+  function highlight() {
+    document.querySelectorAll('[data-ko]').forEach(s => s.classList.toggle('team-hit', !!teamFilter && s.textContent === teamFilter));
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      [5, 7].forEach(i => { const td = tr.children[i]; if (td) td.classList.toggle('team-hit', !!teamFilter && td.textContent.trim() === teamFilter); });
+    });
+  }
+  function decorateSchedule() {
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      const c = tr.children;
+      if (!c[0] || c[0].querySelector('.m-sub')) return;
+      const parts = [(c[1] && c[1].textContent.trim()) || ''];
+      const g = c[2] && c[2].textContent.trim(), r = c[3] && c[3].textContent.trim();
+      if (g && g !== '—') parts.push('Group ' + g);
+      if (r && r !== 'Group stage') parts.push(r);
+      c[0].insertAdjacentHTML('beforeend', `<div class="m-sub">${esc(parts.filter(Boolean).join(' · '))}</div>`);
+    });
+  }
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const scoped = (fn, ...a) => { filterScope = true; try { return fn(...a); } finally { filterScope = false; } };
+
+  wrap('allMatches', o => { const l = o(); return filterScope && teamFilter ? l.filter(x => inF(x.cat, x.m)) : l; });
+  wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // clash checks always look at the full category
+  wrap('renderMatchesByTimeSlot', (o, cat) => {
+    if (!teamFilter) return o(cat);
+    return o({ ...cat, matches: cat.matches.filter(m => inF(cat, m)), _full: cat });
+  });
+  wrap('renderCategories', o => {
+    if (!teamFilter) { o(); return; }
+    const all = state.categories;
+    state.categories = all.filter(c => c.teams.includes(teamFilter));
+    try { o(); } finally { state.categories = all; }
+    document.getElementById('categoriesContainer').insertAdjacentHTML('afterbegin',
+      `<div class="team-banner"><span>Showing only matches for <b>${esc(teamFilter)}</b></span><button type="button" onclick="clearTeamFilter()">Show all teams</button></div>`);
+  });
+  wrap('renderSchedule', o => {
+    scoped(o);
+    if (teamFilter && !document.querySelector('#scheduleBody tr.schedule-row')) {
+      document.getElementById('scheduleBody').innerHTML = `<p class="py-6 text-center text-gray-500 text-sm">No matches for ${esc(teamFilter)}</p>`;
+    }
+    decorateSchedule(); highlight();
+  });
+  wrap('renderNextUp', o => {
+    scoped(o);
+    if (teamFilter) document.getElementById('nextUp').insertAdjacentHTML('afterbegin', `<div class="text-xs text-gray-500 mb-1">Next match for <b>${esc(teamFilter)}</b></div>`);
+  });
+  wrap('updateCounts', o => {
+    o();
+    if (!teamFilter) return;
+    const total = state.categories.reduce((s, c) => s + c.matches.length, 0);
+    const n = scoped(() => allMatches().length);
+    countEl.textContent = `${n} of ${total} matches`;
+    document.getElementById('totalMatches').textContent = n;
+  });
+  wrap('refreshDerived', (o, id) => { o(id); highlight(); });
+  wrap('selectTournament', (o, id) => { teamFilter = ''; return o(id); });
+  wrap('render', o => {
+    renderTeamFilter();
+    o();
+    highlight();
+    if (editMode && !editSeen) { editSeen = true; setupBody.classList.remove('collapsed'); document.getElementById('setupChev').textContent = '▴'; }
+    if (!editMode) editSeen = false;
+  });
+
+  function applyFilter() {
+    teamFilter = sel.value;
+    sel.blur();   // a focused dropdown would hold back live score updates
+    sel.classList.toggle('active', !!teamFilter);
+    renderCategories(); renderSchedule(); renderNextUp(); updateCounts(); highlight();
+  }
+  sel.addEventListener('change', applyFilter);
+  window.clearTeamFilter = () => { sel.value = ''; applyFilter(); };
+
+  if (currentView === 'tournament') render();
+})();
 </script>
 </body>
 </html>
