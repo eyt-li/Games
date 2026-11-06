@@ -2362,7 +2362,7 @@ updateTournamentSelectDropdown();
       background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; border-radius: 8px; padding: 8px 12px;
       font-size: 13px; margin-bottom: 16px; }
     .team-banner button { font-size: 12px; font-weight: 600; text-decoration: underline; cursor: pointer; }
-    #teamFilterSelect.active { border-color: #10b981; background: #ecfdf5; color: #065f46; font-weight: 600; }
+    #teamFilterSelect.active, #catFilterSelect.active { border-color: #10b981; background: #ecfdf5; color: #065f46; font-weight: 600; }
     .setup-toggle { display: none; }
 
     /* Tablet and phone: stack the setup panel above the categories */
@@ -2390,7 +2390,7 @@ updateTournamentSelectDropdown();
 
       #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView) { flex-wrap: wrap; gap: 8px; }
       #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView) > div:last-child { width: 100%; justify-content: space-between; }
-      #teamFilterSelect { flex: 1; min-width: 0; max-width: none; }
+      #teamFilterSelect, #catFilterSelect { flex: 1; min-width: 0; max-width: none; }
 
       html input, html select, html textarea { font-size: 16px !important; }
       .btn { padding: 8px 12px; }
@@ -2433,22 +2433,34 @@ updateTournamentSelectDropdown();
 
   // ---------- Team filter ----------
   let teamFilter = '';
+  let catFilter = '';
   let filterScope = false;
   let editSeen = false;
-  const inF = (cat, m) => !teamFilter || displayName(cat, m, 1) === teamFilter || displayName(cat, m, 2) === teamFilter;
+  const inF = (cat, m) => (!catFilter || cat.id === catFilter) &&
+    (!teamFilter || displayName(cat, m, 1) === teamFilter || displayName(cat, m, 2) === teamFilter);
+  const filterName = () => {
+    const c = state.categories.find(x => x.id === catFilter);
+    if (teamFilter) return `<b>${esc(teamFilter)}</b>` + (c ? ` in <b>${esc(c.name)}</b>` : '');
+    return c ? `<b>${esc(c.name)}</b>` : '';
+  };
 
   const countEl = document.getElementById('matchCount');
   countEl.parentElement.insertAdjacentHTML('afterbegin',
-    `<select id="teamFilterSelect" class="btn text-xs" style="max-width:220px" title="Show only one team's matches"><option value="">All teams</option></select>`);
+    `<select id="catFilterSelect" class="btn text-xs" style="max-width:200px" title="Show only one category"><option value="">All categories</option></select>
+     <select id="teamFilterSelect" class="btn text-xs hidden" style="max-width:200px" title="Show only one team of this category"><option value="">All teams</option></select>`);
+  const catSel = document.getElementById('catFilterSelect');
   const sel = document.getElementById('teamFilterSelect');
 
   function renderTeamFilter() {
-    const map = new Map();
-    state.categories.forEach(c => c.teams.forEach(t => { if (!map.has(t)) map.set(t, []); map.get(t).push(c.name); }));
-    if (teamFilter && !map.has(teamFilter)) teamFilter = '';
-    const multi = state.categories.length > 1;
-    sel.innerHTML = '<option value="">All teams</option>' + [...map.keys()].sort((a, b) => a.localeCompare(b)).map(n =>
-      `<option value="${esc(n)}" ${n === teamFilter ? 'selected' : ''}>${esc(n)}${multi ? ` (${esc(map.get(n).join(', '))})` : ''}</option>`).join('');
+    if (catFilter && !state.categories.some(c => c.id === catFilter)) { catFilter = ''; teamFilter = ''; }
+    const cat = state.categories.find(c => c.id === catFilter);
+    if (teamFilter && !(cat && cat.teams.includes(teamFilter))) teamFilter = '';
+    catSel.innerHTML = '<option value="">All categories</option>' + state.categories.map(c =>
+      `<option value="${esc(c.id)}" ${c.id === catFilter ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+    sel.innerHTML = '<option value="">All teams</option>' + (cat ? cat.teams.slice().sort((x, y) => x.localeCompare(y)).map(n =>
+      `<option value="${esc(n)}" ${n === teamFilter ? 'selected' : ''}>${esc(n)}</option>`).join('') : '');
+    sel.classList.toggle('hidden', !cat);   // the team dropdown appears once a category is chosen
+    catSel.classList.toggle('active', !!catFilter);
     sel.classList.toggle('active', !!teamFilter);
   }
 
@@ -2473,41 +2485,41 @@ updateTournamentSelectDropdown();
   const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
   const scoped = (fn, ...a) => { filterScope = true; try { return fn(...a); } finally { filterScope = false; } };
 
-  wrap('allMatches', o => { const l = o(); return filterScope && teamFilter ? l.filter(x => inF(x.cat, x.m)) : l; });
+  wrap('allMatches', o => { const l = o(); return filterScope && (teamFilter || catFilter) ? l.filter(x => inF(x.cat, x.m)) : l; });
   wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // clash checks always look at the full category
   wrap('renderMatchesByTimeSlot', (o, cat) => {
-    if (!teamFilter) return o(cat);
+    if (!teamFilter && !catFilter) return o(cat);
     return o({ ...cat, matches: cat.matches.filter(m => inF(cat, m)), _full: cat });
   });
   wrap('renderCategories', o => {
-    if (!teamFilter) { o(); return; }
+    if (!teamFilter && !catFilter) { o(); return; }
     const all = state.categories;
-    state.categories = all.filter(c => c.teams.includes(teamFilter));
+    state.categories = all.filter(c => (!catFilter || c.id === catFilter) && (!teamFilter || c.teams.includes(teamFilter)));
     try { o(); } finally { state.categories = all; }
     document.getElementById('categoriesContainer').insertAdjacentHTML('afterbegin',
-      `<div class="team-banner"><span>Showing only matches for <b>${esc(teamFilter)}</b></span><button type="button" onclick="clearTeamFilter()">Show all teams</button></div>`);
+      `<div class="team-banner"><span>Showing only ${filterName()}</span><button type="button" onclick="clearTeamFilter()">Show everything</button></div>`);
   });
   wrap('renderSchedule', o => {
     scoped(o);
-    if (teamFilter && !document.querySelector('#scheduleBody tr.schedule-row')) {
-      document.getElementById('scheduleBody').innerHTML = `<p class="py-6 text-center text-gray-500 text-sm">No matches for ${esc(teamFilter)}</p>`;
+    if ((teamFilter || catFilter) && !document.querySelector('#scheduleBody tr.schedule-row')) {
+      document.getElementById('scheduleBody').innerHTML = `<p class="py-6 text-center text-gray-500 text-sm">No matches for ${filterName()}</p>`;
     }
     decorateSchedule(); highlight();
   });
   wrap('renderNextUp', o => {
     scoped(o);
-    if (teamFilter) document.getElementById('nextUp').insertAdjacentHTML('afterbegin', `<div class="text-xs text-gray-500 mb-1">Next match for <b>${esc(teamFilter)}</b></div>`);
+    if (teamFilter || catFilter) document.getElementById('nextUp').insertAdjacentHTML('afterbegin', `<div class="text-xs text-gray-500 mb-1">Showing ${filterName()}</div>`);
   });
   wrap('updateCounts', o => {
     o();
-    if (!teamFilter) return;
+    if (!teamFilter && !catFilter) return;
     const total = state.categories.reduce((s, c) => s + c.matches.length, 0);
     const n = scoped(() => allMatches().length);
     countEl.textContent = `${n} of ${total} matches`;
     document.getElementById('totalMatches').textContent = n;
   });
   wrap('refreshDerived', (o, id) => { o(id); highlight(); });
-  wrap('selectTournament', (o, id, force) => { teamFilter = ''; return o(id, force); });
+  wrap('selectTournament', (o, id, force) => { teamFilter = ''; catFilter = ''; return o(id, force); });
   wrap('render', o => {
     renderTeamFilter();
     o();
@@ -2517,13 +2529,13 @@ updateTournamentSelectDropdown();
   });
 
   function applyFilter() {
-    teamFilter = sel.value;
-    sel.blur();   // a focused dropdown would hold back live score updates
-    sel.classList.toggle('active', !!teamFilter);
+    sel.blur(); catSel.blur();   // a focused dropdown would hold back live score updates
+    renderTeamFilter();
     renderCategories(); renderSchedule(); renderNextUp(); updateCounts(); highlight();
   }
-  sel.addEventListener('change', applyFilter);
-  window.clearTeamFilter = () => { sel.value = ''; applyFilter(); };
+  catSel.addEventListener('change', () => { catFilter = catSel.value; teamFilter = ''; applyFilter(); });
+  sel.addEventListener('change', () => { teamFilter = sel.value; applyFilter(); });
+  window.clearTeamFilter = () => { catFilter = ''; teamFilter = ''; applyFilter(); };
 
   if (currentView === 'tournament') render();
 })();
