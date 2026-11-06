@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6023887019214036"
-     crossorigin="anonymous"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MatchBoard</title>
@@ -58,6 +56,22 @@
   .court-chip { padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid #d1d5db; background: white; color: #4b5563; cursor: pointer; }
   .court-chip:hover { background: #f9fafb; }
   .court-chip.on { background: #10b981; border-color: #10b981; color: white; }
+  .score-pill { min-width: 68px; text-align: center; padding: 6px 10px; border-radius: 6px; border: 2px solid #e5e7eb; background: white; font-weight: 700; font-size: 14px; color: #9ca3af; white-space: nowrap; }
+  .score-pill.filled { background: #f0fdf4; border-color: #10b981; color: #065f46; }
+  .standings-table th, .standings-table td, .schedule-table th, .schedule-table td { border-bottom: 1px solid #cbd5e1; }
+  .standings-table th, .schedule-table th { border-bottom-color: #94a3b8; }
+  .standings-table th:not(:last-child), .standings-table td:not(:last-child), .schedule-table th:not(:last-child), .schedule-table td:not(:last-child) { border-right: 1px solid #e2e8f0; }
+  .status-badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .status-badge.live { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  .status-badge.done { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #d97706; display: inline-block; animation: pulse 1.6s infinite; }
+  .status-btn { padding: 4px 8px; font-size: 11px; white-space: nowrap; }
+  .status-btn.on-live { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+  .status-btn.on-done { background: #10b981; border-color: #10b981; color: #fff; }
+  .match-card.is-live { box-shadow: 0 0 0 2px #f59e0b; }
+  .schedule-row.is-live td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
+  .status-in-time { display: none; }
+  @media (max-width: 639px) { .status-in-time { display: inline-flex; margin-top: 2px; } }
 </style>
 </head>
 <body>
@@ -84,6 +98,7 @@
         <span class="w-2 h-2 bg-emerald-500 rounded-full live-pulse"></span>
         <span class="text-xs font-medium text-emerald-700">Live</span>
       </div>
+      <span id="saveState" class="text-xs text-gray-400 whitespace-nowrap"></span>
       <button id="exportPdfBtn" class="header-btn">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
         Export PDF
@@ -99,6 +114,7 @@
     </div>
   </div>
 </header>
+<div id="storageWarn" class="hidden bg-amber-50 border-b border-amber-200 text-amber-900 text-xs px-4 py-2 text-center">This browser is not letting the page save data (private window or embedded preview), so your schedule will be lost when you close it. Use <b>Save page with data</b> on the Home screen to keep a copy.</div>
 
 <!-- HOMEPAGE VIEW -->
 <div id="homeView" class="max-w-7xl mx-auto px-4 py-8">
@@ -106,6 +122,13 @@
     <div>
       <h1 class="text-2xl font-bold text-gray-900">Shared Tournaments</h1>
       <p class="text-sm text-gray-500">View and manage all active tournament schedules</p>
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button class="btn" onclick="recoverDialog()">Recover tournaments</button>
+        <button class="btn" onclick="savePageCopy()">Save page with data</button>
+        <button class="btn" onclick="exportBackup()">Download backup</button>
+        <button class="btn" onclick="document.getElementById('importFile').click()">Import backup</button>
+        <input type="file" id="importFile" accept=".json,application/json" class="hidden">
+      </div>
 
 
     </div>
@@ -144,6 +167,10 @@
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
         Full schedule
       </button>
+      <button id="tabStandings" class="tab-inactive px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 text-gray-600">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Standings
+      </button>
     </div>
     <div class="flex items-center gap-2">
       <span id="matchCount" class="text-xs text-gray-500">0 matches</span>
@@ -155,7 +182,7 @@
   <div id="categoryView" class="max-w-7xl mx-auto px-4 pb-12">
     <div class="grid grid-cols-12 gap-4">
       <!-- LEFT: SETUP PANEL -->
-      <div class="col-span-4">
+      <div id="setupCol" class="col-span-4">
         <div class="bg-white rounded-lg border border-gray-200 p-4">
           <h3 class="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
             <svg class="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
@@ -217,6 +244,9 @@
               <button id="resetMovesBtn" class="btn w-full">Reset manual moves</button>
               <p class="text-xs text-gray-500 mt-1">Puts every moved match back to its automatic time.</p>
             </div>
+            <div class="border-t border-gray-100 pt-3">
+              <button id="deleteTournamentBtn" class="btn w-full" style="color:#dc2626;border-color:#fca5a5" onclick="deleteTournament(currentScheduleId)">Delete tournament</button>
+            </div>
             <div id="passwordSection" class="hidden border-t border-gray-100 pt-3 space-y-2">
               <label class="block text-xs font-medium text-gray-700">Change edit password</label>
               <input type="password" id="newPassword" placeholder="New password" class="w-full">
@@ -241,7 +271,8 @@
 
 
       <!-- RIGHT: CATEGORIES & MATCHES -->
-      <div class="col-span-8 space-y-4">
+      <div id="mainCol" class="col-span-8 space-y-4">
+        <div id="viewInfo" class="hidden bg-white rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-700"></div>
         <!-- NEXT UP -->
         <div class="bg-white rounded-lg border border-gray-200 p-4">
           <div class="flex items-center gap-2 text-xs font-medium text-gray-700 mb-2">
@@ -275,9 +306,36 @@
       <div id="scheduleBody" class="space-y-6"></div>
     </div>
   </div>
+
+  <!-- STANDINGS VIEW -->
+  <div id="standingsView" class="max-w-7xl mx-auto px-4 pb-12 hidden">
+    <div id="standingsBody" class="space-y-4"></div>
+  </div>
 </div>
 
+<!-- Tournaments saved inside this page by "Save page with data" live here -->
+<script id="embeddedBackup" type="application/json"></script>
 <script>
+// A clean copy of this page as it was loaded (used by "Save page with data")
+const PRISTINE_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+// If the browser blocks saving (private window, embedded preview), keep working in memory and warn.
+(function ensureStorage() {
+  let ok = false;
+  try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); ok = true; } catch (e) {}
+  window.__storageOK = ok;
+  if (ok) return;
+  const mem = {};
+  const shim = {
+    getItem: k => (k in mem ? mem[k] : null),
+    setItem: (k, v) => { mem[k] = String(v); },
+    removeItem: k => { delete mem[k]; },
+    key: i => Object.keys(mem)[i] ?? null,
+    get length() { return Object.keys(mem).length; }
+  };
+  try { Object.defineProperty(window, 'localStorage', { value: shim, configurable: true }); } catch (e) {}
+})();
+
 // ============================================
 // FIREBASE CONFIG & SCHEDULER STATE
 // ============================================
@@ -317,15 +375,32 @@ try {
   }
 } catch (e) { console.log("Firebase not configured", e); db = null; }
 
-let currentScheduleId = 'schedule1';
-let tournamentList = { 'schedule1': { id: 'schedule1', name: 'Schedule 1' } };
+function getOwnerId() {
+  try {
+    let id = localStorage.getItem('matchboard_owner');
+    if (!id) { id = 'u_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); localStorage.setItem('matchboard_owner', id); }
+    return id;
+  } catch (e) { return 'u_session_' + Math.random().toString(36).slice(2, 10); }
+}
+const MY_ID = getOwnerId();           // identifies this browser as a tournament owner
+const isOwner = t => !!t && t.owner === MY_ID;
+function newTid() { return 'tourn_' + Date.now() + Math.random().toString(36).slice(2, 6); }
+let currentScheduleId = '';
+let tournamentList = {};
 
 // LocalStorage Persistence Fallback for Shared Tournaments
 function getStoredTournaments() {
-  try {
-    const data = localStorage.getItem('matchboard_tournaments');
-    return data ? JSON.parse(data) : { 'schedule1': { id: 'schedule1', name: 'Schedule 1' } };
-  } catch(e) { return { 'schedule1': { id: 'schedule1', name: 'Schedule 1' } }; }
+  let list = null;
+  try { const d = localStorage.getItem('matchboard_tournaments'); list = d ? JSON.parse(d) : null; } catch (e) {}
+  if (!list || typeof list !== 'object' || !Object.keys(list).length) {
+    if (new URLSearchParams(location.search).get('t')) return {}; // someone opening a share link starts with no tournaments of their own
+    const id = newTid();
+    return { [id]: { id, name: 'Schedule 1', owner: MY_ID } };
+  }
+  Object.values(list).forEach(t => {
+    if (!t.owner && !t.shared) { if (/^Shared Tournament/.test(t.name || '')) t.shared = true; else t.owner = MY_ID; }
+  });
+  return list;
 }
 function saveStoredTournaments(list) {
   try { localStorage.setItem('matchboard_tournaments', JSON.stringify(list)); } catch(e){}
@@ -336,11 +411,46 @@ function getStoredScheduleData(id) {
     return data ? JSON.parse(data) : null;
   } catch(e) { return null; }
 }
+function markSaved(ok) {
+  const el = document.getElementById('saveState');
+  if (!el) return;
+  if (!window.__storageOK) { el.textContent = 'Not saved'; el.style.color = '#b45309'; el.title = 'This browser is blocking saving. Use Save page with data on the Home screen.'; return; }
+  el.textContent = ok ? 'Saved ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Could not save';
+  el.style.color = ok ? '#9ca3af' : '#dc2626';
+}
 function saveStoredScheduleData(id, d) {
-  try { localStorage.setItem('matchboard_data_' + id, JSON.stringify(d)); } catch(e){}
+  try { localStorage.setItem('matchboard_data_' + id, JSON.stringify(d)); markSaved(true); } catch(e){ markSaved(false); }
 }
 
 tournamentList = getStoredTournaments();
+saveStoredTournaments(tournamentList);
+
+// Tournaments saved inside this page (Save page with data) come back automatically
+(function importEmbedded() {
+  let j;
+  try { j = JSON.parse(document.getElementById('embeddedBackup').textContent || 'null'); } catch (e) { return; }
+  const items = (j && Array.isArray(j.tournaments)) ? j.tournaments : [];
+  if (!items.length) return;
+  let added = 0;
+  items.forEach(t => {
+    if (!t || !t.id || !t.data) return;
+    const local = getStoredScheduleData(t.id);
+    const localHasData = local && local.categories && Object.keys(local.categories).length;
+    if (tournamentList[t.id] && localHasData) return;           // this browser already has its own copy
+    tournamentList[t.id] = { id: t.id, name: t.name || t.data.tName || 'Tournament', owner: MY_ID };
+    saveStoredScheduleData(t.id, t.data);
+    added++;
+  });
+  if (added) {
+    // drop the empty starter tournament that a brand-new browser creates
+    Object.values(tournamentList).forEach(t => {
+      const d = getStoredScheduleData(t.id);
+      if (t.name === 'Schedule 1' && !(d && d.categories && Object.keys(d.categories).length) && Object.keys(tournamentList).length > 1) delete tournamentList[t.id];
+    });
+    saveStoredTournaments(tournamentList);
+  }
+})();
+currentScheduleId = Object.keys(tournamentList)[0] || '';
 
 function getDbPath() {
   return 'matchboard/' + currentScheduleId;
@@ -371,7 +481,12 @@ async function exportToPDF() {
     }
 
 
-    const numberOf = new Map(list.map((x, i) => [x.m, i + 1]));
+    let seq = 0;
+    const labelOf = new Map(list.map(x => {
+      const m = x.m;
+      if (m.stage !== 'ko') return [m, 'M' + (++seq)];
+      return [m, { sf1: 'SF1', sf2: 'SF2', third: '3/4', final: 'Finals' }[m.id] || String(m.round).toUpperCase()];
+    }));
     const courtNos = [...new Set(list.map(x => x.m.courtNo))].sort((a, b) => a - b);
 
 
@@ -386,78 +501,92 @@ async function exportToPDF() {
     };
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.setTextColor(0);
-    doc.text((state.tName || 'TOURNAMENT SCHEDULE').toUpperCase(), 14, 18);
+    doc.text((state.tName || 'TOURNAMENT SCHEDULE').toUpperCase(), 8, 11);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`${list.length} matches  |  ${courtNos.length} court(s)  |  ${mm} min per match`, 14, 25);
+    doc.setFontSize(9);
+    doc.text(`${list.length} matches  |  ${courtNos.length} court(s)  |  ${mm} min per match`, 8, 16.5);
 
     const pageH = doc.internal.pageSize.getHeight();
-    let y = 34;
+    let y = 24;
 
     courtNos.forEach(cn => {
       const rows = list.filter(x => x.m.courtNo === cn);
-      if (y > pageH - 45) { doc.addPage(); y = 18; }
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.setTextColor(30, 58, 138);
-      doc.text(`COURT ${cn}  -  ${rows.length} match${rows.length === 1 ? '' : 'es'}`, 14, y);
-
       const body = [], meta = [];
       let lastDay = -1;
+      let nBreaks = 0;
       let prevM = null;
       rows.forEach(({ cat, m }) => {
         const brk = checkBreakBetween(prevM, m);
         if (brk) {
-          body.push([{ content: `☕ ${brk.label.toUpperCase()} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})`, colSpan: 5, styles: { fillColor: [254, 243, 199], textColor: [146, 64, 14], fontStyle: 'bold', halign: 'center' } }]);
+          body.push([{ content: `${brk.label.toUpperCase()} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})`, colSpan: 7, styles: { fillColor: [254, 243, 199], textColor: [146, 64, 14], fontStyle: 'bold', halign: 'center', fontSize: 7, cellPadding: 1, minCellHeight: 5 } }]);
           meta.push(null);
+          nBreaks++;
         }
         prevM = m;
         if (m.day !== lastDay) {
           lastDay = m.day;
           body.push([{
             content: `DAY ${m.day + 1}: ${dateOf(m.day)}`,
-            colSpan: 5,
+            colSpan: 7,
             styles: { fillColor: [229, 231, 235], fontStyle: 'bold', textColor: [31, 41, 55] }
           }]);
           meta.push(null);
         }
         const isKO = m.stage === 'ko';
         body.push([
-          `M${numberOf.get(m)}`,
+          labelOf.get(m),
           `${m.time} - ${formatTime(m.timeMin + mm)}`,
-          `${displayName(cat, m, 1)} vs ${displayName(cat, m, 2)}`,
-          (m.score1 !== '' || m.score2 !== '') ? `${m.score1 !== '' ? m.score1 : '0'} - ${m.score2 !== '' ? m.score2 : '0'}` : '',
-          `${cat.name}${m.group ? ` (Group ${m.group})` : ''}${isKO ? ` - ${m.round}` : ''}`
+          displayName(cat, m, 1),
+          m.score1 !== '' ? String(m.score1) : '',
+          m.score2 !== '' ? String(m.score2) : '',
+          displayName(cat, m, 2),
+          `${cat.name}${m.group ? ` (${m.group})` : ''}${isKO ? ` - ${m.round}` : ''}`
         ]);
-        meta.push({ color: cat.color, isKO });
+        meta.push({ color: cat.color, gcolor: m.group ? groupColor(m.group, cat) : null, isKO, s1: m.score1, s2: m.score2 });
       });
+
+      // keep this court's schedule on a single page whenever it can fit
+      const usable = pageH - 15 - 16 - 14;                    // page height minus margins and the court title
+      const estimate = rh => 10 + (body.length - nBreaks) * rh + nBreaks * 5 + 4;       // header row + every row
+      let rowH = 11;
+      while (rowH > 8 && estimate(rowH) > usable) rowH -= 0.5; // squeeze rows a little if needed
+      if (y + 14 + estimate(rowH) > pageH - 16 && estimate(rowH) <= usable) { doc.addPage(); y = 18; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(30, 58, 138);
+      doc.text(`COURT ${cn}  -  ${rows.length} match${rows.length === 1 ? '' : 'es'}`, 8, y);
 
       doc.autoTable({
         startY: y + 3,
+        rowPageBreak: 'avoid',
         theme: 'grid',
         styles: { lineColor: [170, 178, 190], lineWidth: 0.25 },
-        head: [['Match #', 'Time', 'Game', 'Score', 'Category']],
+        head: [['Match #', 'Time', { content: 'Team 1', styles: { halign: 'right' } }, { content: 'Score', colSpan: 2, styles: { halign: 'center' } }, 'Team 2', 'Category']],
         body,
-        margin: { left: 14, right: 14, top: 15, bottom: 16 },
+        margin: { left: 8, right: 8, top: 15, bottom: 16 },
         columnStyles: {
-          0: { cellWidth: 18, fontStyle: 'bold' },
+          0: { cellWidth: 15, fontStyle: 'bold' },
           1: { cellWidth: 36 },
-          2: { cellWidth: 62 },
-          3: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
-          4: { cellWidth: 'auto' }
+          2: { cellWidth: 38, halign: 'right', fontStyle: 'bold' },
+          3: { cellWidth: 14, halign: 'center', fontStyle: 'bold', fontSize: 11 },
+          4: { cellWidth: 14, halign: 'center', fontStyle: 'bold', fontSize: 11 },
+          5: { cellWidth: 38, fontStyle: 'bold' },
+          6: { cellWidth: 'auto' }
         },
         headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', fontSize: 10 },
-        bodyStyles: { fontSize: 9, cellPadding: 3 },
+        bodyStyles: { fontSize: 9, cellPadding: rowH >= 10 ? 3 : 2, minCellHeight: rowH, valign: 'middle' },
         alternateRowStyles: { fillColor: [245, 247, 250] },
         didParseCell: function (data) {
           if (data.section !== 'body') return;
           const info = meta[data.row.index];
           if (!info) return;
-          if (data.column.index === 0 || data.column.index === 4) {
-            data.cell.styles.fillColor = tint(info.color);
+          if (data.column.index === 0 || data.column.index === 6) {
+            if (data.column.index === 6 && info.gcolor) {
+              const gh = info.gcolor.replace('#', '');
+              data.cell.styles.fillColor = [parseInt(gh.slice(0, 2), 16), parseInt(gh.slice(2, 4), 16), parseInt(gh.slice(4, 6), 16)];
+            } else data.cell.styles.fillColor = tint(info.color);
           }
           if (info.isKO && data.column.index === 0) {
             data.cell.styles.fillColor = [255, 235, 59];
@@ -476,7 +605,7 @@ async function exportToPDF() {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(128);
-      doc.text(`Page ${i} of ${pages}`, 14, pageH - 8);
+      doc.text(`Page ${i} of ${pages}`, 8, pageH - 8);
     }
 
 
@@ -516,7 +645,8 @@ const toMin = s => { const [h, m] = String(s).split(':').map(Number); return (h 
 const getCat = id => state.categories.find(c => c.id === id);
 const groupLetters = n => Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i));
 const isGrouped = c => c.format === 'groups-playoffs';
-const done = m => m.score1 !== '' && m.score2 !== '' && !isNaN(m.score1) && !isNaN(m.score2);
+const done = m => m.status !== 'ongoing' && m.score1 !== '' && m.score2 !== '' && !isNaN(m.score1) && !isNaN(m.score2);
+const finished = m => m.status === 'completed' || done(m);
 const ord = p => ['1st', '2nd', '3rd', '4th'][p - 1];
 const matchOrder = (a, b) => (a.slot - b.slot) || (a.courtNo - b.courtNo);
 const safeId = s => s.replace(/[.#$\[\]\/\s|]/g, '_');
@@ -600,9 +730,21 @@ let loaded = !db;
 let pendingRemote = null;
 let currentView = 'home'; // 'home' | 'tournament'
 
+// Every group of a category is a different shade of that category's colour
+const hexMixWhite = (hex, r) => {
+  const n = parseInt(String(hex).replace('#', '').padEnd(6, '0').slice(0, 6), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => Math.round(255 * (1 - r) + v * r));
+  return '#' + ch.map(v => v.toString(16).padStart(2, '0')).join('');
+};
+const groupColor = (g, cat) => {
+  const idx = Math.max(0, String(g).charCodeAt(0) - 65);
+  const n = Math.max(2, (cat && cat.groups) || 2);
+  return hexMixWhite((cat && cat.color) || '#3b82f6', 0.22 + 0.5 * Math.min(idx, n - 1) / (n - 1));
+};
+const groupBadge = (g, cat, label) => `<span class="group-badge" style="background:${groupColor(g, cat)};color:#111827">${label === undefined ? g : label}</span>`;
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 let savedGroupSelections = {};
-const DEFAULT_PASSWORD = '1234';
+const DEFAULT_PASSWORD = 'admin123';
 const SETUP_IDS = ['tNameInput', 'eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts'];
 
 function switchMainView(view) {
@@ -627,20 +769,31 @@ function updateTournamentSelectDropdown() {
 
 let listeningPath = null;
 function attachDbListener() {
-  if (!db) return;
+  if (!db || !currentScheduleId) return;
   if (listeningPath) db.ref(listeningPath).off();
   listeningPath = getDbPath();
   db.ref(listeningPath).on('value', snap => {
     if (echo) return;
     loaded = true;
     const d = snap.val();
-    if (!d) return;
+    if (!d) {
+      const local = getStoredScheduleData(currentScheduleId);
+      if (local && looksLikeState(local) && isOwner(tournamentList[currentScheduleId])) { applyRemote(local); save(); }
+      return;
+    }
     if (isTyping()) { pendingRemote = d; return; }
     applyRemote(d);
   });
 }
-function selectTournament(id) {
-  if (currentScheduleId === id) return;
+function leaveEditMode() {
+  if (!editMode) return;
+  editMode = false;
+  document.getElementById('editModeBtn').classList.remove('active');
+  document.getElementById('editModeText').textContent = 'Edit';
+}
+function selectTournament(id, force) {
+  if (currentScheduleId === id && !force) { switchMainView('tournament'); return; }
+  leaveEditMode();
   currentScheduleId = id;
   updateTournamentSelectDropdown();
   if (db) {
@@ -664,76 +817,240 @@ function selectTournament(id) {
 }
 
 function createNewTournament() {
-  const id = 'tourn_' + Date.now();
+  const id = newTid();
   const name = prompt("Enter tournament name:", "New Tournament");
   if (!name) return;
-  tournamentList[id] = { id, name };
+  tournamentList[id] = { id, name, owner: MY_ID };
   saveStoredTournaments(tournamentList);
-  if (db) db.ref('matchboard_list/' + id).set({ id, name });
+  if (db) db.ref('matchboard_list/' + id).set({ id, name, owner: MY_ID });
   selectTournament(id);
+}
+
+function leaveCurrentIf(id) {
+  if (currentScheduleId !== id) { renderHome(); return; }
+  leaveEditMode();
+  currentScheduleId = '';
+  switchMainView('home');
 }
 
 function deleteTournament(id, e) {
   if (e) e.stopPropagation();
+  const t = tournamentList[id];
+  if (!t) return;
+  if (!isOwner(t)) {
+    // only the owner can delete; everyone else can just take it off their own list
+    confirmDialog(`Remove "${t.name}" from your list? It is not deleted for anyone else.`, () => {
+      delete tournamentList[id];
+      saveStoredTournaments(tournamentList);
+      leaveCurrentIf(id);
+    }, 'Remove');
+    return;
+  }
   if (Object.keys(tournamentList).length <= 1) {
     toast("Cannot delete the only tournament.");
     return;
   }
-  confirmDialog(`Are you sure you want to delete tournament "${tournamentList[id]?.name}"?`, () => {
+  confirmDialog(`Delete "${t.name}" for everyone? This cannot be undone.`, () => {
     delete tournamentList[id];
     saveStoredTournaments(tournamentList);
+    try { localStorage.removeItem('matchboard_data_' + id); } catch (err) {}
     if (db) {
       db.ref('matchboard_list/' + id).remove();
       db.ref('matchboard/' + id).remove();
     }
-    if (currentScheduleId === id) {
-      selectTournament(Object.keys(tournamentList)[0]);
-    } else {
-      renderHome();
-    }
+    leaveCurrentIf(id);
   }, 'Delete');
 }
 
 function renderHome() {
   updateTournamentSelectDropdown();
   const grid = document.getElementById('tournamentsGrid');
-  grid.innerHTML = Object.values(tournamentList).map(t => {
+  const items = Object.values(tournamentList);
+  if (!items.length) {
+    grid.innerHTML = '<p class="text-sm text-gray-500 col-span-full">No tournaments yet. Create one, or open a link someone shared with you.</p>';
+    return;
+  }
+  grid.innerHTML = items.map(t => {
     const isCurrent = t.id === currentScheduleId;
+    const mine = isOwner(t);
     return `
       <div class="bg-white rounded-lg border border-gray-200 p-5 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col justify-between" onclick="selectTournament('${t.id}')">
         <div>
-          <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center justify-between mb-2 gap-2">
             <span class="font-bold text-gray-900 text-base">${esc(t.name)}</span>
-            ${isCurrent ? '<span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Active</span>' : ''}
+            <div class="flex items-center gap-1">
+              ${isCurrent ? '<span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Active</span>' : ''}
+              ${mine ? '<span class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-semibold">Yours</span>' : '<span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold">Shared with you</span>'}
+            </div>
           </div>
-          <p class="text-xs text-gray-500 mb-4">ID: ${t.id}</p>
         </div>
         <div class="flex items-center justify-between border-t border-gray-100 pt-3">
-          <span class="text-xs font-medium text-emerald-600 hover:text-emerald-700">Open Schedule &rarr;</span>
-          <button class="text-xs text-red-500 hover:text-red-700 p-1" onclick="deleteTournament('${t.id}', event)">Delete</button>
+          <span class="text-xs font-medium text-emerald-600 hover:text-emerald-700">${mine ? 'Open Schedule' : 'View Schedule'} &rarr;</span>
         </div>
       </div>
     `;
   }).join('');
 }
 
-// Listen to online tournament list if Firebase configured
+// ---- Getting old tournaments back ----
+const toArr = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+function looksLikeState(d) { return !!d && typeof d === 'object' && !Array.isArray(d) && d.categories != null && typeof d.categories === 'object'; }
+function describeData(d) {
+  const cats = toArr(d && d.categories);
+  const teams = cats.reduce((n, c) => n + toArr(c.teams).length, 0);
+  return `${cats.length} categor${cats.length === 1 ? 'y' : 'ies'}, ${teams} team${teams === 1 ? '' : 's'}`;
+}
+function localCandidates() {
+  const found = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || k === 'matchboard_tournaments' || k === 'matchboard_fb') continue;
+      let v; try { v = JSON.parse(localStorage.getItem(k)); } catch (e) { continue; }
+      if (!looksLikeState(v)) continue;
+      const id = k.startsWith('matchboard_data_') ? k.slice('matchboard_data_'.length) : 'old_' + k.replace(/[^A-Za-z0-9_-]/g, '_');
+      if (tournamentList[id]) continue;
+      found.push({ src: 'local', id, name: v.tName || (tournamentList[id] && tournamentList[id].name) || id, data: v });
+    }
+  } catch (e) {}
+  return found;
+}
+async function onlineCandidates() {
+  if (!db) return [];
+  const [ls, ds] = await Promise.all([db.ref('matchboard_list').once('value'), db.ref('matchboard').once('value')]);
+  const list = ls.val() || {}, data = ds.val() || {};
+  return [...new Set([...Object.keys(list), ...Object.keys(data)])]
+    .filter(id => !tournamentList[id] && (looksLikeState(data[id]) || list[id]))
+    .map(id => ({ src: 'online', id, name: (list[id] && list[id].name) || (data[id] && data[id].tName) || id, owner: list[id] ? list[id].owner : undefined, data: data[id] }));
+}
+function restoreCandidates(items) {
+  items.forEach(c => {
+    const mine = c.src === 'local' || !c.owner || c.owner === MY_ID; // older versions had no owner
+    tournamentList[c.id] = mine ? { id: c.id, name: c.name, owner: MY_ID } : { id: c.id, name: c.name, shared: true };
+    if (c.src === 'local') saveStoredScheduleData(c.id, c.data);
+    if (db && mine) {
+      db.ref('matchboard_list/' + c.id).set({ id: c.id, name: c.name, owner: MY_ID });
+      if (c.data) db.ref('matchboard/' + c.id).once('value').then(x => { if (!x.val()) db.ref('matchboard/' + c.id).set(c.data); });
+    }
+  });
+  saveStoredTournaments(tournamentList);
+  renderHome();
+}
+async function recoverDialog() {
+  const o = showModal(`<h3 class="font-semibold text-gray-900 mb-2">Recover tournaments</h3><p class="text-xs text-gray-500">Looking…</p>`);
+  o.firstElementChild.style.width = 'min(440px, 92vw)';
+  let items = localCandidates(), err = '';
+  try { items = items.concat(await onlineCandidates()); } catch (e) { err = 'Could not read the online database: ' + (e.message || e); }
+  const row = (c, i) => `<label class="flex items-start gap-2 py-2 border-b border-gray-100 text-sm">
+      <input type="checkbox" data-i="${i}" ${c.src === 'online' && c.owner && c.owner !== MY_ID ? '' : 'checked'} style="margin-top:3px">
+      <span><span class="font-medium text-gray-900">${esc(c.name)}</span><br>
+      <span class="text-xs text-gray-500">${c.src === 'local' ? 'Found in this browser' : (c.owner && c.owner !== MY_ID ? 'Online · created by someone else (added as shared)' : 'Online')}${c.data ? ' · ' + esc(describeData(c.data)) : ''}</span></span>
+    </label>`;
+  o.firstElementChild.innerHTML = `<h3 class="font-semibold text-gray-900 mb-1">Recover tournaments</h3>
+    <p class="text-xs text-gray-500 mb-2">${db ? 'Searched this browser and the online database.' : 'Searched this browser. Connect Firebase (Share → Set up live sharing) to also search online.'}</p>
+    ${err ? `<p class="text-xs text-red-500 mb-2">${esc(err)}</p>` : ''}
+    <div style="max-height:50vh;overflow:auto">${items.length ? items.map(row).join('') : '<p class="text-sm text-gray-500 py-3">Nothing new found. If your old tournaments were saved on another computer, browser or web address, use Download backup there and Import backup here.</p>'}</div>
+    <div class="flex gap-2 mt-3"><button class="btn flex-1" data-c>Close</button>${items.length ? '<button class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-r>Restore selected</button>' : ''}</div>`;
+  o.querySelector('[data-c]').onclick = () => o.remove();
+  const r = o.querySelector('[data-r]');
+  if (r) r.onclick = () => {
+    const picked = [...o.querySelectorAll('input[type=checkbox]')].filter(x => x.checked).map(x => items[+x.dataset.i]);
+    if (!picked.length) { toast('Nothing selected.'); return; }
+    restoreCandidates(picked);
+    o.remove();
+    toast(`Restored ${picked.length} tournament${picked.length === 1 ? '' : 's'}.`);
+  };
+}
+function collectBackupItems() {
+  return Object.values(tournamentList).map(t => {
+    const data = (t.id === currentScheduleId && state && toArr(state.categories).length) ? state : getStoredScheduleData(t.id);
+    return data ? { id: t.id, name: t.name, data } : null;
+  }).filter(Boolean);
+}
+function savePageCopy() {
+  const items = collectBackupItems();
+  if (!items.length) { toast('Nothing to save yet. Open a tournament and add some teams first.'); return; }
+  const json = JSON.stringify({ app: 'matchboard', version: 1, savedAt: new Date().toISOString(), tournaments: items }).replace(/</g, '\\u003c');
+  let html = PRISTINE_HTML.replace(/(<script id="embeddedBackup" type="application\/json">)[\s\S]*?(<\/script>)/, (m, a, b) => a + json + b);
+  // drop any style tags other scripts (like the Tailwind CDN) added while the page was loading
+  const headEnd = html.indexOf('</head>');
+  html = html.slice(0, headEnd).replace(/<style[^>]*>[\s\S]*?<\/style>/g, m => (m.includes('.match-card {') ? m : '')) + html.slice(headEnd);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'MatchBoard_saved_' + new Date().toISOString().slice(0, 10) + '.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast(`Saved a copy of this page with ${items.length} tournament${items.length === 1 ? '' : 's'} inside it.`);
+}
+function exportBackup() {
+  const items = Object.values(tournamentList).map(t => {
+    const data = (t.id === currentScheduleId && state && toArr(state.categories).length) ? state : getStoredScheduleData(t.id);
+    return data ? { id: t.id, name: t.name, data } : null;
+  }).filter(Boolean);
+  if (!items.length) { toast('Nothing to back up yet. Open a tournament first so its data is saved here.'); return; }
+  const blob = new Blob([JSON.stringify({ app: 'matchboard', version: 1, tournaments: items }, null, 1)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'MatchBoard_backup_' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast(`Backup of ${items.length} tournament${items.length === 1 ? '' : 's'} saved.`);
+}
+document.getElementById('importFile').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const j = JSON.parse(rd.result);
+      const items = toArr(j.tournaments).filter(t => t && looksLikeState(t.data));
+      if (!items.length) { toast('That file has no tournaments in it.'); return; }
+      items.forEach(t => {
+        let id = t.id || newTid(), name = t.name || t.data.tName || 'Imported tournament';
+        if (tournamentList[id]) { id = newTid(); name += ' (imported)'; }
+        t.data.tName = name;
+        tournamentList[id] = { id, name, owner: MY_ID };
+        saveStoredScheduleData(id, t.data);
+        if (db) {
+          db.ref('matchboard_list/' + id).set({ id, name, owner: MY_ID });
+          db.ref('matchboard/' + id).set(JSON.parse(JSON.stringify(t.data)));
+        }
+      });
+      saveStoredTournaments(tournamentList);
+      renderHome();
+      toast(`Imported ${items.length} tournament${items.length === 1 ? '' : 's'}.`);
+    } catch (err) { toast('That file could not be read.'); }
+  };
+  rd.readAsText(f);
+});
+
+// Online list: used only to keep names up to date. Other people's tournaments are never added to your list.
 if (db) {
   db.ref('matchboard_list').on('value', snap => {
     const val = snap.val();
     if (localStorage.getItem('matchboard_migrate')) {
       try { localStorage.removeItem('matchboard_migrate'); } catch (e) {}
       Object.values(tournamentList).forEach(t => {
-        if (val && val[t.id]) return;
-        db.ref('matchboard_list/' + t.id).set({ id: t.id, name: t.name });
+        if (!isOwner(t) || (val && val[t.id])) return;
+        db.ref('matchboard_list/' + t.id).set({ id: t.id, name: t.name, owner: MY_ID });
         const local = getStoredScheduleData(t.id);
         if (local) db.ref('matchboard/' + t.id).once('value').then(x => { if (!x.val()) db.ref('matchboard/' + t.id).set(local); });
       });
     }
     if (val) {
-      if (!val[currentScheduleId] && tournamentList[currentScheduleId]) val[currentScheduleId] = tournamentList[currentScheduleId];
-      tournamentList = val;
-      saveStoredTournaments(val);
+      let dirty = false;
+      Object.values(tournamentList).forEach(t => {
+        const r = val[t.id];
+        if (r) {
+          if (r.name && r.name !== t.name) { t.name = r.name; dirty = true; }
+          if (!t.synced) { t.synced = true; dirty = true; }
+        } else if (t.synced && !isOwner(t) && t.id !== currentScheduleId) {
+          delete tournamentList[t.id]; dirty = true; // the owner deleted it
+        }
+      });
+      if (dirty) saveStoredTournaments(tournamentList);
       renderHome();
       updateTournamentSelectDropdown();
     }
@@ -811,12 +1128,28 @@ function applyModeUI() {
   const anyPin = state.categories.some(c => c.matches.some(m => m.pin));
   document.getElementById('resetMovesSection').classList.toggle('hidden', !(editMode && anyPin));
   document.getElementById('moveHint').classList.toggle('hidden', !editMode);
+  // viewing mode: hide the whole setup panel and show a read-only summary instead
+  document.getElementById('setupCol').classList.toggle('hidden', !editMode);
+  document.getElementById('deleteTournamentBtn').textContent = isOwner(tournamentList[currentScheduleId]) ? 'Delete tournament' : 'Remove from my list';
+  const mc = document.getElementById('mainCol');
+  mc.classList.toggle('col-span-8', editMode);
+  mc.classList.toggle('col-span-12', !editMode);
+  const vi = document.getElementById('viewInfo');
+  vi.classList.toggle('hidden', editMode);
+  if (!editMode) {
+    const bits = [`<span class="font-semibold text-gray-900">${esc(state.tName || 'Tournament')}</span>`];
+    if (state.eventDate) bits.push(esc(state.eventDate));
+    bits.push(`${formatTime(toMin(state.dayStarts))} – ${formatTime(toMin(state.playUntil))}`);
+    bits.push(`${state.courts} court${state.courts > 1 ? 's' : ''}`);
+    vi.innerHTML = bits.join(' <span class="text-gray-300">·</span> ');
+  }
 }
 
 // ============================================
 // PERSISTENCE
 // ============================================
 function save() {
+  if (!currentScheduleId) return;
   saveStoredScheduleData(currentScheduleId, state);
   if (!db || !loaded) return;
   echo = true;
@@ -824,11 +1157,21 @@ function save() {
   echo = false;
 }
 function saveScore(cat, m, side, value) {
+  if (!currentScheduleId) return;
   saveStoredScheduleData(currentScheduleId, state);
   if (!db || !loaded) return;
   const ci = state.categories.indexOf(cat), mi = cat.matches.indexOf(m);
   echo = true;
   try { db.ref(`${getDbPath()}/categories/${ci}/matches/${mi}/score${side}`).set(value); } catch (e) { console.error(e); }
+  echo = false;
+}
+function saveStatus(cat, m) {
+  if (!currentScheduleId) return;
+  saveStoredScheduleData(currentScheduleId, state);
+  if (!db || !loaded) return;
+  const ci = state.categories.indexOf(cat), mi = cat.matches.indexOf(m);
+  echo = true;
+  try { db.ref(`${getDbPath()}/categories/${ci}/matches/${mi}/status`).set(m.status || null); } catch (e) { console.error(e); }
   echo = false;
 }
 function normalize(d) {
@@ -852,7 +1195,7 @@ function normalize(d) {
     c.matches.forEach(m => {
 
 
-      m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? '';
+      m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? ''; m.status = m.status || '';
       m.team1 = m.team1 ?? null; m.team2 = m.team2 ?? null; m.group = m.group ?? null; m.deps = arr(m.deps);
     });
   });
@@ -993,13 +1336,14 @@ function buildMatches(cat) {
       const m = { id: safeId(`g_${group || 'x'}_${a}_${b}`), stage: 'group', round: 'Group stage', group, team1: a, team2: b, score1: '', score2: '' };
       if (prev) { const same = prev.team1 === a; m.score1 = same ? prev.score1 : prev.score2; m.score2 = same ? prev.score2 : prev.score1; }
       if (prev && prev.pin) m.pin = prev.pin;
+      if (prev && prev.status) m.status = prev.status;
       list.push(m);
     }));
   }
   const groupIds = list.map(m => m.id);
   koDefs(cat, groups, groupIds).forEach(k => {
     const prev = old['ko:' + k.id];
-    if (prev) { k.score1 = prev.score1; k.score2 = prev.score2; if (prev.pin) k.pin = prev.pin; }
+    if (prev) { k.score1 = prev.score1; k.score2 = prev.score2; if (prev.pin) k.pin = prev.pin; if (prev.status) k.status = prev.status; }
     list.push(k);
   });
   cat.matches = list;
@@ -1153,6 +1497,7 @@ function render() {
   renderBreaksInputs();
   renderCategories();
   renderSchedule();
+  renderStandingsView();
   renderNextUp();
   updateCounts();
 }
@@ -1167,7 +1512,7 @@ function renderCategories() {
           <span class="font-semibold text-gray-900 text-sm">${esc(cat.name)}</span>
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium">${getFormatLabel(cat.format)}</span>
+          <span class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium">${getFormatLabel(cat.format)}${isGrouped(cat) ? ' · ' + cat.groups + ' groups' : ''}</span>
           ${editMode ? `<button class="text-red-500 hover:text-red-700" onclick="deleteCategory('${cat.id}')">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
           </button>` : ''}
@@ -1176,6 +1521,7 @@ function renderCategories() {
 
       <div class="p-4 space-y-3">
         ${editMode ? `<input type="text" value="${esc(cat.name)}" class="w-full text-sm font-medium" onchange="updateCatName('${cat.id}', this.value)">` : ''}
+        ${editMode ? `
         <div class="grid grid-cols-2 gap-2">
           ${editMode ? `<select class="btn text-xs" onchange="updateCatFormat('${cat.id}', this.value)">
             <option value="round-robin" ${cat.format === 'round-robin' ? 'selected' : ''}>Round robin</option>
@@ -1207,6 +1553,8 @@ function renderCategories() {
           ${courtChips(cat, 'ko:' + m.id)}
         </div>`).join('')}
 
+        ` : ''}
+
         <div class="border-t border-gray-100 pt-3">
           <p class="text-xs font-medium text-gray-700 mb-2">Teams (${cat.teams.length}/16)</p>
           ${editMode ? `<div class="flex gap-2 mb-2">
@@ -1219,7 +1567,7 @@ function renderCategories() {
           </div>` : ''}
           <div class="flex flex-wrap gap-1.5" id="teamList-${cat.id}">
             ${cat.teams.map((team, index) => `
-              <div class="team-chip flex items-center bg-gray-50 border border-gray-200 rounded-md px-2 py-1">
+              <div class="team-chip flex items-center bg-gray-50 border border-gray-200 rounded-md px-2 py-1" style="${isGrouped(cat) && cat.groups > 1 ? `background:${groupColor(teamGroup(cat, index), cat)};border-color:${groupColor(teamGroup(cat, index), cat)};` : ''}">
                 ${editMode ? `<input type="text" value="${esc(team)}" class="bg-transparent border-0 p-0 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-blue-500 rounded" onchange="updateTeamName('${cat.id}', ${index}, this.value)">` : `<span class="text-xs font-medium text-gray-900">${esc(team)}</span>`}
                 ${editMode && isGrouped(cat) && cat.groups > 1 ? `
                 <select class="group-select ml-1" onchange="updateTeamGroup('${cat.id}', ${index}, this.value)">
@@ -1238,7 +1586,6 @@ function renderCategories() {
         ${renderMatchesByTimeSlot(cat)}
       </div>
 
-      <div id="standings-${cat.id}">${renderStandings(cat)}</div>
     </div>
   `).join('');
 }
@@ -1256,30 +1603,28 @@ function renderMatchesByTimeSlot(cat) {
     const brk = checkBreakBetween(prevMatch, curMatch);
     return `
     ${brk ? `<div class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5 mb-2 text-center">☕ ${esc(brk.label.toUpperCase())} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})</div>` : ''}
-    <div class="time-slot-header">
-      <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-      <span class="clock">${s.time}</span>
-      ${s.day > 0 ? `<span class="text-xs text-gray-500 font-normal">Day ${s.day + 1}</span>` : ''}
-      <span class="text-xs text-gray-500 font-normal">(${s.matches.length} match${s.matches.length > 1 ? 'es' : ''})</span>
-    </div>
     ${s.matches.map(m => `
-      <div class="match-card px-4 py-3 flex items-center justify-between mb-1.5" style="border-left-color: ${cat.color}; background-color: ${hexToRgba(cat.color, 0.08)}">
+      <div class="match-card px-4 py-3 flex items-center justify-between mb-1.5${m.status === 'ongoing' ? ' is-live' : ''}" style="border-left-color: ${cat.color}; background-color: ${m.group ? hexToRgba(groupColor(m.group, cat), 0.7) : hexToRgba(cat.color, 0.08)}">
         <div class="flex items-center gap-3">
           <span class="text-xs font-semibold text-gray-700 whitespace-nowrap" style="min-width:104px">${m.time} – ${formatTime(m.timeMin + (parseInt(state.matchMin) || 10))}</span>
+          ${m.day > 0 ? `<span class="text-xs text-gray-500">Day ${m.day + 1}</span>` : ''}
           <span class="court-badge">${m.court}</span>
-          ${m.pin ? '<span class="manual-badge">Moved</span>' : ''}
+          ${statusBadge(m)}
+          ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''}
           ${warnBadge(cat, m)}
           <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|1">${esc(displayName(cat, m, 1))}</span>
           <span class="text-gray-500 text-xs">vs</span>
           <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|2">${esc(displayName(cat, m, 2))}</span>
-          ${m.group ? `<span class="group-badge">${m.group}</span>` : ''}
+          ${m.group ? groupBadge(m.group, cat) : ''}
           ${m.stage === 'ko' ? `<span class="group-badge">${m.round}</span>` : ''}
         </div>
-        <div class="flex items-center gap-2">
-          ${moveButtons(cat, m)}
+        <div class="flex items-center gap-2 flex-wrap">
+          ${statusButtons(cat, m)}${moveButtons(cat, m)}
+          ${editMode ? `
           <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score1 !== '' ? 'filled' : ''}" value="${m.score1}" data-cat="${cat.id}" data-match="${m.id}" data-side="1" ${!editMode ? 'readonly' : ''}>
           <span class="text-gray-400 font-medium text-xs">–</span>
           <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score2 !== '' ? 'filled' : ''}" value="${m.score2}" data-cat="${cat.id}" data-match="${m.id}" data-side="2" ${!editMode ? 'readonly' : ''}>
+          ` : `<span class="score-pill ${(m.score1 !== '' || m.score2 !== '') ? 'filled' : ''}">${(m.score1 !== '' || m.score2 !== '') ? (m.score1 !== '' ? m.score1 : 0) + ' – ' + (m.score2 !== '' ? m.score2 : 0) : '– : –'}</span>`}
         </div>
       </div>`).join('')}
   `;
@@ -1297,8 +1642,8 @@ function renderStandings(cat) {
   return keys.map(g => {
     const rows = st[g] || [];
     return `
-      <div class="border-t border-gray-200 p-4">
-        <div class="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded mb-2">${g === '_' ? 'Standings' : 'Standings — Group ' + g}</div>
+      <div class="border-t border-gray-200 p-4" style="${g === '_' ? '' : 'background:' + hexToRgba(groupColor(g, cat), 0.5)}">
+        ${g === '_' ? '<div class="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded mb-2">Standings</div>' : `<div class="inline-block text-xs font-medium px-2 py-0.5 rounded mb-2" style="background:${groupColor(g, cat)};color:#111827">Standings — Group ${g}</div>`}
         ${rows.length === 0 ? '<p class="text-xs text-gray-400">No teams in this group yet.</p>' : `
         <table class="w-full standings-table">
           <thead><tr class="border-b border-gray-200">
@@ -1324,6 +1669,26 @@ function renderStandings(cat) {
         </table>`}
       </div>`;
   }).join('');
+}
+
+function renderStandingsView() {
+  const box = document.getElementById('standingsBody');
+  const cats = state.categories.filter(c => c.teams.length);
+  if (!cats.length) {
+    box.innerHTML = '<div class="bg-white rounded-lg border border-gray-200 p-6 text-center text-sm text-gray-500">No teams yet.</div>';
+    return;
+  }
+  box.innerHTML = cats.map(cat => `
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div class="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+        <div class="flex items-center gap-2">
+          <span class="cat-dot" style="background:${cat.color}"></span>
+          <span class="font-semibold text-gray-900 text-sm">${esc(cat.name)}</span>
+        </div>
+        <span class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium">${getFormatLabel(cat.format)}${isGrouped(cat) ? ' · ' + cat.groups + ' groups' : ''}</span>
+      </div>
+      ${renderStandings(cat)}
+    </div>`).join('');
 }
 
 function allMatches() {
@@ -1376,6 +1741,32 @@ document.addEventListener('click', e => {
   if (b) toggleCatCourt(b.dataset.cat, b.dataset.court, b.dataset.field);
 });
 
+function statusBadge(m) {
+  if (m.status === 'ongoing') return '<span class="status-badge live"><span class="status-dot"></span>Ongoing</span>';
+  if (finished(m)) return '<span class="status-badge done">✓ Completed</span>';
+  return '';
+}
+function statusButtons(cat, m) {
+  if (!editMode) return '';
+  const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+  return `<div class="flex items-center gap-1">
+    <button class="btn status-btn ${m.status === 'ongoing' ? 'on-live' : ''}" ${d} data-status="ongoing" title="Mark this match as being played now">Ongoing</button>
+    <button class="btn status-btn ${m.status === 'completed' ? 'on-done' : ''}" ${d} data-status="completed" title="Mark this match as finished">Completed</button>
+  </div>`;
+}
+function setMatchStatus(catId, matchId, status) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m) return;
+  m.status = (m.status === status) ? '' : status; // pressing the active one again clears it
+  render();
+  saveStatus(cat, m);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.status-btn');
+  if (b) setMatchStatus(b.dataset.cat, b.dataset.match, b.dataset.status);
+});
+
 function moveButtons(cat, m) {
   if (!editMode) return '';
   const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
@@ -1410,16 +1801,16 @@ function renderSchedule() {
         head = `<tr><td colspan="${colSpan}" class="py-2 px-2 font-semibold text-gray-700 text-xs uppercase tracking-wide">${dayHeader(m.day)}</td></tr>`;
       }
       return head + brkHtml + `
-      <tr class="schedule-row border-b border-gray-100">
-        <td class="py-2 px-2 font-medium text-emerald-600 text-xs whitespace-nowrap">${m.time} ${m.pin ? '<span class="manual-badge">Moved</span>' : ''} ${warnBadge(cat, m)}</td>
+      <tr class="schedule-row border-b border-gray-100${m.status === 'ongoing' ? ' is-live' : ''}" style="${m.group ? 'background:' + hexToRgba(groupColor(m.group, cat), 0.6) : ''}">
+        <td class="py-2 px-2 font-medium text-emerald-600 text-xs whitespace-nowrap">${m.time} ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''} ${warnBadge(cat, m)}<div class="status-in-time">${statusBadge(m)}</div></td>
         <td class="py-2 px-2"><div class="flex items-center gap-1.5"><span class="cat-dot" style="background:${cat.color}"></span><span class="font-medium text-xs">${esc(cat.name)}</span></div></td>
-        <td class="py-2 px-2">${m.group ? `<span class="group-badge">${m.group}</span>` : '—'}</td>
+        <td class="py-2 px-2">${m.group ? groupBadge(m.group, cat) : '—'}</td>
         <td class="py-2 px-2 text-gray-600 text-xs">${m.round}</td>
-        <td class="py-2 px-2">${done(m) ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Done</span>' : ''}</td>
+        <td class="py-2 px-2">${statusBadge(m)}</td>
         <td class="py-2 px-2 text-right font-semibold text-xs">${esc(displayName(cat, m, 1))}</td>
         <td class="py-2 px-2 text-center font-medium text-xs">${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}</td>
         <td class="py-2 px-2 font-semibold text-xs">${esc(displayName(cat, m, 2))}</td>
-        ${editMode ? `<td class="py-2 px-2">${moveButtons(cat, m)}</td>` : ''}
+        ${editMode ? `<td class="py-2 px-2"><div class="flex flex-wrap items-center gap-1">${statusButtons(cat, m)}${moveButtons(cat, m)}</div></td>` : ''}
       </tr>`;
     }).join('');
     return `
@@ -1430,7 +1821,7 @@ function renderSchedule() {
           <span class="text-xs text-gray-500">${rows.length} match${rows.length === 1 ? '' : 'es'}</span>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full text-sm">
+          <table class="w-full text-sm schedule-table">
             <thead>
               <tr class="border-b border-gray-200 text-left text-xs text-gray-500 uppercase">
                 <th class="py-2 px-2">Time</th>
@@ -1441,7 +1832,7 @@ function renderSchedule() {
                 <th class="py-2 px-2 text-right">Home</th>
                 <th class="py-2 px-2 text-center">Score</th>
                 <th class="py-2 px-2">Away</th>
-                ${editMode ? '<th class="py-2 px-2">Move</th>' : ''}
+                ${editMode ? '<th class="py-2 px-2">Actions</th>' : ''}
               </tr>
             </thead>
             <tbody>${body}</tbody>
@@ -1453,23 +1844,32 @@ function renderSchedule() {
 
 function renderNextUp() {
   const el = document.getElementById('nextUp');
-  const pending = allMatches().filter(x => !done(x.m));
-  if (pending.length === 0) {
-    el.innerHTML = `<span class="text-gray-500 text-sm">${allMatches().length ? 'All matches completed 🎉' : 'No matches scheduled yet'}</span>`;
-    return;
-  }
-  const first = pending[0].m.slot;
-  const next = pending.filter(x => x.m.slot === first);
-  el.innerHTML = `
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-      <span class="text-emerald-600 text-sm font-medium">${next[0].m.time}${next[0].m.day > 0 ? ` · Day ${next[0].m.day + 1}` : ''}</span>
-      ${next.map(({ cat, m }) => `
+  const all = allMatches();
+  const live = all.filter(x => x.m.status === 'ongoing');
+  const pending = all.filter(x => x.m.status !== 'ongoing' && !finished(x.m));
+  const line = ({ cat, m }) => `
         <span class="flex items-center gap-1.5 text-sm">
           <span class="court-badge">${m.court}</span>
           <span class="cat-dot" style="background:${cat.color}"></span>
           ${esc(displayName(cat, m, 1))} <span class="text-gray-400 text-xs">vs</span> ${esc(displayName(cat, m, 2))}
-        </span>`).join('')}
+        </span>`;
+  let html = '';
+  if (live.length) {
+    html += `<div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1"><span class="status-badge live"><span class="status-dot"></span>Ongoing</span>${live.map(line).join('')}</div>`;
+  }
+  if (!pending.length) {
+    if (!live.length) html = `<span class="text-gray-500 text-sm">${all.length ? 'All matches completed 🎉' : 'No matches scheduled yet'}</span>`;
+    el.innerHTML = html;
+    return;
+  }
+  const first = pending[0].m.slot;
+  const next = pending.filter(x => x.m.slot === first);
+  html += `
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <span class="text-emerald-600 text-sm font-medium">${next[0].m.time}${next[0].m.day > 0 ? ` · Day ${next[0].m.day + 1}` : ''}</span>
+      ${next.map(line).join('')}
     </div>`;
+  el.innerHTML = html;
 }
 
 function updateCounts() {
@@ -1481,8 +1881,7 @@ function updateCounts() {
 
 function refreshDerived(catId) {
   const cat = getCat(catId);
-  const st = document.getElementById('standings-' + cat.id);
-  if (st) st.innerHTML = renderStandings(cat);
+  renderStandingsView();
   document.querySelectorAll('[data-ko]').forEach(s => {
     const [cid, mid, side] = s.dataset.ko.split('|');
     if (cid !== cat.id) return;
@@ -1566,6 +1965,7 @@ function matchWarnings(cat, m) {
   return [...new Set(w)];
 }
 function warnBadge(cat, m) {
+  if (!editMode) return '';
   const w = matchWarnings(cat, m);
   return w.length ? `<span class="warn-badge" title="${esc(w.join(' '))}">⚠ Clash</span>` : '';
 }
@@ -1670,18 +2070,17 @@ function removeTeam(catId, index) {
 // ============================================
 // TABS
 // ============================================
-document.getElementById('tabCategory').addEventListener('click', () => {
-  document.getElementById('tabCategory').className = 'tab-active px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5';
-  document.getElementById('tabSchedule').className = 'tab-inactive px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 text-gray-600';
-  document.getElementById('categoryView').classList.remove('hidden');
-  document.getElementById('scheduleView').classList.add('hidden');
-});
-document.getElementById('tabSchedule').addEventListener('click', () => {
-  document.getElementById('tabSchedule').className = 'tab-active px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5';
-  document.getElementById('tabCategory').className = 'tab-inactive px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 text-gray-600';
-  document.getElementById('scheduleView').classList.remove('hidden');
-  document.getElementById('categoryView').classList.add('hidden');
-});
+function showTab(name) {
+  const tabs = { Category: ['tabCategory', 'categoryView'], Schedule: ['tabSchedule', 'scheduleView'], Standings: ['tabStandings', 'standingsView'] };
+  Object.keys(tabs).forEach(k => {
+    const on = k === name;
+    document.getElementById(tabs[k][0]).className = (on ? 'tab-active' : 'tab-inactive') + ' px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5' + (on ? '' : ' text-gray-600');
+    document.getElementById(tabs[k][1]).classList.toggle('hidden', !on);
+  });
+}
+document.getElementById('tabCategory').addEventListener('click', () => showTab('Category'));
+document.getElementById('tabSchedule').addEventListener('click', () => showTab('Schedule'));
+document.getElementById('tabStandings').addEventListener('click', () => showTab('Standings'));
 
 document.getElementById('addCategoryBtn').addEventListener('click', () => {
   if (!editMode || state.categories.length >= 12) return;
@@ -1796,7 +2195,8 @@ function compactState() {
         return r && (r.score1 !== '' || r.score2 !== '') ? r.score1 + '-' + r.score2 : '';
       }).join(',').replace(/,+$/, '');
       const pn = tmp.matches.map(m => { const r = cat.matches.find(x => x.id === m.id); return r && r.pin ? r.pin.slot + ':' + r.pin.court : ''; }).join(',').replace(/,+$/, '');
-      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || [], cat.koMatchCourts || {}];
+      const stt = tmp.matches.map(m => { const r = cat.matches.find(x => x.id === m.id); return r && r.status === 'ongoing' ? 'o' : (r && r.status === 'completed' ? 'c' : ''); }).join(',').replace(/,+$/, '');
+      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || [], cat.koMatchCourts || {}, stt];
     })
   };
 }
@@ -1809,6 +2209,8 @@ function expandState(o) {
     cat.matches.forEach((m, j) => { if (sc[j]) { const [a, b] = sc[j].split('-'); m.score1 = a; m.score2 = b ?? ''; } });
     const pn = (k[7] || '').split(',');
     cat.matches.forEach((m, j) => { if (pn[j]) { const [sl, ct] = pn[j].split(':').map(Number); m.pin = { slot: sl, court: ct }; } });
+    const stt = (k[10] || '').split(',');
+    cat.matches.forEach((m, j) => { if (stt[j] === 'o') m.status = 'ongoing'; else if (stt[j] === 'c') m.status = 'completed'; });
     st.categories.push(cat);
   });
   state = st;
@@ -1871,10 +2273,10 @@ async function shareLink(forceSnapshot) {
   const live = !!db && forceSnapshot !== true;
   if (live) {
     // make sure the latest data is online before handing out the link
-    if (editMode && loaded) {
+    if (editMode && loaded && isOwner(tournamentList[currentScheduleId])) {
       try {
         await db.ref(getDbPath()).set(JSON.parse(JSON.stringify(state)));
-        await db.ref('matchboard_list/' + currentScheduleId).set({ id: currentScheduleId, name: state.tName });
+        await db.ref('matchboard_list/' + currentScheduleId).set({ id: currentScheduleId, name: state.tName, owner: MY_ID });
       } catch (e) { toast('Could not reach Firebase: ' + (e.message || e)); return; }
     }
     if (!fileHasFbConfig && activeFbConfig) url += '&fb=' + b64u.enc(activeFbConfig);
@@ -1902,11 +2304,10 @@ function openSnapshotFromHash() {
   const tid = new URLSearchParams(window.location.search).get('t');
   if (tid) {
     if (!tournamentList[tid]) {
-      tournamentList[tid] = { id: tid, name: 'Shared Tournament' };
+      tournamentList[tid] = { id: tid, name: 'Shared Tournament', shared: true };
       saveStoredTournaments(tournamentList);
     }
-    if (tid !== currentScheduleId) selectTournament(tid);
-    else switchMainView('tournament');
+    selectTournament(tid, true);
   }
   if (db || !location.hash.startsWith('#d=')) return;
   unpackData(location.hash.slice(3))
@@ -1920,6 +2321,7 @@ function openSnapshotFromHash() {
 }
 
 // Initial setup on page load
+if (!window.__storageOK) document.getElementById('storageWarn').classList.remove('hidden');
 openSnapshotFromHash();
 window.addEventListener('hashchange', openSnapshotFromHash);
 
@@ -1933,8 +2335,9 @@ updateTournamentSelectDropdown();
 (function startView() {
   let resume = null;
   try { resume = localStorage.getItem('matchboard_resume'); localStorage.removeItem('matchboard_resume'); } catch (e) {}
-  if (new URLSearchParams(location.search).get('t')) { switchMainView('tournament'); return; }
-  if (resume && tournamentList[resume]) { selectTournament(resume); return; }
+  if (new URLSearchParams(location.search).get('t')) return; // the share link was already opened above
+  if (resume && tournamentList[resume]) { selectTournament(resume, true); return; }
+  if (currentScheduleId) selectTournament(currentScheduleId, true); // load the saved data of the current tournament
   switchMainView('home');
 })();
 // header badge: say honestly whether scores are live
@@ -1945,10 +2348,9 @@ updateTournamentSelectDropdown();
   label.textContent = 'Local only'; label.className = 'text-xs font-medium text-gray-600';
   box.className = 'flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200';
 })();
-  // ============================================================
+
+// ============================================================
 // MOBILE LAYOUT + "SHOW ONE TEAM" FILTER
-// Paste this whole block at the very end of your main script block,
-// just above its closing script tag. It does not change any of your existing code.
 // ============================================================
 (function () {
   // ---------- Styles (desktop stays exactly as it is) ----------
@@ -2105,7 +2507,7 @@ updateTournamentSelectDropdown();
     document.getElementById('totalMatches').textContent = n;
   });
   wrap('refreshDerived', (o, id) => { o(id); highlight(); });
-  wrap('selectTournament', (o, id) => { teamFilter = ''; return o(id); });
+  wrap('selectTournament', (o, id, force) => { teamFilter = ''; return o(id, force); });
   wrap('render', o => {
     renderTeamFilter();
     o();
