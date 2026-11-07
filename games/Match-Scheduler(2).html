@@ -2350,10 +2350,22 @@ updateTournamentSelectDropdown();
 })();
 
 // ============================================================
-// MOBILE LAYOUT + "SHOW ONE TEAM" FILTER
+// MOBILE LAYOUT + "SHOW ONE TEAM" FILTER   (version 3, compact phone layout)
+//
+// HOW TO USE: this REPLACES the older block with the same title.
+// 1. In your page, find the block that starts with the comment
+//    "MOBILE LAYOUT + SHOW ONE TEAM FILTER" and delete it, down to its closing  })();
+// 2. Paste this whole file in the same place (at the end of your main script block).
+// Keep the penalties block (if you added it) after this one.
 // ============================================================
 (function () {
-  // ---------- Styles (desktop stays exactly as it is) ----------
+  if (document.getElementById('filterMenu') || document.getElementById('teamFilterSelect')) {
+    console.warn('An older filter block is still in the page. Delete it and keep only this one.');
+    setTimeout(() => { try { toast('Two filter blocks are installed. Delete the older one.'); } catch (e) {} }, 600);
+    return;
+  }
+
+  // ---------- Styles (desktop stays exactly as it was) ----------
   const css = `
     .password-box { width: min(340px, 92vw); }
     .m-sub { display: none; }
@@ -2362,7 +2374,21 @@ updateTournamentSelectDropdown();
       background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; border-radius: 8px; padding: 8px 12px;
       font-size: 13px; margin-bottom: 16px; }
     .team-banner button { font-size: 12px; font-weight: 600; text-decoration: underline; cursor: pointer; }
-    #teamFilterSelect.active, #catFilterSelect.active { border-color: #10b981; background: #ecfdf5; color: #065f46; font-weight: 600; }
+
+    /* Filter menu: categories, and a side menu with that category's teams */
+    #filterBtn.active { border-color: #10b981; background: #ecfdf5; color: #065f46; font-weight: 600; }
+    .fm-panel { position: absolute; right: 0; top: 100%; margin-top: 4px; min-width: 210px; max-width: 90vw; background: #fff;
+      border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.15); z-index: 60; font-size: 13px; }
+    .fm-item, .fm-row { padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 12px; white-space: nowrap; }
+    .fm-item:hover, .fm-row:hover { background: #f3f4f6; }
+    .fm-item.sel, .fm-row.sel { color: #047857; font-weight: 600; }
+    .fm-cat { position: relative; }
+    .fm-cat.open > .fm-row { background: #f3f4f6; }
+    .fm-arrow { color: #9ca3af; }
+    .fm-sub { display: none; position: absolute; right: 100%; top: 0; min-width: 180px; max-height: 60vh; overflow-y: auto; background: #fff;
+      border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
+    .fm-cat.open > .fm-sub { display: block; }
+    @media (hover: hover) and (min-width: 640px) { .fm-cat:hover > .fm-sub { display: block; } .fm-cat:hover > .fm-row { background: #f3f4f6; } }
     .setup-toggle { display: none; }
 
     /* Tablet and phone: stack the setup panel above the categories */
@@ -2374,45 +2400,77 @@ updateTournamentSelectDropdown();
       .setup-body.collapsed { display: none; }
     }
 
-    /* Phone */
+    /* Phone: compact, so more fits on the screen */
     @media (max-width: 639px) {
-      header > div { flex-wrap: wrap; gap: 6px; padding-top: 8px; padding-bottom: 8px; }
-      header > div > div:first-child { flex-wrap: wrap; gap: 8px; min-width: 0; }
+      header > div { flex-wrap: wrap; gap: 4px; padding: 4px 8px !important; }
+      header > div > div:first-child { flex-wrap: wrap; gap: 6px; min-width: 0; }
       header > div > div:first-child > span.text-gray-400 { display: none; }
       #scheduleName { max-width: 46vw; }
-      header .header-btn { padding: 8px 10px; }
+      header .header-btn { padding: 6px 8px; }
       #navHomeBtn, #exportPdfBtn, #shareBtn { font-size: 0; gap: 0; }
       header > div > div:last-child > div:first-child > span:last-child { display: none; }
 
-      #homeView { padding-top: 20px; padding-bottom: 20px; }
-      #homeView > div:first-child { flex-wrap: wrap; gap: 12px; }
-      #homeView h1 { font-size: 1.4rem; }
+      #homeView, #tournamentContainer > .max-w-7xl { padding-left: 8px !important; padding-right: 8px !important; }
+      #homeView { padding-top: 12px !important; padding-bottom: 12px !important; }
+      #homeView > div:first-child { flex-wrap: wrap; gap: 8px; margin-bottom: 12px !important; }
+      #homeView h1 { font-size: 1.25rem; }
+      #categoryView, #scheduleView, #standingsView { padding-bottom: 12px !important; }
 
-      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView) { flex-wrap: wrap; gap: 8px; }
-      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView) > div:last-child { width: 100%; justify-content: space-between; }
-      #teamFilterSelect, #catFilterSelect { flex: 1; min-width: 0; max-width: none; }
+      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView):not(#standingsView) { flex-wrap: wrap; gap: 6px; padding-top: 6px !important; padding-bottom: 6px !important; }
+      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView):not(#standingsView) > div:last-child { width: 100%; justify-content: space-between; }
+      .tab-active, .tab-inactive { padding: 5px 9px !important; font-size: 12px !important; }
+      #filterMenu { flex: 1; min-width: 0; }
+      #filterBtn { width: 100%; text-align: left; }
+      .fm-panel { left: 0; right: 0; max-height: 70vh; overflow-y: auto; }
+      .fm-sub { position: static; border: none; box-shadow: none; border-radius: 0; max-height: none; background: #f9fafb; }
+      .fm-item, .fm-row { padding: 9px 12px; }
+      .fm-sub .fm-item { padding-left: 24px; }
+      .fm-arrow { display: inline-block; transform: rotate(90deg); }
 
       html input, html select, html textarea { font-size: 16px !important; }
-      .btn { padding: 8px 12px; }
-      .move-btn { padding: 8px 12px; }
-      .court-chip { padding: 6px 12px; }
-      .color-dot { width: 28px; height: 28px; }
-      .score-box { width: 48px; height: 42px; }
+      #tournamentContainer .p-4 { padding: 8px !important; }
+      #tournamentContainer .px-4.py-3 { padding: 6px 10px !important; }
+      #mainCol > * + *, #standingsBody > * + *, #scheduleBody > * + * { margin-top: 8px !important; }
+      #categoriesContainer > div { margin-bottom: 8px !important; }
+      #tournamentContainer .space-y-3 > * + * { margin-top: 6px !important; }
+      #viewInfo { padding: 6px 10px !important; font-size: 12px !important; }
+      #nextUp { font-size: 12px; }
+      #scheduleView h2 { font-size: 14px; margin-bottom: 6px !important; }
+
+      .btn { padding: 5px 9px; }
+      .move-btn { padding: 5px 9px; }
+      .status-btn { padding: 4px 6px; font-size: 10px; }
+      .court-chip { padding: 4px 9px; }
+      .color-dot { width: 24px; height: 24px; }
+      .court-badge { padding: 1px 5px; font-size: 9px; }
+      .group-badge { padding: 1px 5px; font-size: 10px; }
+      .team-chip { padding: 2px 6px !important; }
       #breaksList > div { flex-wrap: wrap; }
 
-      .match-card { flex-wrap: wrap; gap: 8px; padding: 10px 12px !important; }
-      .match-card > div:first-child { flex: 1 1 100%; flex-wrap: wrap; gap: 6px 10px !important; min-width: 0; }
+      .match-card { flex-wrap: wrap; gap: 4px 6px; padding: 6px 8px !important; margin-bottom: 4px !important; border-radius: 6px; }
+      .match-card > div:first-child { flex: 1 1 100%; flex-wrap: wrap; gap: 2px 8px !important; min-width: 0; }
       .match-card span[style*="min-width"] { min-width: 0 !important; }
-      .match-card > div:last-child { margin-left: auto; }
+      .match-card > div:last-child { margin-left: auto; gap: 4px !important; }
+      /* spectator view: the score sits beside the teams instead of on its own row */
+      .match-card:has(.score-pill) { flex-wrap: nowrap; }
+      .match-card:has(.score-pill) > div:first-child { flex: 1 1 0; }
+      .match-card:has(.score-pill) > div:last-child { flex: 0 0 auto; }
+      .match-card .text-sm { font-size: 12.5px !important; }
+      .match-card .text-xs { font-size: 10.5px !important; }
       .match-card .font-semibold { word-break: break-word; }
+      .score-box { width: 40px; height: 32px; font-size: 13px; }
+      .score-pill { min-width: 52px; padding: 3px 8px; font-size: 13px; }
 
       .standings-table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+      .standings-table td { padding: 4px 6px; font-size: 12px; }
+      .standings-table th { padding: 4px 6px; font-size: 9px; }
 
       /* Full schedule: keep Time / Home / Score / Away, move the rest under the time */
       #scheduleBody thead th:nth-child(n+2):nth-child(-n+5),
       #scheduleBody tr.schedule-row > :nth-child(n+2):nth-child(-n+5) { display: none; }
-      .m-sub { display: block; font-size: 10px; font-weight: 500; color: #6b7280; white-space: normal; margin-top: 2px; }
-      #scheduleBody td, #scheduleBody th { padding-left: 6px; padding-right: 6px; }
+      .m-sub { display: block; font-size: 10px; font-weight: 500; color: #6b7280; white-space: normal; margin-top: 1px; }
+      #scheduleBody td, #scheduleBody th { padding: 4px 5px !important; }
+      #scheduleBody .text-xs { font-size: 10.5px !important; }
     }
   `;
   const st = document.createElement('style');
@@ -2436,8 +2494,10 @@ updateTournamentSelectDropdown();
   let catFilter = '';
   let filterScope = false;
   let editSeen = false;
+  const active = () => !!(teamFilter || catFilter);
   const inF = (cat, m) => (!catFilter || cat.id === catFilter) &&
     (!teamFilter || displayName(cat, m, 1) === teamFilter || displayName(cat, m, 2) === teamFilter);
+  const catsIn = () => state.categories.filter(c => (!catFilter || c.id === catFilter) && (!teamFilter || c.teams.includes(teamFilter)));
   const filterName = () => {
     const c = state.categories.find(x => x.id === catFilter);
     if (teamFilter) return `<b>${esc(teamFilter)}</b>` + (c ? ` in <b>${esc(c.name)}</b>` : '');
@@ -2446,28 +2506,40 @@ updateTournamentSelectDropdown();
 
   const countEl = document.getElementById('matchCount');
   countEl.parentElement.insertAdjacentHTML('afterbegin',
-    `<select id="catFilterSelect" class="btn text-xs" style="max-width:200px" title="Show only one category"><option value="">All categories</option></select>
-     <select id="teamFilterSelect" class="btn text-xs hidden" style="max-width:200px" title="Show only one team of this category"><option value="">All teams</option></select>`);
-  const catSel = document.getElementById('catFilterSelect');
-  const sel = document.getElementById('teamFilterSelect');
+    `<div id="filterMenu" class="relative"><button id="filterBtn" type="button" class="btn text-xs" aria-haspopup="true" aria-expanded="false" title="Show only one category or team">Filter by team ▾</button><div id="filterPanel" class="fm-panel hidden"></div></div>`);
+  const fBtn = document.getElementById('filterBtn');
+  const fPanel = document.getElementById('filterPanel');
+  let panelOpen = false, openCat = '';
 
   function renderTeamFilter() {
     if (catFilter && !state.categories.some(c => c.id === catFilter)) { catFilter = ''; teamFilter = ''; }
     const cat = state.categories.find(c => c.id === catFilter);
     if (teamFilter && !(cat && cat.teams.includes(teamFilter))) teamFilter = '';
-    catSel.innerHTML = '<option value="">All categories</option>' + state.categories.map(c =>
-      `<option value="${esc(c.id)}" ${c.id === catFilter ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
-    sel.innerHTML = '<option value="">All teams</option>' + (cat ? cat.teams.slice().sort((x, y) => x.localeCompare(y)).map(n =>
-      `<option value="${esc(n)}" ${n === teamFilter ? 'selected' : ''}>${esc(n)}</option>`).join('') : '');
-    sel.classList.toggle('hidden', !cat);   // the team dropdown appears once a category is chosen
-    catSel.classList.toggle('active', !!catFilter);
-    sel.classList.toggle('active', !!teamFilter);
+    fBtn.innerHTML = (teamFilter ? esc(teamFilter) + (cat ? ' · ' + esc(cat.name) : '') : (cat ? esc(cat.name) : 'Filter by team')) + ' ▾';
+    fBtn.classList.toggle('active', active());
+    fBtn.setAttribute('aria-expanded', panelOpen ? 'true' : 'false');
+    fPanel.classList.toggle('hidden', !panelOpen);
+    fPanel.innerHTML = `<div class="fm-item${!catFilter ? ' sel' : ''}" data-clear="1">Show everything</div>` +
+      state.categories.map(c => {
+        const isCat = c.id === catFilter;
+        return `<div class="fm-cat${openCat === c.id ? ' open' : ''}">
+          <div class="fm-row${isCat ? ' sel' : ''}" data-toggle="${esc(c.id)}"><span>${esc(c.name)}</span><span class="fm-arrow">›</span></div>
+          <div class="fm-sub">
+            <div class="fm-item${isCat && !teamFilter ? ' sel' : ''}" data-cat="${esc(c.id)}" data-team="">All of ${esc(c.name)}</div>
+            ${c.teams.slice().sort((x, y) => x.localeCompare(y, undefined, { sensitivity: 'base' })).map(t => `<div class="fm-item${isCat && teamFilter === t ? ' sel' : ''}" data-cat="${esc(c.id)}" data-team="${esc(t)}">${esc(t)}</div>`).join('')}
+          </div>
+        </div>`;
+      }).join('');
   }
 
   function highlight() {
     document.querySelectorAll('[data-ko]').forEach(s => s.classList.toggle('team-hit', !!teamFilter && s.textContent === teamFilter));
     document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
       [5, 7].forEach(i => { const td = tr.children[i]; if (td) td.classList.toggle('team-hit', !!teamFilter && td.textContent.trim() === teamFilter); });
+    });
+    document.querySelectorAll('#standingsBody .standings-table tbody tr').forEach(tr => {
+      const td = tr.children[1];
+      if (td) td.classList.toggle('team-hit', !!teamFilter && td.textContent.trim() === teamFilter);
     });
   }
   function decorateSchedule() {
@@ -2484,35 +2556,35 @@ updateTournamentSelectDropdown();
 
   const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
   const scoped = (fn, ...a) => { filterScope = true; try { return fn(...a); } finally { filterScope = false; } };
+  const withCats = fn => { const all = state.categories; state.categories = catsIn(); try { fn(); } finally { state.categories = all; } };
 
-  wrap('allMatches', o => { const l = o(); return filterScope && (teamFilter || catFilter) ? l.filter(x => inF(x.cat, x.m)) : l; });
+  wrap('allMatches', o => { const l = o(); return filterScope && active() ? l.filter(x => inF(x.cat, x.m)) : l; });
   wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // clash checks always look at the full category
   wrap('renderMatchesByTimeSlot', (o, cat) => {
-    if (!teamFilter && !catFilter) return o(cat);
+    if (!active()) return o(cat);
     return o({ ...cat, matches: cat.matches.filter(m => inF(cat, m)), _full: cat });
   });
   wrap('renderCategories', o => {
-    if (!teamFilter && !catFilter) { o(); return; }
-    const all = state.categories;
-    state.categories = all.filter(c => (!catFilter || c.id === catFilter) && (!teamFilter || c.teams.includes(teamFilter)));
-    try { o(); } finally { state.categories = all; }
+    if (!active()) { o(); return; }
+    withCats(o);
     document.getElementById('categoriesContainer').insertAdjacentHTML('afterbegin',
       `<div class="team-banner"><span>Showing only ${filterName()}</span><button type="button" onclick="clearTeamFilter()">Show everything</button></div>`);
   });
+  wrap('renderStandingsView', o => { if (active()) withCats(o); else o(); highlight(); });
   wrap('renderSchedule', o => {
     scoped(o);
-    if ((teamFilter || catFilter) && !document.querySelector('#scheduleBody tr.schedule-row')) {
+    if (active() && !document.querySelector('#scheduleBody tr.schedule-row')) {
       document.getElementById('scheduleBody').innerHTML = `<p class="py-6 text-center text-gray-500 text-sm">No matches for ${filterName()}</p>`;
     }
     decorateSchedule(); highlight();
   });
   wrap('renderNextUp', o => {
     scoped(o);
-    if (teamFilter || catFilter) document.getElementById('nextUp').insertAdjacentHTML('afterbegin', `<div class="text-xs text-gray-500 mb-1">Showing ${filterName()}</div>`);
+    if (active()) document.getElementById('nextUp').insertAdjacentHTML('afterbegin', `<div class="text-xs text-gray-500 mb-1">Showing ${filterName()}</div>`);
   });
   wrap('updateCounts', o => {
     o();
-    if (!teamFilter && !catFilter) return;
+    if (!active()) return;
     const total = state.categories.reduce((s, c) => s + c.matches.length, 0);
     const n = scoped(() => allMatches().length);
     countEl.textContent = `${n} of ${total} matches`;
@@ -2529,12 +2601,21 @@ updateTournamentSelectDropdown();
   });
 
   function applyFilter() {
-    sel.blur(); catSel.blur();   // a focused dropdown would hold back live score updates
     renderTeamFilter();
-    renderCategories(); renderSchedule(); renderNextUp(); updateCounts(); highlight();
+    renderCategories(); renderSchedule(); renderStandingsView(); renderNextUp(); updateCounts(); highlight();
   }
-  catSel.addEventListener('change', () => { catFilter = catSel.value; teamFilter = ''; applyFilter(); });
-  sel.addEventListener('change', () => { teamFilter = sel.value; applyFilter(); });
+  fBtn.addEventListener('click', e => { e.stopPropagation(); panelOpen = !panelOpen; renderTeamFilter(); });
+  fPanel.addEventListener('click', e => {
+    e.stopPropagation();
+    const clear = e.target.closest('[data-clear]');
+    const item = e.target.closest('.fm-item[data-cat]');
+    const tog = e.target.closest('[data-toggle]');
+    if (clear) { catFilter = ''; teamFilter = ''; panelOpen = false; openCat = ''; applyFilter(); }
+    else if (item) { catFilter = item.dataset.cat; teamFilter = item.dataset.team || ''; panelOpen = false; openCat = ''; applyFilter(); }
+    else if (tog) { openCat = (openCat === tog.dataset.toggle) ? '' : tog.dataset.toggle; renderTeamFilter(); }
+  });
+  document.addEventListener('click', () => { if (panelOpen) { panelOpen = false; renderTeamFilter(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && panelOpen) { panelOpen = false; renderTeamFilter(); } });
   window.clearTeamFilter = () => { catFilter = ''; teamFilter = ''; applyFilter(); };
 
   if (currentView === 'tournament') render();
