@@ -1613,9 +1613,9 @@ function renderMatchesByTimeSlot(cat) {
     ${s.matches.map(m => `
       <div class="match-card px-4 py-3 flex items-center justify-between mb-1.5${m.status === 'ongoing' ? ' is-live' : ''}" style="border-left-color: ${cat.color}; background-color: ${m.group ? hexToRgba(groupColor(m.group, cat), 0.7) : hexToRgba(cat.color, 0.08)}">
         <div class="flex items-center gap-3">
-          <span class="text-xs font-semibold text-gray-700 whitespace-nowrap" style="min-width:104px">${m.time} – ${formatTime(m.timeMin + (parseInt(state.matchMin) || 10))}</span>
+          <span class="text-xs font-semibold text-gray-700 whitespace-nowrap" style="display:inline-block;min-width:160px">${m.time} – ${formatTime(m.timeMin + (parseInt(state.matchMin) || 10))}</span>
           ${m.day > 0 ? `<span class="text-xs text-gray-500">Day ${m.day + 1}</span>` : ''}
-          <span class="court-badge">${m.court}</span>
+          <span class="court-badge" style="display:inline-block;width:32px;text-align:center;box-sizing:border-box">${m.court}</span>
           ${statusBadge(m)}
           ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''}
           ${warnBadge(cat, m)}
