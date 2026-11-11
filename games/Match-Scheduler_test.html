@@ -72,16 +72,19 @@
   .schedule-row.is-live td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
   .status-in-time { display: none; }
   @media (max-width: 639px) { .status-in-time { display: inline-flex; margin-top: 2px; } }
+  .logo-badge { display: inline-flex; align-items: center; justify-content: center; background: #f3f1ec; border: 1px solid #e3dfd5; border-radius: 8px; padding: 4px; line-height: 0; }
+  .logo-badge.sm { border-radius: 6px; padding: 3px; }
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="logoMark" viewBox="0 0 258 222"><path fill-rule="evenodd" d="M136.8,216.2 138.0,218.5 139.5,219.8 146.5,221.8 244.8,221.8 249.5,220.0 254.5,215.8 256.2,213.0 257.8,208.8 257.8,206.0 256.2,202.0 253.8,198.2 250.0,195.2 245.2,193.5 151.8,193.5 150.5,194.5 144.0,205.0 137.2,212.5ZM142.0,111.0 150.2,124.0 152.2,125.2 228.2,125.0 232.2,123.8 236.8,120.0 239.2,115.8 240.0,112.5 239.5,107.2 237.8,103.5 235.2,100.8 231.8,98.5 224.2,97.2 152.8,97.2 150.0,98.8ZM136.5,7.0 137.2,10.0 144.5,18.0 150.5,28.0 151.8,28.8 243.5,29.0 249.0,27.8 251.8,26.0 254.5,23.2 257.8,16.2 256.8,11.0 254.5,6.5 250.8,3.0 245.2,1.0 145.5,1.0 140.0,2.5 137.2,5.0ZM9.5,1.8 6.2,3.5 3.5,6.2 1.2,10.5 0.5,14.0 1.0,18.2 3.5,23.5 6.0,26.0 9.5,28.0 14.8,29.0 88.8,29.2 94.0,30.8 101.2,34.2 104.2,36.5 110.8,43.5 113.5,48.2 116.0,55.8 116.5,59.5 116.0,70.5 114.0,76.2 110.8,82.2 104.0,89.8 96.2,94.5 86.2,97.2 39.5,97.2 32.8,97.8 28.5,99.8 25.2,102.5 22.8,107.5 22.2,112.0 23.2,116.5 25.2,120.0 30.0,123.8 33.8,125.0 86.2,125.2 90.8,126.0 97.8,128.8 105.0,133.5 109.2,138.0 113.0,143.8 115.8,150.8 116.8,157.0 116.8,161.8 115.2,169.8 111.0,178.5 105.5,185.0 101.2,188.2 96.0,191.0 88.2,193.2 11.8,193.8 9.2,194.5 5.8,196.8 2.0,201.8 0.8,205.8 1.5,212.2 2.8,214.8 6.0,218.2 9.0,220.2 13.5,221.8 83.5,221.8 96.5,220.0 107.0,216.5 115.8,211.8 120.8,208.2 129.8,199.8 132.0,196.8 139.5,183.8 142.0,176.8 144.0,167.0 144.2,155.5 143.8,151.0 142.0,142.8 139.8,136.0 136.2,129.0 131.8,122.0 128.5,118.0 122.0,111.8 122.2,110.2 129.8,103.0 134.8,96.2 139.5,87.2 142.2,79.2 144.2,67.2 144.2,58.5 142.0,45.5 139.0,37.8 132.2,26.0 128.8,21.5 123.2,16.0 115.8,10.5 109.2,6.8 100.2,3.2 88.0,1.0 12.8,1.0Z"/></symbol></svg>
 
 <!-- HEADER -->
 <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
     <div class="flex items-center gap-3">
       <div class="flex items-center gap-2 cursor-pointer" onclick="switchMainView('home')">
-        <svg class="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
+        <span class="logo-badge"><svg width="20" height="20" class="w-5 h-5 text-gray-900" viewBox="0 0 258 222" fill="currentColor" aria-hidden="true"><use href="#logoMark"/></svg></span>
         <span class="font-semibold text-gray-900 text-sm">MatchBoard</span>
       </div>
       <button id="navHomeBtn" class="header-btn" onclick="switchMainView('home')">
@@ -185,7 +188,7 @@
       <div id="setupCol" class="col-span-4">
         <div class="bg-white rounded-lg border border-gray-200 p-4">
           <h3 class="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-            <svg class="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
+            <span class="logo-badge sm"><svg width="16" height="16" class="w-4 h-4 text-gray-900" viewBox="0 0 258 222" fill="currentColor" aria-hidden="true"><use href="#logoMark"/></svg></span>
             Setup
           </h3>
           <div class="space-y-3">
@@ -253,6 +256,13 @@
               <input type="password" id="confirmPassword" placeholder="Confirm new password" class="w-full" onkeypress="if(event.key==='Enter') changePassword()">
               <button class="btn w-full" onclick="changePassword()">Update password</button>
               <p id="passwordMsg" class="text-xs hidden"></p>
+              <!-- hitwebcounter Code START -->
+              <div></div>
+              <div></div>
+              <a href="https://www.hitwebcounter.com/" target="_blank" rel="noopener" title="Free Stats Visits">
+              <img src="https://www.hitwebcounter.com/counter/counter.php?page=21527816&amp;style=0032&amp;nbdigits=3&amp;type=ip" alt="Free Stats Visits" decoding="async" style="border:0;max-width:100%;height:auto;" />
+              </a>
+              <!-- hitwebcounter Code END -->
             </div>
           </div>
 
@@ -1606,9 +1616,9 @@ function renderMatchesByTimeSlot(cat) {
     ${s.matches.map(m => `
       <div class="match-card px-4 py-3 flex items-center justify-between mb-1.5${m.status === 'ongoing' ? ' is-live' : ''}" style="border-left-color: ${cat.color}; background-color: ${m.group ? hexToRgba(groupColor(m.group, cat), 0.7) : hexToRgba(cat.color, 0.08)}">
         <div class="flex items-center gap-3">
-          <span class="text-xs font-semibold text-gray-700 whitespace-nowrap" style="min-width:104px">${m.time} – ${formatTime(m.timeMin + (parseInt(state.matchMin) || 10))}</span>
+          <span class="text-xs font-semibold text-gray-700 whitespace-nowrap" style="display:inline-block;min-width:160px">${m.time} – ${formatTime(m.timeMin + (parseInt(state.matchMin) || 10))}</span>
           ${m.day > 0 ? `<span class="text-xs text-gray-500">Day ${m.day + 1}</span>` : ''}
-          <span class="court-badge">${m.court}</span>
+          <span class="court-badge" style="display:inline-block;width:32px;text-align:center;box-sizing:border-box">${m.court}</span>
           ${statusBadge(m)}
           ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''}
           ${warnBadge(cat, m)}
@@ -2350,10 +2360,22 @@ updateTournamentSelectDropdown();
 })();
 
 // ============================================================
-// MOBILE LAYOUT + "SHOW ONE TEAM" FILTER
+// MOBILE LAYOUT + "SHOW ONE TEAM" FILTER   (version 3, compact phone layout)
+//
+// HOW TO USE: this REPLACES the older block with the same title.
+// 1. In your page, find the block that starts with the comment
+//    "MOBILE LAYOUT + SHOW ONE TEAM FILTER" and delete it, down to its closing  })();
+// 2. Paste this whole file in the same place (at the end of your main script block).
+// Keep the penalties block (if you added it) after this one.
 // ============================================================
 (function () {
-  // ---------- Styles (desktop stays exactly as it is) ----------
+  if (document.getElementById('filterMenu') || document.getElementById('teamFilterSelect')) {
+    console.warn('An older filter block is still in the page. Delete it and keep only this one.');
+    setTimeout(() => { try { toast('Two filter blocks are installed. Delete the older one.'); } catch (e) {} }, 600);
+    return;
+  }
+
+  // ---------- Styles (desktop stays exactly as it was) ----------
   const css = `
     .password-box { width: min(340px, 92vw); }
     .m-sub { display: none; }
@@ -2362,7 +2384,21 @@ updateTournamentSelectDropdown();
       background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; border-radius: 8px; padding: 8px 12px;
       font-size: 13px; margin-bottom: 16px; }
     .team-banner button { font-size: 12px; font-weight: 600; text-decoration: underline; cursor: pointer; }
-    #teamFilterSelect.active, #catFilterSelect.active { border-color: #10b981; background: #ecfdf5; color: #065f46; font-weight: 600; }
+
+    /* Filter menu: categories, and a side menu with that category's teams */
+    #filterBtn.active { border-color: #10b981; background: #ecfdf5; color: #065f46; font-weight: 600; }
+    .fm-panel { position: absolute; right: 0; top: 100%; margin-top: 4px; min-width: 210px; max-width: 90vw; background: #fff;
+      border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.15); z-index: 60; font-size: 13px; }
+    .fm-item, .fm-row { padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 12px; white-space: nowrap; }
+    .fm-item:hover, .fm-row:hover { background: #f3f4f6; }
+    .fm-item.sel, .fm-row.sel { color: #047857; font-weight: 600; }
+    .fm-cat { position: relative; }
+    .fm-cat.open > .fm-row { background: #f3f4f6; }
+    .fm-arrow { color: #9ca3af; }
+    .fm-sub { display: none; position: absolute; right: 100%; top: 0; min-width: 180px; max-height: 60vh; overflow-y: auto; background: #fff;
+      border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
+    .fm-cat.open > .fm-sub { display: block; }
+    @media (hover: hover) and (min-width: 640px) { .fm-cat:hover > .fm-sub { display: block; } .fm-cat:hover > .fm-row { background: #f3f4f6; } }
     .setup-toggle { display: none; }
 
     /* Tablet and phone: stack the setup panel above the categories */
@@ -2374,45 +2410,77 @@ updateTournamentSelectDropdown();
       .setup-body.collapsed { display: none; }
     }
 
-    /* Phone */
+    /* Phone: compact, so more fits on the screen */
     @media (max-width: 639px) {
-      header > div { flex-wrap: wrap; gap: 6px; padding-top: 8px; padding-bottom: 8px; }
-      header > div > div:first-child { flex-wrap: wrap; gap: 8px; min-width: 0; }
+      header > div { flex-wrap: wrap; gap: 4px; padding: 4px 8px !important; }
+      header > div > div:first-child { flex-wrap: wrap; gap: 6px; min-width: 0; }
       header > div > div:first-child > span.text-gray-400 { display: none; }
       #scheduleName { max-width: 46vw; }
-      header .header-btn { padding: 8px 10px; }
+      header .header-btn { padding: 6px 8px; }
       #navHomeBtn, #exportPdfBtn, #shareBtn { font-size: 0; gap: 0; }
       header > div > div:last-child > div:first-child > span:last-child { display: none; }
 
-      #homeView { padding-top: 20px; padding-bottom: 20px; }
-      #homeView > div:first-child { flex-wrap: wrap; gap: 12px; }
-      #homeView h1 { font-size: 1.4rem; }
+      #homeView, #tournamentContainer > .max-w-7xl { padding-left: 8px !important; padding-right: 8px !important; }
+      #homeView { padding-top: 12px !important; padding-bottom: 12px !important; }
+      #homeView > div:first-child { flex-wrap: wrap; gap: 8px; margin-bottom: 12px !important; }
+      #homeView h1 { font-size: 1.25rem; }
+      #categoryView, #scheduleView, #standingsView { padding-bottom: 12px !important; }
 
-      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView) { flex-wrap: wrap; gap: 8px; }
-      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView) > div:last-child { width: 100%; justify-content: space-between; }
-      #teamFilterSelect, #catFilterSelect { flex: 1; min-width: 0; max-width: none; }
+      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView):not(#standingsView) { flex-wrap: wrap; gap: 6px; padding-top: 6px !important; padding-bottom: 6px !important; }
+      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView):not(#standingsView) > div:last-child { width: 100%; justify-content: space-between; }
+      .tab-active, .tab-inactive { padding: 5px 9px !important; font-size: 12px !important; }
+      #filterMenu { flex: 1; min-width: 0; }
+      #filterBtn { width: 100%; text-align: left; }
+      .fm-panel { left: 0; right: 0; max-height: 70vh; overflow-y: auto; }
+      .fm-sub { position: static; border: none; box-shadow: none; border-radius: 0; max-height: none; background: #f9fafb; }
+      .fm-item, .fm-row { padding: 9px 12px; }
+      .fm-sub .fm-item { padding-left: 24px; }
+      .fm-arrow { display: inline-block; transform: rotate(90deg); }
 
       html input, html select, html textarea { font-size: 16px !important; }
-      .btn { padding: 8px 12px; }
-      .move-btn { padding: 8px 12px; }
-      .court-chip { padding: 6px 12px; }
-      .color-dot { width: 28px; height: 28px; }
-      .score-box { width: 48px; height: 42px; }
+      #tournamentContainer .p-4 { padding: 8px !important; }
+      #tournamentContainer .px-4.py-3 { padding: 6px 10px !important; }
+      #mainCol > * + *, #standingsBody > * + *, #scheduleBody > * + * { margin-top: 8px !important; }
+      #categoriesContainer > div { margin-bottom: 8px !important; }
+      #tournamentContainer .space-y-3 > * + * { margin-top: 6px !important; }
+      #viewInfo { padding: 6px 10px !important; font-size: 12px !important; }
+      #nextUp { font-size: 12px; }
+      #scheduleView h2 { font-size: 14px; margin-bottom: 6px !important; }
+
+      .btn { padding: 5px 9px; }
+      .move-btn { padding: 5px 9px; }
+      .status-btn { padding: 4px 6px; font-size: 10px; }
+      .court-chip { padding: 4px 9px; }
+      .color-dot { width: 24px; height: 24px; }
+      .court-badge { padding: 1px 5px; font-size: 9px; }
+      .group-badge { padding: 1px 5px; font-size: 10px; }
+      .team-chip { padding: 2px 6px !important; }
       #breaksList > div { flex-wrap: wrap; }
 
-      .match-card { flex-wrap: wrap; gap: 8px; padding: 10px 12px !important; }
-      .match-card > div:first-child { flex: 1 1 100%; flex-wrap: wrap; gap: 6px 10px !important; min-width: 0; }
+      .match-card { flex-wrap: wrap; gap: 4px 6px; padding: 6px 8px !important; margin-bottom: 4px !important; border-radius: 6px; }
+      .match-card > div:first-child { flex: 1 1 100%; flex-wrap: wrap; gap: 2px 8px !important; min-width: 0; }
       .match-card span[style*="min-width"] { min-width: 0 !important; }
-      .match-card > div:last-child { margin-left: auto; }
+      .match-card > div:last-child { margin-left: auto; gap: 4px !important; }
+      /* spectator view: the score sits beside the teams instead of on its own row */
+      .match-card:has(.score-pill) { flex-wrap: nowrap; }
+      .match-card:has(.score-pill) > div:first-child { flex: 1 1 0; }
+      .match-card:has(.score-pill) > div:last-child { flex: 0 0 auto; }
+      .match-card .text-sm { font-size: 12.5px !important; }
+      .match-card .text-xs { font-size: 10.5px !important; }
       .match-card .font-semibold { word-break: break-word; }
+      .score-box { width: 40px; height: 32px; font-size: 13px; }
+      .score-pill { min-width: 52px; padding: 3px 8px; font-size: 13px; }
 
       .standings-table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+      .standings-table td { padding: 4px 6px; font-size: 12px; }
+      .standings-table th { padding: 4px 6px; font-size: 9px; }
 
       /* Full schedule: keep Time / Home / Score / Away, move the rest under the time */
       #scheduleBody thead th:nth-child(n+2):nth-child(-n+5),
       #scheduleBody tr.schedule-row > :nth-child(n+2):nth-child(-n+5) { display: none; }
-      .m-sub { display: block; font-size: 10px; font-weight: 500; color: #6b7280; white-space: normal; margin-top: 2px; }
-      #scheduleBody td, #scheduleBody th { padding-left: 6px; padding-right: 6px; }
+      .m-sub { display: block; font-size: 10px; font-weight: 500; color: #6b7280; white-space: normal; margin-top: 1px; }
+      #scheduleBody td, #scheduleBody th { padding: 4px 5px !important; }
+      #scheduleBody .text-xs { font-size: 10.5px !important; }
     }
   `;
   const st = document.createElement('style');
@@ -2436,8 +2504,10 @@ updateTournamentSelectDropdown();
   let catFilter = '';
   let filterScope = false;
   let editSeen = false;
+  const active = () => !!(teamFilter || catFilter);
   const inF = (cat, m) => (!catFilter || cat.id === catFilter) &&
     (!teamFilter || displayName(cat, m, 1) === teamFilter || displayName(cat, m, 2) === teamFilter);
+  const catsIn = () => state.categories.filter(c => (!catFilter || c.id === catFilter) && (!teamFilter || c.teams.includes(teamFilter)));
   const filterName = () => {
     const c = state.categories.find(x => x.id === catFilter);
     if (teamFilter) return `<b>${esc(teamFilter)}</b>` + (c ? ` in <b>${esc(c.name)}</b>` : '');
@@ -2446,28 +2516,40 @@ updateTournamentSelectDropdown();
 
   const countEl = document.getElementById('matchCount');
   countEl.parentElement.insertAdjacentHTML('afterbegin',
-    `<select id="catFilterSelect" class="btn text-xs" style="max-width:200px" title="Show only one category"><option value="">All categories</option></select>
-     <select id="teamFilterSelect" class="btn text-xs hidden" style="max-width:200px" title="Show only one team of this category"><option value="">All teams</option></select>`);
-  const catSel = document.getElementById('catFilterSelect');
-  const sel = document.getElementById('teamFilterSelect');
+    `<div id="filterMenu" class="relative"><button id="filterBtn" type="button" class="btn text-xs" aria-haspopup="true" aria-expanded="false" title="Show only one category or team">Filter by team ▾</button><div id="filterPanel" class="fm-panel hidden"></div></div>`);
+  const fBtn = document.getElementById('filterBtn');
+  const fPanel = document.getElementById('filterPanel');
+  let panelOpen = false, openCat = '';
 
   function renderTeamFilter() {
     if (catFilter && !state.categories.some(c => c.id === catFilter)) { catFilter = ''; teamFilter = ''; }
     const cat = state.categories.find(c => c.id === catFilter);
     if (teamFilter && !(cat && cat.teams.includes(teamFilter))) teamFilter = '';
-    catSel.innerHTML = '<option value="">All categories</option>' + state.categories.map(c =>
-      `<option value="${esc(c.id)}" ${c.id === catFilter ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
-    sel.innerHTML = '<option value="">All teams</option>' + (cat ? cat.teams.slice().sort((x, y) => x.localeCompare(y)).map(n =>
-      `<option value="${esc(n)}" ${n === teamFilter ? 'selected' : ''}>${esc(n)}</option>`).join('') : '');
-    sel.classList.toggle('hidden', !cat);   // the team dropdown appears once a category is chosen
-    catSel.classList.toggle('active', !!catFilter);
-    sel.classList.toggle('active', !!teamFilter);
+    fBtn.innerHTML = (teamFilter ? esc(teamFilter) + (cat ? ' · ' + esc(cat.name) : '') : (cat ? esc(cat.name) : 'Filter by team')) + ' ▾';
+    fBtn.classList.toggle('active', active());
+    fBtn.setAttribute('aria-expanded', panelOpen ? 'true' : 'false');
+    fPanel.classList.toggle('hidden', !panelOpen);
+    fPanel.innerHTML = `<div class="fm-item${!catFilter ? ' sel' : ''}" data-clear="1">Show everything</div>` +
+      state.categories.map(c => {
+        const isCat = c.id === catFilter;
+        return `<div class="fm-cat${openCat === c.id ? ' open' : ''}">
+          <div class="fm-row${isCat ? ' sel' : ''}" data-toggle="${esc(c.id)}"><span>${esc(c.name)}</span><span class="fm-arrow">›</span></div>
+          <div class="fm-sub">
+            <div class="fm-item${isCat && !teamFilter ? ' sel' : ''}" data-cat="${esc(c.id)}" data-team="">All of ${esc(c.name)}</div>
+            ${c.teams.slice().sort((x, y) => x.localeCompare(y, undefined, { sensitivity: 'base' })).map(t => `<div class="fm-item${isCat && teamFilter === t ? ' sel' : ''}" data-cat="${esc(c.id)}" data-team="${esc(t)}">${esc(t)}</div>`).join('')}
+          </div>
+        </div>`;
+      }).join('');
   }
 
   function highlight() {
     document.querySelectorAll('[data-ko]').forEach(s => s.classList.toggle('team-hit', !!teamFilter && s.textContent === teamFilter));
     document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
       [5, 7].forEach(i => { const td = tr.children[i]; if (td) td.classList.toggle('team-hit', !!teamFilter && td.textContent.trim() === teamFilter); });
+    });
+    document.querySelectorAll('#standingsBody .standings-table tbody tr').forEach(tr => {
+      const td = tr.children[1];
+      if (td) td.classList.toggle('team-hit', !!teamFilter && td.textContent.trim() === teamFilter);
     });
   }
   function decorateSchedule() {
@@ -2484,35 +2566,35 @@ updateTournamentSelectDropdown();
 
   const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
   const scoped = (fn, ...a) => { filterScope = true; try { return fn(...a); } finally { filterScope = false; } };
+  const withCats = fn => { const all = state.categories; state.categories = catsIn(); try { fn(); } finally { state.categories = all; } };
 
-  wrap('allMatches', o => { const l = o(); return filterScope && (teamFilter || catFilter) ? l.filter(x => inF(x.cat, x.m)) : l; });
+  wrap('allMatches', o => { const l = o(); return filterScope && active() ? l.filter(x => inF(x.cat, x.m)) : l; });
   wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // clash checks always look at the full category
   wrap('renderMatchesByTimeSlot', (o, cat) => {
-    if (!teamFilter && !catFilter) return o(cat);
+    if (!active()) return o(cat);
     return o({ ...cat, matches: cat.matches.filter(m => inF(cat, m)), _full: cat });
   });
   wrap('renderCategories', o => {
-    if (!teamFilter && !catFilter) { o(); return; }
-    const all = state.categories;
-    state.categories = all.filter(c => (!catFilter || c.id === catFilter) && (!teamFilter || c.teams.includes(teamFilter)));
-    try { o(); } finally { state.categories = all; }
+    if (!active()) { o(); return; }
+    withCats(o);
     document.getElementById('categoriesContainer').insertAdjacentHTML('afterbegin',
       `<div class="team-banner"><span>Showing only ${filterName()}</span><button type="button" onclick="clearTeamFilter()">Show everything</button></div>`);
   });
+  wrap('renderStandingsView', o => { if (active()) withCats(o); else o(); highlight(); });
   wrap('renderSchedule', o => {
     scoped(o);
-    if ((teamFilter || catFilter) && !document.querySelector('#scheduleBody tr.schedule-row')) {
+    if (active() && !document.querySelector('#scheduleBody tr.schedule-row')) {
       document.getElementById('scheduleBody').innerHTML = `<p class="py-6 text-center text-gray-500 text-sm">No matches for ${filterName()}</p>`;
     }
     decorateSchedule(); highlight();
   });
   wrap('renderNextUp', o => {
     scoped(o);
-    if (teamFilter || catFilter) document.getElementById('nextUp').insertAdjacentHTML('afterbegin', `<div class="text-xs text-gray-500 mb-1">Showing ${filterName()}</div>`);
+    if (active()) document.getElementById('nextUp').insertAdjacentHTML('afterbegin', `<div class="text-xs text-gray-500 mb-1">Showing ${filterName()}</div>`);
   });
   wrap('updateCounts', o => {
     o();
-    if (!teamFilter && !catFilter) return;
+    if (!active()) return;
     const total = state.categories.reduce((s, c) => s + c.matches.length, 0);
     const n = scoped(() => allMatches().length);
     countEl.textContent = `${n} of ${total} matches`;
@@ -2529,16 +2611,326 @@ updateTournamentSelectDropdown();
   });
 
   function applyFilter() {
-    sel.blur(); catSel.blur();   // a focused dropdown would hold back live score updates
     renderTeamFilter();
-    renderCategories(); renderSchedule(); renderNextUp(); updateCounts(); highlight();
+    renderCategories(); renderSchedule(); renderStandingsView(); renderNextUp(); updateCounts(); highlight();
   }
-  catSel.addEventListener('change', () => { catFilter = catSel.value; teamFilter = ''; applyFilter(); });
-  sel.addEventListener('change', () => { teamFilter = sel.value; applyFilter(); });
+  fBtn.addEventListener('click', e => { e.stopPropagation(); panelOpen = !panelOpen; renderTeamFilter(); });
+  fPanel.addEventListener('click', e => {
+    e.stopPropagation();
+    const clear = e.target.closest('[data-clear]');
+    const item = e.target.closest('.fm-item[data-cat]');
+    const tog = e.target.closest('[data-toggle]');
+    if (clear) { catFilter = ''; teamFilter = ''; panelOpen = false; openCat = ''; applyFilter(); }
+    else if (item) { catFilter = item.dataset.cat; teamFilter = item.dataset.team || ''; panelOpen = false; openCat = ''; applyFilter(); }
+    else if (tog) { openCat = (openCat === tog.dataset.toggle) ? '' : tog.dataset.toggle; renderTeamFilter(); }
+  });
+  document.addEventListener('click', () => { if (panelOpen) { panelOpen = false; renderTeamFilter(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && panelOpen) { panelOpen = false; renderTeamFilter(); } });
   window.clearTeamFilter = () => { catFilter = ''; teamFilter = ''; applyFilter(); };
 
   if (currentView === 'tournament') render();
 })();
+// ============================================================
+// MATCH MOVING, AUTO / RESET, AND NO TOP BAR ON THE HOME SCREEN
+//
+// Paste this whole block at the very end of your main script block,
+// just above its closing script tag (after your other add-ons is fine).
+// The functions below have the same names as your old ones, so these
+// versions are the ones that run. You can delete the old ones later.
+//
+// - Moving a match swaps it with the match in that slot. Nothing else moves.
+// - "Auto" puts one match back at its own automatic time.
+// - "Reset manual moves" brings the whole timetable back to the original.
+// - The top bar is hidden on the Home screen.
+// ============================================================
+
+function scheduleAll() {
+  const courts = Math.max(1, parseInt(state.courts) || 1);
+  const mm = Math.max(1, parseInt(state.matchMin) || 10);
+  const start = toMin(state.dayStarts);
+
+  const totalBreaksTime = (state.breaks || []).reduce((sum, b) => sum + (parseInt(b.min) || 0), 0);
+  const perDay = Math.max(1, Math.floor((toMin(state.playUntil) - start - totalBreaksTime) / mm));
+  const cats = state.categories;
+
+  // Always schedule from the original match order, so the automatic timetable never depends on earlier moves.
+  // (Freshly built matches are still in their original order, so number them before anything gets sorted.)
+  cats.forEach(c => { if (c.matches.some(m => m.ord == null)) c.matches.forEach((m, i) => { m.ord = i; }); });
+  cats.forEach(c => c.matches.sort((a, b) => a.ord - b.ord));
+
+  const allowedCourts = cats.map(c => {
+    const a = (c.courts || []).map(Number).filter(n => n >= 1 && n <= courts);
+    return a.length ? a : null;
+  });
+  const clean = a => { const l = (a || []).map(Number).filter(n => n >= 1 && n <= courts); return l.length ? l : null; };
+  const koMap = cats.map(c => {
+    const o = {};
+    Object.keys(c.koMatchCourts || {}).forEach(id => { o[id] = clean(c.koMatchCourts[id]); });
+    return o;
+  });
+  const courtOK = (ci, m, ct) => {
+    let list = allowedCourts[ci];
+    if (m.stage === 'ko' && koMap[ci][m.id]) list = koMap[ci][m.id];
+    return !list || list.includes(ct);
+  };
+
+  const pend = cats.map(c => [...c.matches]);
+  const slotOf = cats.map(() => ({}));
+  let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
+  let prev = cats.map(() => new Set());
+  const timeAt = sl => { const si = sl % perDay; const t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / perDay), timeMin: t, time: formatTime(t) }; };
+
+  while (left > 0 && slot < 5000) {
+    const used = cats.map(() => new Set());
+    const place = (ci, m, court) => {
+      left--;
+      slotOf[ci][m.id] = slot;
+      used[ci].add(m.team1); used[ci].add(m.team2);
+      Object.assign(m, timeAt(slot), { courtNo: court, court: 'C' + court });
+    };
+    const pick = (ci, rest, court) => {
+      const idx = pend[ci].findIndex(m => {
+        if (!courtOK(ci, m, court)) return false;
+        if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
+        if (m.stage === 'ko') return true;
+        if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
+        return !rest || (!prev[ci].has(m.team1) && !prev[ci].has(m.team2));
+      });
+      return idx < 0 ? null : pend[ci].splice(idx, 1)[0];
+    };
+
+    for (let court = 1; court <= courts; court++) {
+      for (let k = 0; k < cats.length; k++) {
+        const ci = (k + slot + court - 1) % cats.length;
+        const m = pick(ci, true, court) || pick(ci, false, court);
+        if (!m) continue;
+        place(ci, m, court);
+        break;
+      }
+    }
+    prev = used;
+    slot++;
+  }
+
+  // Remember the automatic timetable, so "Auto" and "Reset" can always return to it
+  cats.forEach(c => c.matches.forEach(m => { m.aSlot = m.slot; m.aCourt = m.courtNo; }));
+
+  // Manual moves are laid on top of it and only touch the matches that were moved
+  const cell = (s, c) => s + ':' + c;
+  const autoHolder = {};
+  cats.forEach(c => c.matches.forEach(m => { autoHolder[cell(m.slot, m.courtNo)] = m; }));
+  const pinned = new Set();
+  cats.forEach(c => c.matches.forEach(m => {
+    if (!m.pin) return;
+    if (Number(m.pin.slot) === m.aSlot && Number(m.pin.court) === m.aCourt) delete m.pin;   // moved back to its own time
+    else pinned.add(m);
+  }));
+  let again = true;
+  while (again) {
+    again = false;
+    const taken = {};
+    [...pinned].forEach(m => {
+      const sl = Number(m.pin.slot), ct = Number(m.pin.court), key = cell(sl, ct), h = autoHolder[key];
+      const ok = Number.isInteger(sl) && sl >= 0 && Number.isInteger(ct) && ct >= 1 && ct <= courts &&
+        !taken[key] && (!h || h === m || pinned.has(h));
+      if (ok) taken[key] = m; else { delete m.pin; pinned.delete(m); again = true; }
+    });
+  }
+  pinned.forEach(m => {
+    const ct = Number(m.pin.court);
+    Object.assign(m, timeAt(Number(m.pin.slot)), { courtNo: ct, court: 'C' + ct });
+  });
+  cats.forEach(c => c.matches.sort(matchOrder));
+}
+
+function moveMatch(catId, matchId, delta) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m) return;
+  const from = { slot: m.slot, court: m.courtNo }, target = from.slot + delta;
+  if (target < 0) { toast('This is already the first time slot.'); return; }
+  const other = findAt(target, m.courtNo);      // whoever is in that slot on the same court
+  const setPin = (x, slot, court) => { if (slot === x.aSlot && court === x.aCourt) delete x.pin; else x.pin = { slot, court }; };
+  setPin(m, target, m.courtNo);
+  if (other) setPin(other.m, from.slot, from.court);   // the two simply swap places
+  changed();
+  const w = matchWarnings(cat, m).concat(other ? matchWarnings(other.cat, other.m) : []);
+  if (w.length) toast('Moved, but: ' + w[0]);
+}
+function unpinMatch(catId, matchId) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m || !m.pin) return;
+  const here = { slot: m.slot, court: m.courtNo };
+  const occ = findAt(m.aSlot, m.aCourt);        // who is sitting in my automatic time right now
+  delete m.pin;
+  if (occ && occ.m !== m) {                     // they take the time I am leaving
+    if (occ.m.aSlot === here.slot && occ.m.aCourt === here.court) delete occ.m.pin;
+    else occ.m.pin = { slot: here.slot, court: here.court };
+  }
+  changed();
+}
+
+function switchMainView(view) {
+  currentView = view;
+  document.querySelector('header').classList.toggle('hidden', view === 'home');   // no top bar on the home screen
+  if (view === 'home') {
+    document.getElementById('homeView').classList.remove('hidden');
+    document.getElementById('tournamentContainer').classList.add('hidden');
+    renderHome();
+  } else {
+    document.getElementById('homeView').classList.add('hidden');
+    document.getElementById('tournamentContainer').classList.remove('hidden');
+    render();
+  }
+}
+  // ============================================================
+// PENALTIES FOR KNOCKOUT MATCHES
+// Paste this whole block at the very end of your main script block,
+// after your other add-ons and just above its closing script tag.
+// It does not change any of your existing code.
+//
+// Semi-finals, the 3rd/4th place match and the final get a "Pens" box
+// whenever their score is tied. The penalty score decides who goes through.
+// ============================================================
+(function () {
+  const css = `
+    .pen-wrap { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px;
+      background: #fff7ed; border: 1px solid #fdba74; font-size: 11px; font-weight: 700; color: #9a3412; white-space: nowrap; }
+    .pen-box { width: 38px; height: 32px; text-align: center; font-weight: 700; font-size: 14px; border: 2px solid #fdba74;
+      border-radius: 6px; background: #fff; }
+    .pen-box:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,.2); }
+    .pen-box.tie { border-color: #ef4444; }
+    .pen-note { font-size: 11px; font-weight: 700; color: #9a3412; margin-left: 6px; white-space: nowrap; }
+    @media (max-width: 639px) { .pen-box { width: 44px; height: 38px; } }
+  `;
+  const st = document.createElement('style');
+  st.id = 'penaltyStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const num = v => (v === '' || v == null || isNaN(v)) ? null : parseInt(v, 10);
+  const isTied = m => done(m) && +m.score1 === +m.score2;
+  const hasPens = m => num(m.pen1) !== null || num(m.pen2) !== null;
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  // ---- Who wins a tied knockout match: the penalty score decides ----
+  wrap('resolveRef', (o, cat, ref) => {
+    if (ref && (ref.t === 'win' || ref.t === 'lose')) {
+      const m = cat.matches.find(x => x.id === ref.m);
+      if (m && isTied(m)) {
+        const p1 = num(m.pen1), p2 = num(m.pen2);
+        if (p1 === null || p2 === null || p1 === p2) return null;     // not decided yet
+        const firstWon = p1 > p2;
+        const src = ref.t === 'lose' ? (firstWon ? m.ref2 : m.ref1) : (firstWon ? m.ref1 : m.ref2);
+        return resolveRef(cat, src);
+      }
+    }
+    return o(cat, ref);
+  });
+
+  // ---- Keep penalties when matches are rebuilt (adding teams, remote updates ...) ----
+  wrap('buildMatches', (o, cat) => {
+    const keep = {};
+    cat.matches.forEach(m => { if (m.stage === 'ko' && hasPens(m)) keep[m.id] = [m.pen1, m.pen2]; });
+    o(cat);
+    cat.matches.forEach(m => { if (m.stage === 'ko' && keep[m.id]) { m.pen1 = keep[m.id][0]; m.pen2 = keep[m.id][1]; } });
+  });
+
+  // ---- Share snapshot links carry the penalties too ----
+  wrap('compactState', o => {
+    const r = o();
+    r.pn = state.categories.map(cat => cat.matches.filter(m => m.stage === 'ko' && hasPens(m)).map(m => [m.id, m.pen1 ?? '', m.pen2 ?? '']));
+    return r;
+  });
+  wrap('expandState', (o, obj) => {
+    o(obj);
+    (obj.pn || []).forEach((list, i) => {
+      const cat = state.categories[i];
+      if (!cat) return;
+      list.forEach(([id, a, b]) => { const m = cat.matches.find(x => x.id === id); if (m) { m.pen1 = a; m.pen2 = b; } });
+    });
+  });
+
+  // ---- The boxes themselves (added to the match cards / schedule table after they are drawn) ----
+  function penGroup(cat, m) {
+    const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+    const p1 = m.pen1 ?? '', p2 = m.pen2 ?? '';
+    const bad = num(p1) !== null && num(p1) === num(p2);
+    return `<div class="pen-wrap" title="The match is tied. Enter the penalty shoot-out score.">Pens
+      <input type="text" maxlength="2" inputmode="numeric" class="pen-box${bad ? ' tie' : ''}" ${d} data-pen="1" value="${esc(p1)}">
+      <span>–</span>
+      <input type="text" maxlength="2" inputmode="numeric" class="pen-box${bad ? ' tie' : ''}" ${d} data-pen="2" value="${esc(p2)}"></div>`;
+  }
+  function decoratePens() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      const hit = matchFromCard(card);
+      const existing = card.querySelector('.pen-wrap');
+      const note = card.querySelector('.pen-note');
+      if (!hit || hit.m.stage !== 'ko' || !isTied(hit.m)) { if (existing) existing.remove(); if (note) note.remove(); return; }
+      const { cat, m } = hit;
+      if (editMode) {
+        if (note) note.remove();
+        if (!existing) card.lastElementChild.insertAdjacentHTML('beforeend', penGroup(cat, m));
+      } else {
+        if (existing) existing.remove();
+        const text = hasPens(m) ? `pens ${num(m.pen1) ?? 0}–${num(m.pen2) ?? 0}` : 'tied';
+        if (note) note.textContent = text;
+        else { const pill = card.querySelector('.score-pill'); if (pill) pill.insertAdjacentHTML('afterend', `<span class="pen-note">${text}</span>`); }
+      }
+    });
+    // the Full schedule table: add the penalty score next to a tied result
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      const c = tr.children;
+      if (!c[6]) return;
+      const old = c[6].querySelector('.pen-note');
+      if (old) old.remove();
+      const cat = state.categories.find(x => x.name === c[1].textContent.trim());
+      const m = cat && cat.matches.find(x => x.stage === 'ko' && x.round === c[3].textContent.trim());
+      if (m && isTied(m) && hasPens(m)) c[6].insertAdjacentHTML('beforeend', `<span class="pen-note">(pens ${num(m.pen1) ?? 0}–${num(m.pen2) ?? 0})</span>`);
+    });
+  }
+  ['renderCategories', 'renderSchedule'].forEach(n => wrap(n, o => { o(); decoratePens(); }));
+  wrap('refreshDerived', (o, id) => { o(id); decoratePens(); });
+  wrap('render', o => { o(); decoratePens(); });
+
+  // ---- Typing penalties ----
+  document.addEventListener('input', e => {
+    if (!e.target.classList.contains('pen-box')) return;
+    e.target.value = e.target.value.replace(/[^0-9]/g, '');
+  });
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (!t.classList.contains('pen-box') || !editMode) return;
+    const cat = getCat(t.dataset.cat);
+    const m = cat && cat.matches.find(x => x.id === t.dataset.match);
+    if (!m) return;
+    m['pen' + t.dataset.pen] = t.value;
+    const bad = num(m.pen1) !== null && num(m.pen1) === num(m.pen2);
+    t.closest('.pen-wrap').querySelectorAll('.pen-box').forEach(b => b.classList.toggle('tie', bad));
+    if (bad) toast('Penalties cannot end level. Enter the final shoot-out score.');
+    save();
+    refreshDerived(cat.id);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || !e.target.classList.contains('pen-box')) return;
+    e.preventDefault();
+    const all = Array.from(document.querySelectorAll('.score-box, .pen-box'));
+    const next = all[all.indexOf(e.target) + 1];
+    if (next) { next.focus(); next.select(); } else e.target.blur();
+  });
+
+  if (currentView === 'tournament') render();
+})();
 </script>
+
 </body>
 </html>
