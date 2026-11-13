@@ -2630,6 +2630,531 @@ updateTournamentSelectDropdown();
 
   if (currentView === 'tournament') render();
 })();
+// ============================================================
+// MATCH MOVING, AUTO / RESET, AND NO TOP BAR ON THE HOME SCREEN
+//
+// Paste this whole block at the very end of your main script block,
+// just above its closing script tag (after your other add-ons is fine).
+// The functions below have the same names as your old ones, so these
+// versions are the ones that run. You can delete the old ones later.
+//
+// - Moving a match swaps it with the match in that slot. Nothing else moves.
+// - "Auto" puts one match back at its own automatic time.
+// - "Reset manual moves" brings the whole timetable back to the original.
+// - The top bar is hidden on the Home screen.
+// ============================================================
+
+function scheduleAll() {
+  const courts = Math.max(1, parseInt(state.courts) || 1);
+  const mm = Math.max(1, parseInt(state.matchMin) || 10);
+  const start = toMin(state.dayStarts);
+
+  const totalBreaksTime = (state.breaks || []).reduce((sum, b) => sum + (parseInt(b.min) || 0), 0);
+  const perDay = Math.max(1, Math.floor((toMin(state.playUntil) - start - totalBreaksTime) / mm));
+  const cats = state.categories;
+
+  // Always schedule from the original match order, so the automatic timetable never depends on earlier moves.
+  // (Freshly built matches are still in their original order, so number them before anything gets sorted.)
+  cats.forEach(c => { if (c.matches.some(m => m.ord == null)) c.matches.forEach((m, i) => { m.ord = i; }); });
+  cats.forEach(c => c.matches.sort((a, b) => a.ord - b.ord));
+
+  const allowedCourts = cats.map(c => {
+    const a = (c.courts || []).map(Number).filter(n => n >= 1 && n <= courts);
+    return a.length ? a : null;
+  });
+  const clean = a => { const l = (a || []).map(Number).filter(n => n >= 1 && n <= courts); return l.length ? l : null; };
+  const koMap = cats.map(c => {
+    const o = {};
+    Object.keys(c.koMatchCourts || {}).forEach(id => { o[id] = clean(c.koMatchCourts[id]); });
+    return o;
+  });
+  const courtOK = (ci, m, ct) => {
+    let list = allowedCourts[ci];
+    if (m.stage === 'ko' && koMap[ci][m.id]) list = koMap[ci][m.id];
+    return !list || list.includes(ct);
+  };
+
+  const pend = cats.map(c => [...c.matches]);
+  const slotOf = cats.map(() => ({}));
+  let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
+  let prev = cats.map(() => new Set());
+  const timeAt = sl => { const si = sl % perDay; const t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / perDay), timeMin: t, time: formatTime(t) }; };
+
+  while (left > 0 && slot < 5000) {
+    const used = cats.map(() => new Set());
+    const place = (ci, m, court) => {
+      left--;
+      slotOf[ci][m.id] = slot;
+      used[ci].add(m.team1); used[ci].add(m.team2);
+      Object.assign(m, timeAt(slot), { courtNo: court, court: 'C' + court });
+    };
+    const pick = (ci, rest, court) => {
+      const idx = pend[ci].findIndex(m => {
+        if (!courtOK(ci, m, court)) return false;
+        if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
+        if (m.stage === 'ko') return true;
+        if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
+        return !rest || (!prev[ci].has(m.team1) && !prev[ci].has(m.team2));
+      });
+      return idx < 0 ? null : pend[ci].splice(idx, 1)[0];
+    };
+
+    for (let court = 1; court <= courts; court++) {
+      for (let k = 0; k < cats.length; k++) {
+        const ci = (k + slot + court - 1) % cats.length;
+        const m = pick(ci, true, court) || pick(ci, false, court);
+        if (!m) continue;
+        place(ci, m, court);
+        break;
+      }
+    }
+    prev = used;
+    slot++;
+  }
+
+  // Remember the automatic timetable, so "Auto" and "Reset" can always return to it
+  cats.forEach(c => c.matches.forEach(m => { m.aSlot = m.slot; m.aCourt = m.courtNo; }));
+
+  // Manual moves are laid on top of it and only touch the matches that were moved
+  const cell = (s, c) => s + ':' + c;
+  const autoHolder = {};
+  cats.forEach(c => c.matches.forEach(m => { autoHolder[cell(m.slot, m.courtNo)] = m; }));
+  const pinned = new Set();
+  cats.forEach(c => c.matches.forEach(m => {
+    if (!m.pin) return;
+    if (Number(m.pin.slot) === m.aSlot && Number(m.pin.court) === m.aCourt) delete m.pin;   // moved back to its own time
+    else pinned.add(m);
+  }));
+  let again = true;
+  while (again) {
+    again = false;
+    const taken = {};
+    [...pinned].forEach(m => {
+      const sl = Number(m.pin.slot), ct = Number(m.pin.court), key = cell(sl, ct), h = autoHolder[key];
+      const ok = Number.isInteger(sl) && sl >= 0 && Number.isInteger(ct) && ct >= 1 && ct <= courts &&
+        !taken[key] && (!h || h === m || pinned.has(h));
+      if (ok) taken[key] = m; else { delete m.pin; pinned.delete(m); again = true; }
+    });
+  }
+  pinned.forEach(m => {
+    const ct = Number(m.pin.court);
+    Object.assign(m, timeAt(Number(m.pin.slot)), { courtNo: ct, court: 'C' + ct });
+  });
+  cats.forEach(c => c.matches.sort(matchOrder));
+}
+
+function moveMatch(catId, matchId, delta) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m) return;
+  const from = { slot: m.slot, court: m.courtNo }, target = from.slot + delta;
+  if (target < 0) { toast('This is already the first time slot.'); return; }
+  const other = findAt(target, m.courtNo);      // whoever is in that slot on the same court
+  const setPin = (x, slot, court) => { if (slot === x.aSlot && court === x.aCourt) delete x.pin; else x.pin = { slot, court }; };
+  setPin(m, target, m.courtNo);
+  if (other) setPin(other.m, from.slot, from.court);   // the two simply swap places
+  changed();
+  const w = matchWarnings(cat, m).concat(other ? matchWarnings(other.cat, other.m) : []);
+  if (w.length) toast('Moved, but: ' + w[0]);
+}
+function unpinMatch(catId, matchId) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m || !m.pin) return;
+  const here = { slot: m.slot, court: m.courtNo };
+  const occ = findAt(m.aSlot, m.aCourt);        // who is sitting in my automatic time right now
+  delete m.pin;
+  if (occ && occ.m !== m) {                     // they take the time I am leaving
+    if (occ.m.aSlot === here.slot && occ.m.aCourt === here.court) delete occ.m.pin;
+    else occ.m.pin = { slot: here.slot, court: here.court };
+  }
+  changed();
+}
+
+function switchMainView(view) {
+  currentView = view;
+  document.querySelector('header').classList.toggle('hidden', view === 'home');   // no top bar on the home screen
+  if (view === 'home') {
+    document.getElementById('homeView').classList.remove('hidden');
+    document.getElementById('tournamentContainer').classList.add('hidden');
+    renderHome();
+  } else {
+    document.getElementById('homeView').classList.add('hidden');
+    document.getElementById('tournamentContainer').classList.remove('hidden');
+    render();
+  }
+}
+  // ============================================================
+// PENALTIES FOR KNOCKOUT MATCHES
+// Paste this whole block at the very end of your main script block,
+// after your other add-ons and just above its closing script tag.
+// It does not change any of your existing code.
+//
+// Semi-finals, the 3rd/4th place match and the final get a "Pens" box
+// whenever their score is tied. The penalty score decides who goes through.
+// ============================================================
+(function () {
+  const css = `
+    .pen-wrap { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px;
+      background: #fff7ed; border: 1px solid #fdba74; font-size: 11px; font-weight: 700; color: #9a3412; white-space: nowrap; }
+    .pen-box { width: 38px; height: 32px; text-align: center; font-weight: 700; font-size: 14px; border: 2px solid #fdba74;
+      border-radius: 6px; background: #fff; }
+    .pen-box:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,.2); }
+    .pen-box.tie { border-color: #ef4444; }
+    .pen-note { font-size: 11px; font-weight: 700; color: #9a3412; margin-left: 6px; white-space: nowrap; }
+    @media (max-width: 639px) { .pen-box { width: 44px; height: 38px; } }
+  `;
+  const st = document.createElement('style');
+  st.id = 'penaltyStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const num = v => (v === '' || v == null || isNaN(v)) ? null : parseInt(v, 10);
+  const isTied = m => done(m) && +m.score1 === +m.score2;
+  const hasPens = m => num(m.pen1) !== null || num(m.pen2) !== null;
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  // ---- Who wins a tied knockout match: the penalty score decides ----
+  wrap('resolveRef', (o, cat, ref) => {
+    if (ref && (ref.t === 'win' || ref.t === 'lose')) {
+      const m = cat.matches.find(x => x.id === ref.m);
+      if (m && isTied(m)) {
+        const p1 = num(m.pen1), p2 = num(m.pen2);
+        if (p1 === null || p2 === null || p1 === p2) return null;     // not decided yet
+        const firstWon = p1 > p2;
+        const src = ref.t === 'lose' ? (firstWon ? m.ref2 : m.ref1) : (firstWon ? m.ref1 : m.ref2);
+        return resolveRef(cat, src);
+      }
+    }
+    return o(cat, ref);
+  });
+
+  // ---- Keep penalties when matches are rebuilt (adding teams, remote updates ...) ----
+  wrap('buildMatches', (o, cat) => {
+    const keep = {};
+    cat.matches.forEach(m => { if (m.stage === 'ko' && hasPens(m)) keep[m.id] = [m.pen1, m.pen2]; });
+    o(cat);
+    cat.matches.forEach(m => { if (m.stage === 'ko' && keep[m.id]) { m.pen1 = keep[m.id][0]; m.pen2 = keep[m.id][1]; } });
+  });
+
+  // ---- Share snapshot links carry the penalties too ----
+  wrap('compactState', o => {
+    const r = o();
+    r.pn = state.categories.map(cat => cat.matches.filter(m => m.stage === 'ko' && hasPens(m)).map(m => [m.id, m.pen1 ?? '', m.pen2 ?? '']));
+    return r;
+  });
+  wrap('expandState', (o, obj) => {
+    o(obj);
+    (obj.pn || []).forEach((list, i) => {
+      const cat = state.categories[i];
+      if (!cat) return;
+      list.forEach(([id, a, b]) => { const m = cat.matches.find(x => x.id === id); if (m) { m.pen1 = a; m.pen2 = b; } });
+    });
+  });
+
+  // ---- The boxes themselves (added to the match cards / schedule table after they are drawn) ----
+  function penGroup(cat, m) {
+    const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+    const p1 = m.pen1 ?? '', p2 = m.pen2 ?? '';
+    const bad = num(p1) !== null && num(p1) === num(p2);
+    return `<div class="pen-wrap" title="The match is tied. Enter the penalty shoot-out score.">Pens
+      <input type="text" maxlength="2" inputmode="numeric" class="pen-box${bad ? ' tie' : ''}" ${d} data-pen="1" value="${esc(p1)}">
+      <span>–</span>
+      <input type="text" maxlength="2" inputmode="numeric" class="pen-box${bad ? ' tie' : ''}" ${d} data-pen="2" value="${esc(p2)}"></div>`;
+  }
+  function decoratePens() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      const hit = matchFromCard(card);
+      const existing = card.querySelector('.pen-wrap');
+      const note = card.querySelector('.pen-note');
+      if (!hit || hit.m.stage !== 'ko' || !isTied(hit.m)) { if (existing) existing.remove(); if (note) note.remove(); return; }
+      const { cat, m } = hit;
+      if (editMode) {
+        if (note) note.remove();
+        if (!existing) card.lastElementChild.insertAdjacentHTML('beforeend', penGroup(cat, m));
+      } else {
+        if (existing) existing.remove();
+        const text = hasPens(m) ? `pens ${num(m.pen1) ?? 0}–${num(m.pen2) ?? 0}` : 'tied';
+        if (note) note.textContent = text;
+        else { const pill = card.querySelector('.score-pill'); if (pill) pill.insertAdjacentHTML('afterend', `<span class="pen-note">${text}</span>`); }
+      }
+    });
+    // the Full schedule table: add the penalty score next to a tied result
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      const c = tr.children;
+      if (!c[6]) return;
+      const old = c[6].querySelector('.pen-note');
+      if (old) old.remove();
+      const cat = state.categories.find(x => x.name === c[1].textContent.trim());
+      const m = cat && cat.matches.find(x => x.stage === 'ko' && x.round === c[3].textContent.trim());
+      if (m && isTied(m) && hasPens(m)) c[6].insertAdjacentHTML('beforeend', `<span class="pen-note">(pens ${num(m.pen1) ?? 0}–${num(m.pen2) ?? 0})</span>`);
+    });
+  }
+  ['renderCategories', 'renderSchedule'].forEach(n => wrap(n, o => { o(); decoratePens(); }));
+  wrap('refreshDerived', (o, id) => { o(id); decoratePens(); });
+  wrap('render', o => { o(); decoratePens(); });
+
+  // ---- Typing penalties ----
+  document.addEventListener('input', e => {
+    if (!e.target.classList.contains('pen-box')) return;
+    e.target.value = e.target.value.replace(/[^0-9]/g, '');
+  });
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (!t.classList.contains('pen-box') || !editMode) return;
+    const cat = getCat(t.dataset.cat);
+    const m = cat && cat.matches.find(x => x.id === t.dataset.match);
+    if (!m) return;
+    m['pen' + t.dataset.pen] = t.value;
+    const bad = num(m.pen1) !== null && num(m.pen1) === num(m.pen2);
+    t.closest('.pen-wrap').querySelectorAll('.pen-box').forEach(b => b.classList.toggle('tie', bad));
+    if (bad) toast('Penalties cannot end level. Enter the final shoot-out score.');
+    save();
+    refreshDerived(cat.id);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || !e.target.classList.contains('pen-box')) return;
+    e.preventDefault();
+    const all = Array.from(document.querySelectorAll('.score-box, .pen-box'));
+    const next = all[all.indexOf(e.target) + 1];
+    if (next) { next.focus(); next.select(); } else e.target.blur();
+  });
+
+  if (currentView === 'tournament') render();
+})();
+  // ============================================================
+// MATCH BAR TOOLS
+//
+// Paste this whole block at the very end of your main script block,
+// just above its closing script tag (after your other add-ons).
+// It does not change any of your existing code.
+//
+// 1. The time bars keep their layout: the time, court, status and team names
+//    stay in fixed columns, so "Ongoing" / "Completed" no longer push things around.
+// 2. Edit mode: a  -  and  +  button on each side of the two score boxes.
+// 3. Edit mode: a W/O (walkover) button on each match.
+// 4. Phones no longer zoom in when you tap a score box.
+// ============================================================
+(function () {
+  const WALKOVER_WIN = 3;       // a walkover is recorded as 3 - 0 (change this number if your rules differ)
+
+  const css = `
+    /* ---- 1. stable columns in the match bar ---- */
+    .match-card { padding-top: 8px !important; padding-bottom: 8px !important; }
+    .match-card > div:first-child { display: flex; align-items: center; }
+    .match-card .mc-time { order: 1; flex: 0 0 138px; width: 138px; min-width: 138px !important; font-size: 11.5px; }
+    .match-card .mc-court { order: 2; flex: 0 0 30px; width: 30px; box-sizing: border-box; text-align: center; }
+    .match-card .mc-status { order: 3; flex: 0 0 78px; width: 78px; display: flex; align-items: center; }
+    .match-card .mc-status .status-badge { font-size: 9px; padding: 1px 6px; }
+    .match-card .mc-n1 { order: 4; }
+    .match-card .mc-vs { order: 5; }
+    .match-card .mc-n2 { order: 6; }
+    .match-card .mc-tag { order: 7; }
+    .match-card .mc-flag { order: 8; }
+    .match-card .mc-day { order: 9; }
+    .status-badge.wo { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
+
+    /* ---- 2. score +/- buttons ---- */
+    .sc-btn { width: 26px; height: 32px; line-height: 1; font-size: 16px; font-weight: 700; color: #4b5563; background: #fff;
+      border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; padding: 0; touch-action: manipulation; }
+    .sc-btn:hover { background: #f3f4f6; }
+    .sc-btn:active { background: #e5e7eb; }
+
+    /* ---- 3. walkover ---- */
+    .wo-btn.on { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+
+    /* ---- 4. no zoom when typing on touch screens ---- */
+    @media (pointer: coarse) {
+      html input, html select, html textarea { font-size: 16px !important; }
+      input, button, select, textarea { touch-action: manipulation; }
+      .sc-btn { width: 30px; height: 36px; }
+    }
+
+    /* phones: no fixed columns (the bar wraps there), and no space kept for an empty status */
+    @media (max-width: 639px) {
+      .match-card .mc-time { flex: 0 0 auto; width: auto; min-width: 0 !important; }
+      .match-card .mc-court { flex: 0 0 auto; width: auto; }
+      .match-card .mc-status { flex: 0 0 auto; width: auto; }
+      .match-card .mc-status:empty { display: none; }
+      .sc-btn { width: 28px; height: 32px; }
+    }
+  `;
+  const st = document.createElement('style');
+  st.id = 'matchBarToolsStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  // ---- Walkovers survive rebuilds (adding teams, remote updates ...) and share links ----
+  wrap('buildMatches', (o, cat) => {
+    const keep = {};
+    cat.matches.forEach(m => {
+      if (!m.wo) return;
+      if (m.stage === 'ko') keep['ko:' + m.id] = { side: m.wo };
+      else keep[pairKey(m.group, m.team1, m.team2)] = { name: m.wo === 1 || m.wo === '1' ? m.team1 : m.team2 };
+    });
+    o(cat);
+    cat.matches.forEach(m => {
+      const k = m.stage === 'ko' ? keep['ko:' + m.id] : keep[pairKey(m.group, m.team1, m.team2)];
+      if (!k) return;
+      m.wo = k.side || (k.name === m.team1 ? 1 : 2);
+    });
+  });
+  wrap('compactState', o => {
+    const r = o();
+    r.wo = state.categories.map(cat => cat.matches.filter(m => m.wo).map(m => [m.id, m.wo]));
+    return r;
+  });
+  wrap('expandState', (o, obj) => {
+    o(obj);
+    (obj.wo || []).forEach((list, i) => {
+      const cat = state.categories[i];
+      if (!cat) return;
+      list.forEach(([id, side]) => { const m = cat.matches.find(x => x.id === id); if (m) m.wo = side; });
+    });
+  });
+
+  // ---- Decorate the match bars after they are drawn ----
+  function decorate() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      const hit = matchFromCard(card);
+      if (!hit) return;
+      const { cat, m } = hit;
+      const left = card.firstElementChild, right = card.lastElementChild;
+
+      if (!card.dataset.mc) {
+        card.dataset.mc = '1';
+        const kids = Array.from(left.children);
+        kids[0].classList.add('mc-time');
+        kids.forEach(k => {
+          const txt = k.textContent.trim();
+          if (k.classList.contains('court-badge')) k.classList.add('mc-court');
+          else if (k.classList.contains('group-badge')) k.classList.add('mc-tag');
+          else if (k.classList.contains('manual-badge') || k.classList.contains('warn-badge')) k.classList.add('mc-flag');
+          else if (k.dataset && k.dataset.ko) k.classList.add(k.dataset.ko.endsWith('|1') ? 'mc-n1' : 'mc-n2');
+          else if (k.tagName === 'SPAN' && txt === 'vs') k.classList.add('mc-vs');
+          else if (/^Day \d+$/.test(txt)) k.classList.add('mc-day');
+        });
+        // a status slot that always takes the same room, empty or not
+        const slot = document.createElement('span');
+        slot.className = 'mc-status';
+        const badge = left.querySelector('.status-badge');
+        if (badge) slot.appendChild(badge);
+        const court = left.querySelector('.mc-court');
+        (court || kids[0]).after(slot);
+      }
+      const slot = left.querySelector('.mc-status');
+      if (m.wo && slot && !slot.querySelector('.wo')) slot.innerHTML = '<span class="status-badge wo" title="Walkover">W/O</span>';
+
+      if (editMode) {
+        right.querySelectorAll('.score-box').forEach(box => {
+          if (box.previousElementSibling && box.previousElementSibling.classList.contains('sc-btn')) return;
+          const d = `data-cat="${esc(box.dataset.cat)}" data-match="${esc(box.dataset.match)}" data-side="${box.dataset.side}"`;
+          box.insertAdjacentHTML('beforebegin', `<button type="button" class="sc-btn" ${d} data-step="-1" aria-label="Down one">−</button>`);
+          box.insertAdjacentHTML('afterend', `<button type="button" class="sc-btn" ${d} data-step="1" aria-label="Up one">+</button>`);
+        });
+        if (!right.querySelector('.wo-btn')) {
+          right.insertAdjacentHTML('beforeend',
+            `<button type="button" class="btn wo-btn${m.wo ? ' on' : ''}" data-cat="${esc(cat.id)}" data-match="${esc(m.id)}" title="${m.wo ? 'Remove the walkover' : 'Record a walkover'}">W/O</button>`);
+        }
+      }
+    });
+
+    // Full schedule table: show W/O in the Status column
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      const c = tr.children;
+      if (!c[4] || !c[7]) return;
+      const cat = state.categories.find(x => x.name === c[1].textContent.trim());
+      const home = c[5].textContent.trim(), away = c[7].textContent.trim();
+      const m = cat && cat.matches.find(x => displayName(cat, x, 1) === home && displayName(cat, x, 2) === away);
+      if (m && m.wo && !c[4].querySelector('.wo')) c[4].innerHTML = '<span class="status-badge wo">W/O</span>';
+    });
+  }
+  ['renderCategories', 'renderSchedule'].forEach(n => wrap(n, o => { o(); decorate(); }));
+  wrap('refreshDerived', (o, id) => { o(id); decorate(); });
+  wrap('render', o => { o(); decorate(); });
+
+  // ---- Score + / - buttons ----
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.sc-btn');
+    if (!b || !editMode) return;
+    const box = Array.from(b.parentElement.querySelectorAll('.score-box'))
+      .find(x => x.dataset.match === b.dataset.match && x.dataset.side === b.dataset.side && x.dataset.cat === b.dataset.cat);
+    if (!box) return;
+    const step = parseInt(b.dataset.step, 10);
+    const cur = box.value === '' ? null : parseInt(box.value, 10);
+    let next;
+    if (cur === null) next = step > 0 ? 1 : null;          // down from empty does nothing
+    else next = cur + step;
+    if (next !== null && next < 0) next = null;            // down from 0 clears the box
+    if (next !== null && next > 99) next = 99;
+    box.value = next === null ? '' : String(next);
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    box.dispatchEvent(new Event('change', { bubbles: true }));   // your normal save + standings refresh runs from here
+  });
+
+  // Typing a different score afterwards cancels a walkover mark
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (!t.classList || !t.classList.contains('score-box')) return;
+    const cat = getCat(t.dataset.cat), m = cat && cat.matches.find(x => x.id === t.dataset.match);
+    if (!m || !m.wo) return;
+    m.wo = '';
+    const card = t.closest('.match-card');
+    if (card) { const w = card.querySelector('.mc-status .wo'); if (w) w.remove(); const wb = card.querySelector('.wo-btn'); if (wb) wb.classList.remove('on'); }
+    setTimeout(save, 0);
+  }, true);
+
+  // ---- Walkover button ----
+  function setWalkover(m, side) {
+    m.wo = side;
+    m.score1 = String(side === 1 ? WALKOVER_WIN : 0);
+    m.score2 = String(side === 2 ? WALKOVER_WIN : 0);
+    m.status = '';
+    save();
+    render();
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.wo-btn');
+    if (!b || !editMode) return;
+    const cat = getCat(b.dataset.cat), m = cat && cat.matches.find(x => x.id === b.dataset.match);
+    if (!m) return;
+    if (m.wo) {
+      confirmDialog('Remove the walkover and clear this match\'s score?', () => { m.wo = ''; m.score1 = ''; m.score2 = ''; save(); render(); }, 'Remove');
+      return;
+    }
+    const n1 = displayName(cat, m, 1), n2 = displayName(cat, m, 2);
+    const o = showModal(`<h3 class="font-semibold text-gray-900 mb-1">Walkover</h3>
+      <p class="text-xs text-gray-500 mb-3">Who wins by walkover? It is recorded as ${WALKOVER_WIN} – 0 and marked W/O.</p>
+      <div class="flex flex-col gap-2">
+        <button class="btn" data-w="1">${esc(n1)} wins</button>
+        <button class="btn" data-w="2">${esc(n2)} wins</button>
+        <button class="btn" data-c>Cancel</button>
+      </div>`);
+    o.querySelector('[data-c]').onclick = () => o.remove();
+    o.querySelectorAll('[data-w]').forEach(btn => { btn.onclick = () => { o.remove(); setWalkover(m, parseInt(btn.dataset.w, 10)); }; });
+  });
+
+  if (currentView === 'tournament') render();
+})();
 </script>
+
 </body>
 </html>
