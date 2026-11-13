@@ -2004,25 +2004,72 @@ function findAt(slot, courtNo) {
 
 function matchWarnings(cat, m) {
   const w = [];
-  const name = x => `${displayName(cat, x, 1)} vs ${displayName(cat, x, 2)}`;
-  if (m.stage !== 'ko') {
-    cat.matches.forEach(x => {
-      if (x === m || x.stage === 'ko' || x.slot !== m.slot) return;
-      const shared = [m.team1, m.team2].filter(t => t === x.team1 || t === x.team2);
-      if (shared.length) w.push(`${shared.join(' & ')} also plays at the same time (${name(x)}, ${x.court}).`);
-    });
-  }
+  if (!m) return w;
+
+  // Minimum slot gap between two matches of the same team.
+  //   2 = one slot of rest is required (adjacent slots warn).
+  //   1 = back-to-back is allowed.
+  const MIN_MATCH_GAP = 2;
+
+  // Flatten every match from every category so we see all courts.
+  const all = [];
+  state.categories.forEach(c => {
+    const full = c._full || c;
+    (full.matches || []).forEach(x => all.push({ cat: full, m: x }));
+  });
+
+  // ── Same time OR immediately before/after, any court, same team ──
+  all.forEach(({ cat: oc, m: x }) => {
+    if (x === m) return;
+    if (x.stage === 'ko') return;          // KO teams resolved later
+    if (x.day !== m.day) return;           // different day = overnight rest
+    const gap = Math.abs(x.slot - m.slot);
+    if (gap >= MIN_MATCH_GAP) return;
+
+    const shared = [m.team1, m.team2].filter(t => t === x.team1 || t === x.team2);
+    if (!shared.length) return;
+
+    // Adjacent slots: if a break falls between them, the team did get rest.
+    if (gap === 1) {
+      const perDay = (() => {
+        const mm    = Math.max(1, parseInt(state.matchMin) || 10);
+        const start = toMin(state.dayStarts);
+        const brk   = (state.breaks || []).reduce((s, b) => s + (parseInt(b.min) || 0), 0);
+        return Math.max(1, Math.floor((toMin(state.playUntil) - start - brk) / mm));
+      })();
+      const si = Math.min(m.slot, x.slot) % perDay;
+      if (getActiveBreaks().some(b => b.before === si + 1)) return;
+    }
+
+    const when  = gap === 0
+      ? 'at the same time'
+      : (x.slot < m.slot ? 'immediately before (no rest)' : 'immediately after (no rest)');
+    const who   = `${displayName(oc, x, 1)} vs ${displayName(oc, x, 2)}`;
+    const where = `${x.court}${oc.id === cat.id ? '' : ' · ' + oc.name}`;
+    w.push(`${shared.join(' & ')} also plays ${when} (${who}, ${where}).`);
+  });
+
+  // ── Court restriction for this category / KO round (unchanged) ──
   const koList = m.stage === 'ko' ? (cat.koMatchCourts || {})[m.id] : null;
-  const useKo = !!(koList && koList.length);
-  const cc = (useKo ? koList : (cat.courts || [])).map(Number);
-  if (cc.length && !cc.includes(m.courtNo)) w.push(`${cat.name}${useKo ? ' ' + m.round + ' is' : ' is'} assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
+  const useKo  = !!(koList && koList.length);
+  const cc     = (useKo ? koList : (cat.courts || [])).map(Number);
+  if (cc.length && !cc.includes(m.courtNo)) {
+    w.push(`${cat.name}${useKo ? ' ' + m.round + ' is' : ' is'} assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
+  }
+
+  // ── Dependency ordering (unchanged) ──
   (m.deps || []).forEach(d => {
     const dm = cat.matches.find(x => x.id === d);
-    if (dm && dm.slot >= m.slot) w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
+    if (dm && dm.slot >= m.slot) {
+      w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
+    }
   });
   cat.matches.forEach(x => {
-    if ((x.deps || []).includes(m.id) && x.slot <= m.slot) w.push(`${x.round} is scheduled at or before this match.`);
+    if ((x.deps || []).includes(m.id) && x.slot <= m.slot) {
+      w.push(`${x.round} is scheduled at or before this match.`);
+    }
   });
+
   return [...new Set(w)];
 }
 function warnBadge(cat, m) {
@@ -2621,7 +2668,7 @@ updateTournamentSelectDropdown();
   const withCats = fn => { const all = state.categories; state.categories = catsIn(); try { fn(); } finally { state.categories = all; } };
 
   wrap('allMatches', o => { const l = o(); return filterScope && active() ? l.filter(x => inF(x.cat, x.m)) : l; });
-  wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // clash checks always look at the full category
+wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // keep the match argument!
   wrap('renderMatchesByTimeSlot', (o, cat) => {
     if (!active()) return o(cat);
     return o({ ...cat, matches: cat.matches.filter(m => inF(cat, m)), _full: cat });
