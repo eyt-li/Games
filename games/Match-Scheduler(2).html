@@ -1482,7 +1482,7 @@ function scheduleAll() {
       if (taken.has(court)) continue;
       for (let k = 0; k < cats.length; k++) {
         const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
-        const m = pick(ci, true, court) || pick(ci, false, court);
+
         if (!m) continue;
         place(ci, m, court);
         if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
@@ -2833,7 +2833,7 @@ function scheduleAll() {
     for (let court = 1; court <= courts; court++) {
       for (let k = 0; k < cats.length; k++) {
         const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
-        const m = pick(ci, true, court) || pick(ci, false, court);
+        const m = pick(ci, true, court);
         if (!m) continue;
         place(ci, m, court);
         if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
