@@ -2930,6 +2930,230 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
+  // ============================================================
+// MATCH BAR TOOLS
+//
+// Paste this whole block at the very end of your main script block,
+// just above its closing script tag (after your other add-ons).
+// It does not change any of your existing code.
+//
+// 1. The time bars keep their layout: the time, court, status and team names
+//    stay in fixed columns, so "Ongoing" / "Completed" no longer push things around.
+// 2. Edit mode: a  -  and  +  button on each side of the two score boxes.
+// 3. Edit mode: a W/O (walkover) button on each match.
+// 4. Phones no longer zoom in when you tap a score box.
+// ============================================================
+(function () {
+  const WALKOVER_WIN = 3;       // a walkover is recorded as 3 - 0 (change this number if your rules differ)
+
+  const css = `
+    /* ---- 1. stable columns in the match bar ---- */
+    .match-card { padding-top: 8px !important; padding-bottom: 8px !important; }
+    .match-card > div:first-child { display: flex; align-items: center; }
+    .match-card .mc-time { order: 1; flex: 0 0 138px; width: 138px; min-width: 138px !important; font-size: 11.5px; }
+    .match-card .mc-court { order: 2; flex: 0 0 30px; width: 30px; box-sizing: border-box; text-align: center; }
+    .match-card .mc-status { order: 3; flex: 0 0 78px; width: 78px; display: flex; align-items: center; }
+    .match-card .mc-status .status-badge { font-size: 9px; padding: 1px 6px; }
+    .match-card .mc-n1 { order: 4; }
+    .match-card .mc-vs { order: 5; }
+    .match-card .mc-n2 { order: 6; }
+    .match-card .mc-tag { order: 7; }
+    .match-card .mc-flag { order: 8; }
+    .match-card .mc-day { order: 9; }
+    .status-badge.wo { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
+
+    /* ---- 2. score +/- buttons ---- */
+    .sc-btn { width: 26px; height: 32px; line-height: 1; font-size: 16px; font-weight: 700; color: #4b5563; background: #fff;
+      border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; padding: 0; touch-action: manipulation; }
+    .sc-btn:hover { background: #f3f4f6; }
+    .sc-btn:active { background: #e5e7eb; }
+
+    /* ---- 3. walkover ---- */
+    .wo-btn.on { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+
+    /* ---- 4. no zoom when typing on touch screens ---- */
+    @media (pointer: coarse) {
+      html input, html select, html textarea { font-size: 16px !important; }
+      input, button, select, textarea { touch-action: manipulation; }
+      .sc-btn { width: 30px; height: 36px; }
+    }
+
+    /* phones: no fixed columns (the bar wraps there), and no space kept for an empty status */
+    @media (max-width: 639px) {
+      .match-card .mc-time { flex: 0 0 auto; width: auto; min-width: 0 !important; }
+      .match-card .mc-court { flex: 0 0 auto; width: auto; }
+      .match-card .mc-status { flex: 0 0 auto; width: auto; }
+      .match-card .mc-status:empty { display: none; }
+      .sc-btn { width: 28px; height: 32px; }
+    }
+  `;
+  const st = document.createElement('style');
+  st.id = 'matchBarToolsStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  // ---- Walkovers survive rebuilds (adding teams, remote updates ...) and share links ----
+  wrap('buildMatches', (o, cat) => {
+    const keep = {};
+    cat.matches.forEach(m => {
+      if (!m.wo) return;
+      if (m.stage === 'ko') keep['ko:' + m.id] = { side: m.wo };
+      else keep[pairKey(m.group, m.team1, m.team2)] = { name: m.wo === 1 || m.wo === '1' ? m.team1 : m.team2 };
+    });
+    o(cat);
+    cat.matches.forEach(m => {
+      const k = m.stage === 'ko' ? keep['ko:' + m.id] : keep[pairKey(m.group, m.team1, m.team2)];
+      if (!k) return;
+      m.wo = k.side || (k.name === m.team1 ? 1 : 2);
+    });
+  });
+  wrap('compactState', o => {
+    const r = o();
+    r.wo = state.categories.map(cat => cat.matches.filter(m => m.wo).map(m => [m.id, m.wo]));
+    return r;
+  });
+  wrap('expandState', (o, obj) => {
+    o(obj);
+    (obj.wo || []).forEach((list, i) => {
+      const cat = state.categories[i];
+      if (!cat) return;
+      list.forEach(([id, side]) => { const m = cat.matches.find(x => x.id === id); if (m) m.wo = side; });
+    });
+  });
+
+  // ---- Decorate the match bars after they are drawn ----
+  function decorate() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      const hit = matchFromCard(card);
+      if (!hit) return;
+      const { cat, m } = hit;
+      const left = card.firstElementChild, right = card.lastElementChild;
+
+      if (!card.dataset.mc) {
+        card.dataset.mc = '1';
+        const kids = Array.from(left.children);
+        kids[0].classList.add('mc-time');
+        kids.forEach(k => {
+          const txt = k.textContent.trim();
+          if (k.classList.contains('court-badge')) k.classList.add('mc-court');
+          else if (k.classList.contains('group-badge')) k.classList.add('mc-tag');
+          else if (k.classList.contains('manual-badge') || k.classList.contains('warn-badge')) k.classList.add('mc-flag');
+          else if (k.dataset && k.dataset.ko) k.classList.add(k.dataset.ko.endsWith('|1') ? 'mc-n1' : 'mc-n2');
+          else if (k.tagName === 'SPAN' && txt === 'vs') k.classList.add('mc-vs');
+          else if (/^Day \d+$/.test(txt)) k.classList.add('mc-day');
+        });
+        // a status slot that always takes the same room, empty or not
+        const slot = document.createElement('span');
+        slot.className = 'mc-status';
+        const badge = left.querySelector('.status-badge');
+        if (badge) slot.appendChild(badge);
+        const court = left.querySelector('.mc-court');
+        (court || kids[0]).after(slot);
+      }
+      const slot = left.querySelector('.mc-status');
+      if (m.wo && slot && !slot.querySelector('.wo')) slot.innerHTML = '<span class="status-badge wo" title="Walkover">W/O</span>';
+
+      if (editMode) {
+        right.querySelectorAll('.score-box').forEach(box => {
+          if (box.previousElementSibling && box.previousElementSibling.classList.contains('sc-btn')) return;
+          const d = `data-cat="${esc(box.dataset.cat)}" data-match="${esc(box.dataset.match)}" data-side="${box.dataset.side}"`;
+          box.insertAdjacentHTML('beforebegin', `<button type="button" class="sc-btn" ${d} data-step="-1" aria-label="Down one">−</button>`);
+          box.insertAdjacentHTML('afterend', `<button type="button" class="sc-btn" ${d} data-step="1" aria-label="Up one">+</button>`);
+        });
+        if (!right.querySelector('.wo-btn')) {
+          right.insertAdjacentHTML('beforeend',
+            `<button type="button" class="btn wo-btn${m.wo ? ' on' : ''}" data-cat="${esc(cat.id)}" data-match="${esc(m.id)}" title="${m.wo ? 'Remove the walkover' : 'Record a walkover'}">W/O</button>`);
+        }
+      }
+    });
+
+    // Full schedule table: show W/O in the Status column
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      const c = tr.children;
+      if (!c[4] || !c[7]) return;
+      const cat = state.categories.find(x => x.name === c[1].textContent.trim());
+      const home = c[5].textContent.trim(), away = c[7].textContent.trim();
+      const m = cat && cat.matches.find(x => displayName(cat, x, 1) === home && displayName(cat, x, 2) === away);
+      if (m && m.wo && !c[4].querySelector('.wo')) c[4].innerHTML = '<span class="status-badge wo">W/O</span>';
+    });
+  }
+  ['renderCategories', 'renderSchedule'].forEach(n => wrap(n, o => { o(); decorate(); }));
+  wrap('refreshDerived', (o, id) => { o(id); decorate(); });
+  wrap('render', o => { o(); decorate(); });
+
+  // ---- Score + / - buttons ----
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.sc-btn');
+    if (!b || !editMode) return;
+    const box = Array.from(b.parentElement.querySelectorAll('.score-box'))
+      .find(x => x.dataset.match === b.dataset.match && x.dataset.side === b.dataset.side && x.dataset.cat === b.dataset.cat);
+    if (!box) return;
+    const step = parseInt(b.dataset.step, 10);
+    const cur = box.value === '' ? null : parseInt(box.value, 10);
+    let next;
+    if (cur === null) next = step > 0 ? 1 : null;          // down from empty does nothing
+    else next = cur + step;
+    if (next !== null && next < 0) next = null;            // down from 0 clears the box
+    if (next !== null && next > 99) next = 99;
+    box.value = next === null ? '' : String(next);
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    box.dispatchEvent(new Event('change', { bubbles: true }));   // your normal save + standings refresh runs from here
+  });
+
+  // Typing a different score afterwards cancels a walkover mark
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (!t.classList || !t.classList.contains('score-box')) return;
+    const cat = getCat(t.dataset.cat), m = cat && cat.matches.find(x => x.id === t.dataset.match);
+    if (!m || !m.wo) return;
+    m.wo = '';
+    const card = t.closest('.match-card');
+    if (card) { const w = card.querySelector('.mc-status .wo'); if (w) w.remove(); const wb = card.querySelector('.wo-btn'); if (wb) wb.classList.remove('on'); }
+    setTimeout(save, 0);
+  }, true);
+
+  // ---- Walkover button ----
+  function setWalkover(m, side) {
+    m.wo = side;
+    m.score1 = String(side === 1 ? WALKOVER_WIN : 0);
+    m.score2 = String(side === 2 ? WALKOVER_WIN : 0);
+    m.status = '';
+    save();
+    render();
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.wo-btn');
+    if (!b || !editMode) return;
+    const cat = getCat(b.dataset.cat), m = cat && cat.matches.find(x => x.id === b.dataset.match);
+    if (!m) return;
+    if (m.wo) {
+      confirmDialog('Remove the walkover and clear this match\'s score?', () => { m.wo = ''; m.score1 = ''; m.score2 = ''; save(); render(); }, 'Remove');
+      return;
+    }
+    const n1 = displayName(cat, m, 1), n2 = displayName(cat, m, 2);
+    const o = showModal(`<h3 class="font-semibold text-gray-900 mb-1">Walkover</h3>
+      <p class="text-xs text-gray-500 mb-3">Who wins by walkover? It is recorded as ${WALKOVER_WIN} – 0 and marked W/O.</p>
+      <div class="flex flex-col gap-2">
+        <button class="btn" data-w="1">${esc(n1)} wins</button>
+        <button class="btn" data-w="2">${esc(n2)} wins</button>
+        <button class="btn" data-c>Cancel</button>
+      </div>`);
+    o.querySelector('[data-c]').onclick = () => o.remove();
+    o.querySelectorAll('[data-w]').forEach(btn => { btn.onclick = () => { o.remove(); setWalkover(m, parseInt(btn.dataset.w, 10)); }; });
+  });
+
+  if (currentView === 'tournament') render();
+})();
 </script>
 
 </body>
