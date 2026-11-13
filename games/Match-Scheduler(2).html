@@ -3166,6 +3166,12 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
+/* more breathing room inside match cards */
+.match-card { column-gap: 24px; row-gap: 10px; }
+.match-card > div:first-child { column-gap: 12px; row-gap: 6px; }
+.match-card > div:last-child { gap: 10px 8px; justify-content: flex-end; }
+.match-card .group-badge { white-space: nowrap; margin-left: 4px; }
+  
 </script>
 
 </body>
