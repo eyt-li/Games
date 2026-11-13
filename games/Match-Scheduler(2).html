@@ -2730,7 +2730,9 @@ function scheduleAll() {
   const slotOf = cats.map(() => ({}));
   let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
   let prev = cats.map(() => new Set());
-    const byRound = state.playOrder === 'round';
+  const koEnd = state.koEnd === 'end';
+  let lastGroup = -1;   // the last time slot that holds a group / round-robin match
+  const byRound = state.playOrder === 'round';
   let turn = 0;   // the category whose round is being played
   const curRnd = ci => { let r = Infinity; pend[ci].forEach(x => { if (x.stage !== 'ko' && (x.rnd ?? 0) < r) r = x.rnd ?? 0; }); return r; };
   const timeAt = sl => { const si = sl % perDay; const t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / perDay), timeMin: t, time: formatTime(t) }; };
@@ -2741,6 +2743,7 @@ function scheduleAll() {
     const place = (ci, m, court) => {
       left--;
       slotOf[ci][m.id] = slot;
+      if (m.stage !== 'ko') lastGroup = slot;
       used[ci].add(m.team1); used[ci].add(m.team2);
       Object.assign(m, timeAt(slot), { courtNo: court, court: 'C' + court });
     };
@@ -2748,7 +2751,7 @@ function scheduleAll() {
       const idx = pend[ci].findIndex(m => {
         if (!courtOK(ci, m, court)) return false;
         if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
-        if (m.stage === 'ko') return true;
+        if (m.stage === 'ko') return !koEnd || (lastGroup < slot && pend.every(l => !l.some(x => x.stage !== 'ko')));
         if (byRound && (m.rnd ?? 0) !== curRnd(ci)) return false;
         if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
         return !rest || (!prev[ci].has(m.team1) && !prev[ci].has(m.team2));
