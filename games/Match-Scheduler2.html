@@ -2527,6 +2527,113 @@ updateTournamentSelectDropdown();
 
   if (currentView === 'tournament') render();
 })();
+  // ============================================================
+// AUTO GROUPS  (Groups + playoffs)
+//
+// Paste this whole block at the very end of your main script block,
+// just above its closing script tag (after your other add-ons).
+// It does not change any of your existing code.
+//
+// - New teams go into the smallest group by themselves (choose "Auto" next to Add).
+// - "Auto groups" spreads the teams evenly over the groups, in the order they were added.
+// - "Random draw" does the same after shuffling the teams.
+// - Changing the number of groups, or switching a category to Groups + playoffs,
+//   spreads the teams evenly if they are not already balanced.
+// You can still move any single team with the letter next to its name.
+// ============================================================
+(function () {
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+
+  const sizes = cat => {
+    const n = Math.max(1, cat.groups || 1), c = Array(n).fill(0);
+    cat.teams.forEach((_, i) => { c[teamGroup(cat, i).charCodeAt(0) - 65]++; });
+    return c;
+  };
+  const balanced = cat => { const c = sizes(cat); return Math.max(...c) - Math.min(...c) <= 1; };
+  const smallestGroup = cat => { const c = sizes(cat); return String.fromCharCode(65 + c.indexOf(Math.min(...c))); };
+
+  // Deal the teams out one by one: A, B, C, A, B, C ... (optionally after a shuffle)
+  function deal(cat, shuffle) {
+    const n = Math.max(1, cat.groups || 1);
+    const idx = cat.teams.map((_, i) => i);
+    if (shuffle) for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    cat.teamGroups = cat.teams.map(() => 'A');
+    idx.forEach((ti, k) => { cat.teamGroups[ti] = String.fromCharCode(65 + (k % n)); });
+  }
+
+  // ---- Changing the format or the number of groups re-balances when needed ----
+  wrap('updateCatGroups', (o, catId, groups) => {
+    const cat = getCat(catId);
+    cat.groups = parseInt(groups);
+    if (!balanced(cat)) deal(cat, false);
+    changed(cat);
+  });
+  wrap('updateCatFormat', (o, catId, format) => {
+    if (format !== 'groups-playoffs') return o(catId, format);
+    const cat = getCat(catId);
+    cat.format = format;
+    if (!cat.groups) cat.groups = 2;
+    if (cat.groups > 1 && !balanced(cat)) deal(cat, false);
+    changed(cat);
+  });
+
+  // ---- Adding teams with "Auto": each goes into the smallest group ----
+  wrap('addTeam', (o, catId) => {
+    const sel = document.getElementById('teamGroup-' + catId);
+    if (!sel || sel.value !== 'auto') return o(catId);
+    const input = document.getElementById('teamInput-' + catId);
+    const cat = getCat(catId);
+    const names = [...new Set(input.value.split(',').map(s => s.trim()).filter(Boolean))];
+    if (!names.length) return;
+    const dup = names.some(n => cat.teams.some(t => t.toLowerCase() === n.toLowerCase()));
+    if (dup || cat.teams.length + names.length > 16) return o(catId);   // the normal code shows its message
+    names.forEach(n => {
+      document.getElementById('teamGroup-' + catId).value = smallestGroup(cat);
+      document.getElementById('teamInput-' + catId).value = n;
+      o(catId);
+    });
+  });
+
+  // ---- The buttons, and the "Auto" choice next to Add (put in after the cards are drawn) ----
+  function regroup(cat, shuffle) {
+    const run = () => { deal(cat, shuffle); changed(cat); toast(shuffle ? 'Teams drawn into groups at random.' : 'Teams spread evenly over the groups.'); };
+    const played = cat.matches.some(m => m.stage !== 'ko' && (m.score1 !== '' || m.score2 !== ''));
+    if (played) confirmDialog('Regrouping changes the group matches. Scores of matches that no longer exist will be cleared.', run, 'Regroup');
+    else run();
+  }
+  function decorate() {
+    if (!editMode) return;
+    state.categories.forEach(cat => {
+      if (!isGrouped(cat) || (cat.groups || 1) < 2) return;
+      const sel = document.getElementById('teamGroup-' + cat.id);
+      if (sel && !sel.querySelector('option[value="auto"]')) {
+        sel.insertAdjacentHTML('afterbegin', '<option value="auto">Auto</option>');
+        sel.value = 'auto';
+      }
+      const g = document.querySelector('select[onchange^="updateCatGroups(\'' + cat.id + '\'"]');
+      const grid = g && g.parentElement;
+      if (grid && !grid.nextElementSibling?.classList.contains('ag-row')) {
+        grid.insertAdjacentHTML('afterend',
+          `<div class="ag-row flex items-center gap-2 flex-wrap" data-cat="${esc(cat.id)}">
+             <span class="text-xs text-gray-600">Groups</span>
+             <button type="button" class="btn ag-btn" data-mode="deal" title="Spread the teams evenly over the groups, in the order they were added">Auto groups</button>
+             <button type="button" class="btn ag-btn" data-mode="shuffle" title="Draw the teams into the groups at random">Random draw</button>
+           </div>`);
+      }
+    });
+  }
+  wrap('renderCategories', o => { o(); decorate(); });
+  wrap('render', o => { o(); decorate(); });
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.ag-btn');
+    if (!b || !editMode) return;
+    const cat = getCat(b.closest('.ag-row').dataset.cat);
+    if (cat) regroup(cat, b.dataset.mode === 'shuffle');
+  });
+
+  if (currentView === 'tournament') render();
+})();
 </script>
 </body>
 </html>
