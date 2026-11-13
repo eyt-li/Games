@@ -1310,6 +1310,12 @@ function koDefs(cat, groups, groupIds) {
     else if (gs.length === 4) q = gs.map(g => seed(g, 1));
   }
   const mk = (id, round, r1, r2, deps) => ({ id, stage: 'ko', round, group: null, team1: null, team2: null, ref1: r1, ref2: r2, deps, score1: '', score2: '' });
+  if (cat.format === 'round-robin-final') {
+    const defs = [];
+    if (n >= 4) defs.push(mk('third', '3rd/4th place', seed(null, 3), seed(null, 4), groupIds));
+    if (n >= 2) defs.push(mk('final', 'Final', seed(null, 1), seed(null, 2), n >= 4 ? [...groupIds, 'third'] : groupIds));
+    return defs;
+  }
   if (q.length === 4) return [
     mk('sf1', 'Semi-final 1', q[0], q[1], groupIds),
     mk('sf2', 'Semi-final 2', q[2], q[3], groupIds),
@@ -1525,6 +1531,7 @@ function renderCategories() {
         <div class="grid grid-cols-2 gap-2">
           ${editMode ? `<select class="btn text-xs" onchange="updateCatFormat('${cat.id}', this.value)">
             <option value="round-robin" ${cat.format === 'round-robin' ? 'selected' : ''}>Round robin</option>
+            <option value="round-robin-final" ${cat.format === 'round-robin-final' ? 'selected' : ''}>Round robin + final & 3rd place</option>
             <option value="round-robin-knockouts" ${cat.format === 'round-robin-knockouts' ? 'selected' : ''}>Round robin + knockouts</option>
             <option value="groups-playoffs" ${cat.format === 'groups-playoffs' ? 'selected' : ''}>Groups + playoffs</option>
           </select>` : `<div class="btn text-xs bg-gray-50">${getFormatLabel(cat.format)}</div>`}
@@ -1632,7 +1639,12 @@ function renderMatchesByTimeSlot(cat) {
 }
 
 function getFormatLabel(format) {
-  return { 'round-robin': 'Round robin', 'round-robin-knockouts': 'Round robin + knockouts', 'groups-playoffs': 'Groups + playoffs' }[format] || format;
+  return {
+    'round-robin': 'Round robin',
+    'round-robin-final': 'Round robin + final & 3rd place',
+    'round-robin-knockouts': 'Round robin + knockouts',
+    'groups-playoffs': 'Groups + playoffs'
+  }[format] || format;
 }
 
 function renderStandings(cat) {
