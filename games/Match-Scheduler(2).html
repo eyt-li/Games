@@ -2773,35 +2773,59 @@ function scheduleAll() {
     return !list || list.includes(ct);
   };
 
-  const pend = cats.map(c => [...c.matches]);
+    const pend = cats.map(c => [...c.matches]);
   const slotOf = cats.map(() => ({}));
   let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
   let prev = cats.map(() => new Set());
+  let prevAll = new Set();                       // NEW: teams playing in the previous slot, any category
   const koEnd = state.koEnd === 'end';
-  let lastGroup = -1;   // the last time slot that holds a group / round-robin match
+  let lastGroup = -1;
   const byRound = state.playOrder === 'round';
-  let turn = 0;   // the category whose round is being played
+  let turn = 0;
   const curRnd = ci => { let r = Infinity; pend[ci].forEach(x => { if (x.stage !== 'ko' && (x.rnd ?? 0) < r) r = x.rnd ?? 0; }); return r; };
   const timeAt = sl => { const si = sl % perDay; const t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / perDay), timeMin: t, time: formatTime(t) }; };
 
+  // NEW: is there real rest between two adjacent slots?  (break between them, or overnight)
+  const breakBetween = (s1, s2) => {
+    if (s1 > s2) [s1, s2] = [s2, s1];
+    if (s2 - s1 !== 1) return false;
+    const d1 = Math.floor(s1 / perDay), d2 = Math.floor(s2 / perDay);
+    if (d1 !== d2) return true;                                  // overnight = rest
+    const si = s1 % perDay;
+    return getActiveBreaks().some(b => b.before === si + 1);     // break falls between the two slots
+  };
+
   while (left > 0 && slot < 5000) {
     const used = cats.map(() => new Set());
+    const usedAll = new Set();                   // NEW: teams placed in this slot, across every category
     if (byRound) for (let i = 0; i < cats.length && !pend[turn].length; i++) turn = (turn + 1) % cats.length;
     const place = (ci, m, court) => {
       left--;
       slotOf[ci][m.id] = slot;
       if (m.stage !== 'ko') lastGroup = slot;
       used[ci].add(m.team1); used[ci].add(m.team2);
+      usedAll.add(m.team1); usedAll.add(m.team2);                // NEW
       Object.assign(m, timeAt(slot), { courtNo: court, court: 'C' + court });
     };
-    const pick = (ci, rest, court) => {
+    const pick = (ci, strict, court) => {
       const idx = pend[ci].findIndex(m => {
         if (!courtOK(ci, m, court)) return false;
         if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
         if (m.stage === 'ko') return !koEnd || (lastGroup < slot && pend.every(l => !l.some(x => x.stage !== 'ko')));
         if (byRound && (m.rnd ?? 0) !== curRnd(ci)) return false;
+
+        // ── HARD: same team already scheduled this slot (same or any category) ──
         if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
-        return !rest || (!prev[ci].has(m.team1) && !prev[ci].has(m.team2));
+        if (usedAll.has(m.team1) || usedAll.has(m.team2)) return false;
+
+        // ── SOFT (strict only): no back-to-back with previous slot ──
+        if (strict) {
+          const prevClash =
+            prev[ci].has(m.team1) || prev[ci].has(m.team2) ||
+            prevAll.has(m.team1)   || prevAll.has(m.team2);
+          if (prevClash && !breakBetween(slot - 1, slot)) return false;
+        }
+        return true;
       });
       return idx < 0 ? null : pend[ci].splice(idx, 1)[0];
     };
@@ -2817,9 +2841,9 @@ function scheduleAll() {
       }
     }
     prev = used;
+    prevAll = usedAll;                           // NEW: roll this slot into "previous" for next iteration
     slot++;
   }
-
   // Remember the automatic timetable, so "Auto" and "Reset" can always return to it
   cats.forEach(c => c.matches.forEach(m => { m.aSlot = m.slot; m.aCourt = m.courtNo; }));
 
