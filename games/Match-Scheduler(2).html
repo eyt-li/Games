@@ -1377,7 +1377,7 @@ function buildMatches(cat) {
   } else {
     // round by round across the groups
     for (let r = 0; r < maxR; r++) perGroup.forEach(({ g, rounds }) => (rounds[r] || []).forEach(([a, b]) => addMatch(g, r, a, b)));
-  })));
+  }
   const groupIds = list.map(m => m.id);
   koDefs(cat, groups, groupIds).forEach(k => {
     const prev = old['ko:' + k.id];
@@ -2720,10 +2720,14 @@ function scheduleAll() {
   const slotOf = cats.map(() => ({}));
   let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
   let prev = cats.map(() => new Set());
+    const byRound = state.playOrder === 'round';
+  let turn = 0;   // the category whose round is being played
+  const curRnd = ci => { let r = Infinity; pend[ci].forEach(x => { if (x.stage !== 'ko' && (x.rnd ?? 0) < r) r = x.rnd ?? 0; }); return r; };
   const timeAt = sl => { const si = sl % perDay; const t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / perDay), timeMin: t, time: formatTime(t) }; };
 
   while (left > 0 && slot < 5000) {
     const used = cats.map(() => new Set());
+    if (byRound) for (let i = 0; i < cats.length && !pend[turn].length; i++) turn = (turn + 1) % cats.length;
     const place = (ci, m, court) => {
       left--;
       slotOf[ci][m.id] = slot;
@@ -2735,6 +2739,7 @@ function scheduleAll() {
         if (!courtOK(ci, m, court)) return false;
         if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
         if (m.stage === 'ko') return true;
+        if (byRound && (m.rnd ?? 0) !== curRnd(ci)) return false;
         if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
         return !rest || (!prev[ci].has(m.team1) && !prev[ci].has(m.team2));
       });
@@ -2743,10 +2748,11 @@ function scheduleAll() {
 
     for (let court = 1; court <= courts; court++) {
       for (let k = 0; k < cats.length; k++) {
-        const ci = (k + slot + court - 1) % cats.length;
+        const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
         const m = pick(ci, true, court) || pick(ci, false, court);
         if (!m) continue;
         place(ci, m, court);
+        if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
         break;
       }
     }
