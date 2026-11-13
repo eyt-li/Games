@@ -1351,17 +1351,16 @@ function buildMatches(cat) {
   const perGroup = Object.keys(groups).sort().map(g => ({ g, rounds: rrRounds(groups[g]) }));
   const maxR = Math.max(0, ...perGroup.map(x => x.rounds.length));
   const list = [];
-  for (let r = 0; r < maxR; r++) {
-    perGroup.forEach(({ g, rounds }) => (rounds[r] || []).forEach(([a, b]) => {
-      const group = isGrouped(cat) ? g : null;
-      const prev = old[pairKey(group, a, b)];
-      const m = { id: safeId(`g_${group || 'x'}_${a}_${b}`), stage: 'group', round: 'Group stage', group, team1: a, team2: b, score1: '', score2: '' };
-      if (prev) { const same = prev.team1 === a; m.score1 = same ? prev.score1 : prev.score2; m.score2 = same ? prev.score2 : prev.score1; }
-      if (prev && prev.pin) m.pin = prev.pin;
-      if (prev && prev.status) m.status = prev.status;
-      list.push(m);
-    }));
-  }
+  // one whole group at a time: all of Group A, then all of Group B, ...
+  perGroup.forEach(({ g, rounds }) => rounds.forEach(pairs => pairs.forEach(([a, b]) => {
+    const group = isGrouped(cat) ? g : null;
+    const prev = old[pairKey(group, a, b)];
+    const m = { id: safeId(`g_${group || 'x'}_${a}_${b}`), stage: 'group', round: 'Group stage', group, team1: a, team2: b, score1: '', score2: '' };
+    if (prev) { const same = prev.team1 === a; m.score1 = same ? prev.score1 : prev.score2; m.score2 = same ? prev.score2 : prev.score1; }
+    if (prev && prev.pin) m.pin = prev.pin;
+    if (prev && prev.status) m.status = prev.status;
+    list.push(m);
+  })));
   const groupIds = list.map(m => m.id);
   koDefs(cat, groups, groupIds).forEach(k => {
     const prev = old['ko:' + k.id];
