@@ -36,8 +36,10 @@
   .color-picker-wrapper input[type="color"] { position: absolute; top: -4px; left: -4px; width: 34px; height: 34px; border: none; cursor: pointer; }
   .standings-table th { font-size: 10px; text-transform: uppercase; color: #6b7280; font-weight: 500; letter-spacing: 0.05em; }
   .standings-table td { font-size: 13px; padding: 8px 10px; }
-  .schedule-row:nth-child(even) { background: #eff6ff; }
-  .schedule-row:hover { background: #dbeafe; }
+  .schedule-row { background: #fff; }
+  .schedule-row:hover { filter: brightness(0.96); }
+  .schedule-row td:first-child { box-shadow: inset 4px 0 0 var(--rowc, transparent); }
+  .schedule-table .score-box { width: 40px; height: 32px; font-size: 13px; }
   .team-chip input { width: 70px; }
   .group-select { padding: 3px 6px; font-size: 11px; border-radius: 4px; border: 1px solid #d1d5db; background: white; }
   .time-slot-header { background: #f3f4f6; padding: 6px 12px; font-weight: 600; font-size: 12px; color: #374151; border-radius: 6px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
@@ -1838,6 +1840,30 @@ function moveButtons(cat, m) {
   </div>`;
 }
 
+// Row colours in the Full schedule: knockouts stand out, each group has its own shade, everything else uses the category colour
+function rowBg(cat, m) {
+  if (m.stage === 'ko') return hexToRgba('#facc15', 0.32);
+  if (m.group) return hexToRgba(groupColor(m.group, cat), 0.6);
+  return hexToRgba(cat.color, 0.16);
+}
+function legendHtml(all) {
+  const cats = [...new Set(all.map(x => x.cat))];
+  const chip = c => `<span class="inline-block rounded" style="width:12px;height:12px;background:${c}"></span>`;
+  return `<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">` +
+    cats.map(c => `<span class="inline-flex items-center gap-1.5">${chip(c.color)}${esc(c.name)}${isGrouped(c) && c.groups > 1 ? ' ' + groupLetters(c.groups).map(g => groupBadge(g, c)).join(' ') : ''}</span>`).join('') +
+    (all.some(x => x.m.stage === 'ko') ? `<span class="inline-flex items-center gap-1.5">${chip('#fde68a')}Knockout</span>` : '') + `</div>`;
+}
+// In Edit mode the Score column holds the two score boxes, so scores can be typed straight into the Full schedule
+function scoreCell(cat, m) {
+  if (!editMode) return `<td class="py-2 px-2 text-center font-medium text-xs">${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}</td>`;
+  const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+  return `<td class="py-2 px-2 text-center"><div class="flex items-center justify-center gap-1">
+      <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score1 !== '' ? 'filled' : ''}" value="${m.score1}" ${d} data-side="1">
+      <span class="text-gray-400 text-xs">–</span>
+      <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score2 !== '' ? 'filled' : ''}" value="${m.score2}" ${d} data-side="2">
+    </div></td>`;
+}
+
 function renderSchedule() {
   const box = document.getElementById('scheduleBody');
   const all = allMatches();
@@ -1847,7 +1873,7 @@ function renderSchedule() {
   }
   const courtNos = [...new Set(all.map(x => x.m.courtNo))].sort((a, b) => a - b);
   const colSpan = editMode ? 9 : 8;
-  box.innerHTML = courtNos.map(cn => {
+  box.innerHTML = legendHtml(all) + courtNos.map(cn => {
     const rows = all.filter(x => x.m.courtNo === cn);
     let lastDay = -1, prevM = null;
     const body = rows.map(({ cat, m }) => {
@@ -1862,14 +1888,14 @@ function renderSchedule() {
         head = `<tr><td colspan="${colSpan}" class="py-2 px-2 font-semibold text-gray-700 text-xs uppercase tracking-wide">${dayHeader(m.day)}</td></tr>`;
       }
       return head + brkHtml + `
-      <tr class="schedule-row border-b border-gray-100${m.status === 'ongoing' ? ' is-live' : ''}" style="${m.group ? 'background:' + hexToRgba(groupColor(m.group, cat), 0.6) : ''}">
+      <tr class="schedule-row border-b border-gray-100${m.status === 'ongoing' ? ' is-live' : ''}" style="background:${rowBg(cat, m)};--rowc:${cat.color}">
         <td class="py-2 px-2 font-medium text-emerald-600 text-xs whitespace-nowrap">${m.time} ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''} ${warnBadge(cat, m)}<div class="status-in-time">${statusBadge(m)}</div></td>
         <td class="py-2 px-2"><div class="flex items-center gap-1.5"><span class="cat-dot" style="background:${cat.color}"></span><span class="font-medium text-xs">${esc(cat.name)}</span></div></td>
         <td class="py-2 px-2">${m.group ? groupBadge(m.group, cat) : '—'}</td>
         <td class="py-2 px-2 text-gray-600 text-xs">${m.round}</td>
         <td class="py-2 px-2">${statusBadge(m)}</td>
         <td class="py-2 px-2 text-right font-semibold text-xs">${esc(displayName(cat, m, 1))}</td>
-        <td class="py-2 px-2 text-center font-medium text-xs">${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}</td>
+        ${scoreCell(cat, m)}
         <td class="py-2 px-2 font-semibold text-xs">${esc(displayName(cat, m, 2))}</td>
         ${editMode ? `<td class="py-2 px-2"><div class="flex flex-wrap items-center gap-1">${statusButtons(cat, m)}${moveButtons(cat, m)}</div></td>` : ''}
       </tr>`;
@@ -1940,6 +1966,32 @@ function updateCounts() {
   document.getElementById('catCount').textContent = state.categories.length;
 }
 
+// Scores typed in one tab are copied into the boxes of the other tab (the box being typed in is left alone)
+function syncScoreInputs() {
+  document.querySelectorAll('.score-box').forEach(b => {
+    if (b === document.activeElement) return;
+    const c = getCat(b.dataset.cat), mm = c && c.matches.find(x => x.id === b.dataset.match);
+    if (!mm) return;
+    const v = mm['score' + b.dataset.side] ?? '';
+    if (b.value !== v) { b.value = v; b.classList.toggle('filled', v !== ''); }
+  });
+}
+// Redraw the Full schedule after the click/Tab/Enter has finished, then put the cursor back where it is now
+let tableTimer = null;
+function scheduleTableRefresh() {
+  clearTimeout(tableTimer);
+  tableTimer = setTimeout(() => {
+    const a = document.activeElement;
+    const key = a && a.classList && a.classList.contains('score-box') && a.closest('#scheduleBody')
+      ? { cat: a.dataset.cat, match: a.dataset.match, side: a.dataset.side, s: a.selectionStart, e: a.selectionEnd } : null;
+    renderSchedule();
+    if (key) {
+      const el = Array.from(document.querySelectorAll('#scheduleBody .score-box')).find(x => x.dataset.cat === key.cat && x.dataset.match === key.match && x.dataset.side === key.side);
+      if (el) { el.focus(); try { el.setSelectionRange(key.s, key.e); } catch (err) {} }
+    }
+  }, 0);
+}
+
 function refreshDerived(catId) {
   const cat = getCat(catId);
   renderStandingsView();
@@ -1949,7 +2001,8 @@ function refreshDerived(catId) {
     const m = cat.matches.find(x => x.id === mid);
     if (m) s.textContent = displayName(cat, m, +side);
   });
-  renderSchedule();
+  syncScoreInputs();
+  scheduleTableRefresh();
   renderNextUp();
 }
 
@@ -1974,7 +2027,7 @@ document.addEventListener('change', e => {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' || !e.target.classList.contains('score-box')) return;
   e.preventDefault();
-  const all = Array.from(document.querySelectorAll('.score-box'));
+  const all = Array.from(document.querySelectorAll('.score-box')).filter(x => x.offsetParent !== null);
   const next = all[all.indexOf(e.target) + 1];
   if (next) { next.focus(); next.select(); } else e.target.blur();
 });
@@ -3055,7 +3108,7 @@ function switchMainView(view) {
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || !e.target.classList.contains('pen-box')) return;
     e.preventDefault();
-    const all = Array.from(document.querySelectorAll('.score-box, .pen-box'));
+    const all = Array.from(document.querySelectorAll('.score-box, .pen-box')).filter(x => x.offsetParent !== null);
     const next = all[all.indexOf(e.target) + 1];
     if (next) { next.focus(); next.select(); } else e.target.blur();
   });
@@ -3080,8 +3133,9 @@ function switchMainView(view) {
 
   const css = `
     /* ---- 1. stable columns in the match bar ---- */
-    .match-card { padding-top: 8px !important; padding-bottom: 8px !important; }
-    .match-card > div:first-child { display: flex; align-items: center; }
+    .match-card { padding-top: 8px !important; padding-bottom: 8px !important; flex-wrap: wrap; gap: 6px 12px; }
+    .match-card > div:first-child { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 4px; column-gap: 10px; }
+    .match-card > div:last-child { flex: 0 1 auto; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
     .match-card .mc-time { order: 1; flex: 0 0 138px; width: 138px; min-width: 138px !important; font-size: 11.5px; }
     .match-card .mc-court { order: 2; flex: 0 0 30px; width: 30px; box-sizing: border-box; text-align: center; }
     .match-card .mc-status { order: 3; flex: 0 0 78px; width: 78px; display: flex; align-items: center; }
