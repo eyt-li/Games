@@ -74,6 +74,12 @@
   @media (max-width: 639px) { .status-in-time { display: inline-flex; margin-top: 2px; } }
   .logo-badge { display: inline-flex; align-items: center; justify-content: center; background: #f3f1ec; border: 1px solid #e3dfd5; border-radius: 8px; padding: 4px; line-height: 0; }
   .logo-badge.sm { border-radius: 6px; padding: 3px; }
+  /* more breathing room inside match cards */
+.match-card { column-gap: 24px; row-gap: 10px; }
+.match-card > div:first-child { column-gap: 12px; row-gap: 6px; }
+.match-card > div:last-child { gap: 10px 8px; justify-content: flex-end; }
+.match-card .group-badge { white-space: nowrap; margin-left: 4px; }
+  
 </style>
 </head>
 <body>
@@ -234,6 +240,23 @@
               </div>
             </div>
 
+             <!-- NEW: Match order -->
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">Match order</label>
+              <select id="playOrder" class="w-full">
+                <option value="">Mixed (categories alternate)</option>
+                <option value="group">One group at a time</option>
+                <option value="round">Round by round, category by category</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">Knockouts (semi / final / placing)</label>
+              <select id="koEnd" class="w-full">
+                <option value="">As soon as a category is ready</option>
+                <option value="end">All at the end of the day</option>
+              </select>
+            </div>
+            <!-- END NEW -->
             <!-- MULTIPLE BREAKS SECTION -->
             <div class="border-t border-gray-100 pt-3">
               <div class="flex items-center justify-between mb-2">
@@ -755,8 +778,7 @@ const groupBadge = (g, cat, label) => `<span class="group-badge" style="backgrou
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 let savedGroupSelections = {};
 const DEFAULT_PASSWORD = 'admin123';
-const SETUP_IDS = ['tNameInput', 'eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts'];
-
+const SETUP_IDS = ['tNameInput', 'eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts', 'playOrder', 'koEnd'];  
 function switchMainView(view) {
   currentView = view;
   if (view === 'home') {
@@ -1194,6 +1216,8 @@ function normalize(d) {
     playUntil: d.playUntil || '11:30',
     matchMin: +d.matchMin || 10,
     courts: +d.courts || 2,
+    playOrder: d.playOrder || '',
+    koEnd: d.koEnd || '',
     breaks: arr(d.breaks),
     categories: arr(d.categories)
   };
@@ -1320,6 +1344,12 @@ function koDefs(cat, groups, groupIds) {
     else if (gs.length === 4) q = gs.map(g => seed(g, 1));
   }
   const mk = (id, round, r1, r2, deps) => ({ id, stage: 'ko', round, group: null, team1: null, team2: null, ref1: r1, ref2: r2, deps, score1: '', score2: '' });
+  if (cat.format === 'round-robin-final') {
+    const defs = [];
+    if (n >= 4) defs.push(mk('third', '3rd/4th place', seed(null, 3), seed(null, 4), groupIds));
+    if (n >= 2) defs.push(mk('final', 'Final', seed(null, 1), seed(null, 2), n >= 4 ? [...groupIds, 'third'] : groupIds));
+    return defs;
+  }
   if (q.length === 4) return [
     mk('sf1', 'Semi-final 1', q[0], q[1], groupIds),
     mk('sf2', 'Semi-final 2', q[2], q[3], groupIds),
@@ -1339,16 +1369,21 @@ function buildMatches(cat) {
   const perGroup = Object.keys(groups).sort().map(g => ({ g, rounds: rrRounds(groups[g]) }));
   const maxR = Math.max(0, ...perGroup.map(x => x.rounds.length));
   const list = [];
-  for (let r = 0; r < maxR; r++) {
-    perGroup.forEach(({ g, rounds }) => (rounds[r] || []).forEach(([a, b]) => {
-      const group = isGrouped(cat) ? g : null;
-      const prev = old[pairKey(group, a, b)];
-      const m = { id: safeId(`g_${group || 'x'}_${a}_${b}`), stage: 'group', round: 'Group stage', group, team1: a, team2: b, score1: '', score2: '' };
-      if (prev) { const same = prev.team1 === a; m.score1 = same ? prev.score1 : prev.score2; m.score2 = same ? prev.score2 : prev.score1; }
-      if (prev && prev.pin) m.pin = prev.pin;
-      if (prev && prev.status) m.status = prev.status;
-      list.push(m);
-    }));
+  const addMatch = (g, r, a, b) => {
+    const group = isGrouped(cat) ? g : null;
+    const prev = old[pairKey(group, a, b)];
+    const m = { id: safeId(`g_${group || 'x'}_${a}_${b}`), stage: 'group', round: 'Group stage', group, team1: a, team2: b, score1: '', score2: '', rnd: r };
+    if (prev) { const same = prev.team1 === a; m.score1 = same ? prev.score1 : prev.score2; m.score2 = same ? prev.score2 : prev.score1; }
+    if (prev && prev.pin) m.pin = prev.pin;
+    if (prev && prev.status) m.status = prev.status;
+    list.push(m);
+  };
+  if (state.playOrder === 'group') {
+    // one whole group at a time
+    perGroup.forEach(({ g, rounds }) => rounds.forEach((pairs, r) => pairs.forEach(([a, b]) => addMatch(g, r, a, b))));
+  } else {
+    // round by round across the groups
+    for (let r = 0; r < maxR; r++) perGroup.forEach(({ g, rounds }) => (rounds[r] || []).forEach(([a, b]) => addMatch(g, r, a, b)));
   }
   const groupIds = list.map(m => m.id);
   koDefs(cat, groups, groupIds).forEach(k => {
@@ -1405,24 +1440,33 @@ function scheduleAll() {
   const slotOf = cats.map(() => ({}));
   let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
   let prev = cats.map(() => new Set());
-
+  const koEnd = state.koEnd === 'end';
+  let lastGroup = -1;   // the last time slot that holds a group / round-robin match
+  const byRound = state.playOrder === 'round';
+  let turn = 0;   // the category whose round is being played
+  const curRnd = ci => { let r = Infinity; pend[ci].forEach(x => { if (x.stage !== 'ko' && (x.rnd ?? 0) < r) r = x.rnd ?? 0; }); return r; };
+  
   while (left > 0 && slot < 5000) {
     const used = cats.map(() => new Set());
     const taken = new Set();
+    if (byRound) for (let i = 0; i < cats.length && !pend[turn].length; i++) turn = (turn + 1) % cats.length;
     const place = (ci, m, court) => {
       left--; taken.add(court);
       slotOf[ci][m.id] = slot;
+      if (m.stage !== 'ko') lastGroup = slot;
       used[ci].add(m.team1); used[ci].add(m.team2);
       const si = slot % perDay;
       const bOffset = getTotalBreakTimeAtSlot(si);
       const t = start + si * mm + bOffset;
       Object.assign(m, { slot, day: Math.floor(slot / perDay), timeMin: t, time: formatTime(t), courtNo: court, court: 'C' + court });
+      
     };
     const pick = (ci, rest, court) => {
       const idx = pend[ci].findIndex(m => {
         if (!courtOK(ci, m, court)) return false;
         if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
-        if (m.stage === 'ko') return true;
+        if (m.stage === 'ko') return !koEnd || (lastGroup < slot && pend.every(l => !l.some(x => x.stage !== 'ko')));
+        if (byRound && (m.rnd ?? 0) !== curRnd(ci)) return false;
         if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
         return !rest || (!prev[ci].has(m.team1) && !prev[ci].has(m.team2));
       });
@@ -1437,10 +1481,11 @@ function scheduleAll() {
     for (let court = 1; court <= courts; court++) {
       if (taken.has(court)) continue;
       for (let k = 0; k < cats.length; k++) {
-        const ci = (k + slot + court - 1) % cats.length;
-        const m = pick(ci, true, court) || pick(ci, false, court);
+        const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
+
         if (!m) continue;
         place(ci, m, court);
+        if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
         break;
       }
     }
@@ -1535,6 +1580,7 @@ function renderCategories() {
         <div class="grid grid-cols-2 gap-2">
           ${editMode ? `<select class="btn text-xs" onchange="updateCatFormat('${cat.id}', this.value)">
             <option value="round-robin" ${cat.format === 'round-robin' ? 'selected' : ''}>Round robin</option>
+            <option value="round-robin-final" ${cat.format === 'round-robin-final' ? 'selected' : ''}>Round robin + final & 3rd place</option>
             <option value="round-robin-knockouts" ${cat.format === 'round-robin-knockouts' ? 'selected' : ''}>Round robin + knockouts</option>
             <option value="groups-playoffs" ${cat.format === 'groups-playoffs' ? 'selected' : ''}>Groups + playoffs</option>
           </select>` : `<div class="btn text-xs bg-gray-50">${getFormatLabel(cat.format)}</div>`}
@@ -1642,7 +1688,12 @@ function renderMatchesByTimeSlot(cat) {
 }
 
 function getFormatLabel(format) {
-  return { 'round-robin': 'Round robin', 'round-robin-knockouts': 'Round robin + knockouts', 'groups-playoffs': 'Groups + playoffs' }[format] || format;
+  return {
+    'round-robin': 'Round robin',
+    'round-robin-final': 'Round robin + final & 3rd place',
+    'round-robin-knockouts': 'Round robin + knockouts',
+    'groups-playoffs': 'Groups + playoffs'
+  }[format] || format;
 }
 
 function renderStandings(cat) {
@@ -1953,25 +2004,72 @@ function findAt(slot, courtNo) {
 
 function matchWarnings(cat, m) {
   const w = [];
-  const name = x => `${displayName(cat, x, 1)} vs ${displayName(cat, x, 2)}`;
-  if (m.stage !== 'ko') {
-    cat.matches.forEach(x => {
-      if (x === m || x.stage === 'ko' || x.slot !== m.slot) return;
-      const shared = [m.team1, m.team2].filter(t => t === x.team1 || t === x.team2);
-      if (shared.length) w.push(`${shared.join(' & ')} also plays at the same time (${name(x)}, ${x.court}).`);
-    });
-  }
+  if (!m) return w;
+
+  // Minimum slot gap between two matches of the same team.
+  //   2 = one slot of rest is required (adjacent slots warn).
+  //   1 = back-to-back is allowed.
+  const MIN_MATCH_GAP = 2;
+
+  // Flatten every match from every category so we see all courts.
+  const all = [];
+  state.categories.forEach(c => {
+    const full = c._full || c;
+    (full.matches || []).forEach(x => all.push({ cat: full, m: x }));
+  });
+
+  // ── Same time OR immediately before/after, any court, same team ──
+  all.forEach(({ cat: oc, m: x }) => {
+    if (x === m) return;
+    if (x.stage === 'ko') return;          // KO teams resolved later
+    if (x.day !== m.day) return;           // different day = overnight rest
+    const gap = Math.abs(x.slot - m.slot);
+    if (gap >= MIN_MATCH_GAP) return;
+
+    const shared = [m.team1, m.team2].filter(t => t === x.team1 || t === x.team2);
+    if (!shared.length) return;
+
+    // Adjacent slots: if a break falls between them, the team did get rest.
+    if (gap === 1) {
+      const perDay = (() => {
+        const mm    = Math.max(1, parseInt(state.matchMin) || 10);
+        const start = toMin(state.dayStarts);
+        const brk   = (state.breaks || []).reduce((s, b) => s + (parseInt(b.min) || 0), 0);
+        return Math.max(1, Math.floor((toMin(state.playUntil) - start - brk) / mm));
+      })();
+      const si = Math.min(m.slot, x.slot) % perDay;
+      if (getActiveBreaks().some(b => b.before === si + 1)) return;
+    }
+
+    const when  = gap === 0
+      ? 'at the same time'
+      : (x.slot < m.slot ? 'immediately before (no rest)' : 'immediately after (no rest)');
+    const who   = `${displayName(oc, x, 1)} vs ${displayName(oc, x, 2)}`;
+    const where = `${x.court}${oc.id === cat.id ? '' : ' · ' + oc.name}`;
+    w.push(`${shared.join(' & ')} also plays ${when} (${who}, ${where}).`);
+  });
+
+  // ── Court restriction for this category / KO round (unchanged) ──
   const koList = m.stage === 'ko' ? (cat.koMatchCourts || {})[m.id] : null;
-  const useKo = !!(koList && koList.length);
-  const cc = (useKo ? koList : (cat.courts || [])).map(Number);
-  if (cc.length && !cc.includes(m.courtNo)) w.push(`${cat.name}${useKo ? ' ' + m.round + ' is' : ' is'} assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
+  const useKo  = !!(koList && koList.length);
+  const cc     = (useKo ? koList : (cat.courts || [])).map(Number);
+  if (cc.length && !cc.includes(m.courtNo)) {
+    w.push(`${cat.name}${useKo ? ' ' + m.round + ' is' : ' is'} assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
+  }
+
+  // ── Dependency ordering (unchanged) ──
   (m.deps || []).forEach(d => {
     const dm = cat.matches.find(x => x.id === d);
-    if (dm && dm.slot >= m.slot) w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
+    if (dm && dm.slot >= m.slot) {
+      w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
+    }
   });
   cat.matches.forEach(x => {
-    if ((x.deps || []).includes(m.id) && x.slot <= m.slot) w.push(`${x.round} is scheduled at or before this match.`);
+    if ((x.deps || []).includes(m.id) && x.slot <= m.slot) {
+      w.push(`${x.round} is scheduled at or before this match.`);
+    }
   });
+
   return [...new Set(w)];
 }
 function warnBadge(cat, m) {
@@ -2131,6 +2229,7 @@ SETUP_IDS.forEach(id => {
       if (id === 'eventDate' && !v) { v = defaultDate(); e.target.value = v; }
       state[id] = v;
     }
+    if (id === 'playOrder') state.categories.forEach(buildMatches);
 
 
 
@@ -2569,7 +2668,7 @@ updateTournamentSelectDropdown();
   const withCats = fn => { const all = state.categories; state.categories = catsIn(); try { fn(); } finally { state.categories = all; } };
 
   wrap('allMatches', o => { const l = o(); return filterScope && active() ? l.filter(x => inF(x.cat, x.m)) : l; });
-  wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // clash checks always look at the full category
+wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // keep the match argument!
   wrap('renderMatchesByTimeSlot', (o, cat) => {
     if (!active()) return o(cat);
     return o({ ...cat, matches: cat.matches.filter(m => inF(cat, m)), _full: cat });
@@ -2674,44 +2773,77 @@ function scheduleAll() {
     return !list || list.includes(ct);
   };
 
-  const pend = cats.map(c => [...c.matches]);
+    const pend = cats.map(c => [...c.matches]);
   const slotOf = cats.map(() => ({}));
   let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
   let prev = cats.map(() => new Set());
+  let prevAll = new Set();                       // NEW: teams playing in the previous slot, any category
+  const koEnd = state.koEnd === 'end';
+  let lastGroup = -1;
+  const byRound = state.playOrder === 'round';
+  let turn = 0;
+  const curRnd = ci => { let r = Infinity; pend[ci].forEach(x => { if (x.stage !== 'ko' && (x.rnd ?? 0) < r) r = x.rnd ?? 0; }); return r; };
   const timeAt = sl => { const si = sl % perDay; const t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / perDay), timeMin: t, time: formatTime(t) }; };
+
+  // NEW: is there real rest between two adjacent slots?  (break between them, or overnight)
+  const breakBetween = (s1, s2) => {
+    if (s1 > s2) [s1, s2] = [s2, s1];
+    if (s2 - s1 !== 1) return false;
+    const d1 = Math.floor(s1 / perDay), d2 = Math.floor(s2 / perDay);
+    if (d1 !== d2) return true;                                  // overnight = rest
+    const si = s1 % perDay;
+    return getActiveBreaks().some(b => b.before === si + 1);     // break falls between the two slots
+  };
 
   while (left > 0 && slot < 5000) {
     const used = cats.map(() => new Set());
+    const usedAll = new Set();                   // NEW: teams placed in this slot, across every category
+    if (byRound) for (let i = 0; i < cats.length && !pend[turn].length; i++) turn = (turn + 1) % cats.length;
     const place = (ci, m, court) => {
       left--;
       slotOf[ci][m.id] = slot;
+      if (m.stage !== 'ko') lastGroup = slot;
       used[ci].add(m.team1); used[ci].add(m.team2);
+      usedAll.add(m.team1); usedAll.add(m.team2);                // NEW
       Object.assign(m, timeAt(slot), { courtNo: court, court: 'C' + court });
     };
-    const pick = (ci, rest, court) => {
+    const pick = (ci, strict, court) => {
       const idx = pend[ci].findIndex(m => {
         if (!courtOK(ci, m, court)) return false;
         if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
-        if (m.stage === 'ko') return true;
+        if (m.stage === 'ko') return !koEnd || (lastGroup < slot && pend.every(l => !l.some(x => x.stage !== 'ko')));
+        if (byRound && (m.rnd ?? 0) !== curRnd(ci)) return false;
+
+        // ── HARD: same team already scheduled this slot (same or any category) ──
         if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
-        return !rest || (!prev[ci].has(m.team1) && !prev[ci].has(m.team2));
+        if (usedAll.has(m.team1) || usedAll.has(m.team2)) return false;
+
+        // ── SOFT (strict only): no back-to-back with previous slot ──
+        if (strict) {
+          const prevClash =
+            prev[ci].has(m.team1) || prev[ci].has(m.team2) ||
+            prevAll.has(m.team1)   || prevAll.has(m.team2);
+          if (prevClash && !breakBetween(slot - 1, slot)) return false;
+        }
+        return true;
       });
       return idx < 0 ? null : pend[ci].splice(idx, 1)[0];
     };
 
     for (let court = 1; court <= courts; court++) {
       for (let k = 0; k < cats.length; k++) {
-        const ci = (k + slot + court - 1) % cats.length;
-        const m = pick(ci, true, court) || pick(ci, false, court);
+        const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
+        const m = pick(ci, true, court);
         if (!m) continue;
         place(ci, m, court);
+        if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
         break;
       }
     }
     prev = used;
+    prevAll = usedAll;                           // NEW: roll this slot into "previous" for next iteration
     slot++;
   }
-
   // Remember the automatic timetable, so "Auto" and "Reset" can always return to it
   cats.forEach(c => c.matches.forEach(m => { m.aSlot = m.slot; m.aCourt = m.courtNo; }));
 
@@ -3154,6 +3286,7 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
+
 </script>
 
 </body>
