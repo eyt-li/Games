@@ -36,8 +36,10 @@
   .color-picker-wrapper input[type="color"] { position: absolute; top: -4px; left: -4px; width: 34px; height: 34px; border: none; cursor: pointer; }
   .standings-table th { font-size: 10px; text-transform: uppercase; color: #6b7280; font-weight: 500; letter-spacing: 0.05em; }
   .standings-table td { font-size: 13px; padding: 8px 10px; }
-  .schedule-row:nth-child(even) { background: #eff6ff; }
-  .schedule-row:hover { background: #dbeafe; }
+  .schedule-row { background: #fff; }
+  .schedule-row:hover { filter: brightness(0.96); }
+  .schedule-row td:first-child { box-shadow: inset 4px 0 0 var(--rowc, transparent); }
+  .schedule-table .score-box { width: 40px; height: 32px; font-size: 13px; }
   .team-chip input { width: 70px; }
   .group-select { padding: 3px 6px; font-size: 11px; border-radius: 4px; border: 1px solid #d1d5db; background: white; }
   .time-slot-header { background: #f3f4f6; padding: 6px 12px; font-weight: 600; font-size: 12px; color: #374151; border-radius: 6px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
@@ -247,6 +249,13 @@
                 <option value="">Mixed (categories alternate)</option>
                 <option value="group">One group at a time</option>
                 <option value="round">Round by round, category by category</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">Knockouts (semi / final / placing)</label>
+              <select id="koEnd" class="w-full">
+                <option value="">As soon as a category is ready</option>
+                <option value="end">All at the end of the day</option>
               </select>
             </div>
             <!-- END NEW -->
@@ -771,8 +780,7 @@ const groupBadge = (g, cat, label) => `<span class="group-badge" style="backgrou
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 let savedGroupSelections = {};
 const DEFAULT_PASSWORD = 'admin123';
-const SETUP_IDS = ['tNameInput', 'eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts', 'playOrder'];
-  
+const SETUP_IDS = ['tNameInput', 'eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts', 'playOrder', 'koEnd'];  
 function switchMainView(view) {
   currentView = view;
   if (view === 'home') {
@@ -1211,6 +1219,7 @@ function normalize(d) {
     matchMin: +d.matchMin || 10,
     courts: +d.courts || 2,
     playOrder: d.playOrder || '',
+    koEnd: d.koEnd || '',
     breaks: arr(d.breaks),
     categories: arr(d.categories)
   };
@@ -1433,6 +1442,8 @@ function scheduleAll() {
   const slotOf = cats.map(() => ({}));
   let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
   let prev = cats.map(() => new Set());
+  const koEnd = state.koEnd === 'end';
+  let lastGroup = -1;   // the last time slot that holds a group / round-robin match
   const byRound = state.playOrder === 'round';
   let turn = 0;   // the category whose round is being played
   const curRnd = ci => { let r = Infinity; pend[ci].forEach(x => { if (x.stage !== 'ko' && (x.rnd ?? 0) < r) r = x.rnd ?? 0; }); return r; };
@@ -1444,6 +1455,7 @@ function scheduleAll() {
     const place = (ci, m, court) => {
       left--; taken.add(court);
       slotOf[ci][m.id] = slot;
+      if (m.stage !== 'ko') lastGroup = slot;
       used[ci].add(m.team1); used[ci].add(m.team2);
       const si = slot % perDay;
       const bOffset = getTotalBreakTimeAtSlot(si);
@@ -1455,7 +1467,7 @@ function scheduleAll() {
       const idx = pend[ci].findIndex(m => {
         if (!courtOK(ci, m, court)) return false;
         if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
-        if (m.stage === 'ko') return true;
+        if (m.stage === 'ko') return !koEnd || (lastGroup < slot && pend.every(l => !l.some(x => x.stage !== 'ko')));
         if (byRound && (m.rnd ?? 0) !== curRnd(ci)) return false;
         if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
         return !rest || (!prev[ci].has(m.team1) && !prev[ci].has(m.team2));
@@ -1472,7 +1484,7 @@ function scheduleAll() {
       if (taken.has(court)) continue;
       for (let k = 0; k < cats.length; k++) {
         const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
-        const m = pick(ci, true, court) || pick(ci, false, court);
+
         if (!m) continue;
         place(ci, m, court);
         if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
@@ -1828,6 +1840,30 @@ function moveButtons(cat, m) {
   </div>`;
 }
 
+// Row colours in the Full schedule: knockouts stand out, each group has its own shade, everything else uses the category colour
+function rowBg(cat, m) {
+  if (m.stage === 'ko') return hexToRgba('#facc15', 0.32);
+  if (m.group) return hexToRgba(groupColor(m.group, cat), 0.6);
+  return hexToRgba(cat.color, 0.16);
+}
+function legendHtml(all) {
+  const cats = [...new Set(all.map(x => x.cat))];
+  const chip = c => `<span class="inline-block rounded" style="width:12px;height:12px;background:${c}"></span>`;
+  return `<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">` +
+    cats.map(c => `<span class="inline-flex items-center gap-1.5">${chip(c.color)}${esc(c.name)}${isGrouped(c) && c.groups > 1 ? ' ' + groupLetters(c.groups).map(g => groupBadge(g, c)).join(' ') : ''}</span>`).join('') +
+    (all.some(x => x.m.stage === 'ko') ? `<span class="inline-flex items-center gap-1.5">${chip('#fde68a')}Knockout</span>` : '') + `</div>`;
+}
+// In Edit mode the Score column holds the two score boxes, so scores can be typed straight into the Full schedule
+function scoreCell(cat, m) {
+  if (!editMode) return `<td class="py-2 px-2 text-center font-medium text-xs">${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}</td>`;
+  const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+  return `<td class="py-2 px-2 text-center"><div class="flex items-center justify-center gap-1">
+      <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score1 !== '' ? 'filled' : ''}" value="${m.score1}" ${d} data-side="1">
+      <span class="text-gray-400 text-xs">–</span>
+      <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score2 !== '' ? 'filled' : ''}" value="${m.score2}" ${d} data-side="2">
+    </div></td>`;
+}
+
 function renderSchedule() {
   const box = document.getElementById('scheduleBody');
   const all = allMatches();
@@ -1837,7 +1873,7 @@ function renderSchedule() {
   }
   const courtNos = [...new Set(all.map(x => x.m.courtNo))].sort((a, b) => a - b);
   const colSpan = editMode ? 9 : 8;
-  box.innerHTML = courtNos.map(cn => {
+  box.innerHTML = legendHtml(all) + courtNos.map(cn => {
     const rows = all.filter(x => x.m.courtNo === cn);
     let lastDay = -1, prevM = null;
     const body = rows.map(({ cat, m }) => {
@@ -1852,14 +1888,14 @@ function renderSchedule() {
         head = `<tr><td colspan="${colSpan}" class="py-2 px-2 font-semibold text-gray-700 text-xs uppercase tracking-wide">${dayHeader(m.day)}</td></tr>`;
       }
       return head + brkHtml + `
-      <tr class="schedule-row border-b border-gray-100${m.status === 'ongoing' ? ' is-live' : ''}" style="${m.group ? 'background:' + hexToRgba(groupColor(m.group, cat), 0.6) : ''}">
+      <tr class="schedule-row border-b border-gray-100${m.status === 'ongoing' ? ' is-live' : ''}" style="background:${rowBg(cat, m)};--rowc:${cat.color}">
         <td class="py-2 px-2 font-medium text-emerald-600 text-xs whitespace-nowrap">${m.time} ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''} ${warnBadge(cat, m)}<div class="status-in-time">${statusBadge(m)}</div></td>
         <td class="py-2 px-2"><div class="flex items-center gap-1.5"><span class="cat-dot" style="background:${cat.color}"></span><span class="font-medium text-xs">${esc(cat.name)}</span></div></td>
         <td class="py-2 px-2">${m.group ? groupBadge(m.group, cat) : '—'}</td>
         <td class="py-2 px-2 text-gray-600 text-xs">${m.round}</td>
         <td class="py-2 px-2">${statusBadge(m)}</td>
         <td class="py-2 px-2 text-right font-semibold text-xs">${esc(displayName(cat, m, 1))}</td>
-        <td class="py-2 px-2 text-center font-medium text-xs">${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}</td>
+        ${scoreCell(cat, m)}
         <td class="py-2 px-2 font-semibold text-xs">${esc(displayName(cat, m, 2))}</td>
         ${editMode ? `<td class="py-2 px-2"><div class="flex flex-wrap items-center gap-1">${statusButtons(cat, m)}${moveButtons(cat, m)}</div></td>` : ''}
       </tr>`;
@@ -1930,6 +1966,32 @@ function updateCounts() {
   document.getElementById('catCount').textContent = state.categories.length;
 }
 
+// Scores typed in one tab are copied into the boxes of the other tab (the box being typed in is left alone)
+function syncScoreInputs() {
+  document.querySelectorAll('.score-box').forEach(b => {
+    if (b === document.activeElement) return;
+    const c = getCat(b.dataset.cat), mm = c && c.matches.find(x => x.id === b.dataset.match);
+    if (!mm) return;
+    const v = mm['score' + b.dataset.side] ?? '';
+    if (b.value !== v) { b.value = v; b.classList.toggle('filled', v !== ''); }
+  });
+}
+// Redraw the Full schedule after the click/Tab/Enter has finished, then put the cursor back where it is now
+let tableTimer = null;
+function scheduleTableRefresh() {
+  clearTimeout(tableTimer);
+  tableTimer = setTimeout(() => {
+    const a = document.activeElement;
+    const key = a && a.classList && a.classList.contains('score-box') && a.closest('#scheduleBody')
+      ? { cat: a.dataset.cat, match: a.dataset.match, side: a.dataset.side, s: a.selectionStart, e: a.selectionEnd } : null;
+    renderSchedule();
+    if (key) {
+      const el = Array.from(document.querySelectorAll('#scheduleBody .score-box')).find(x => x.dataset.cat === key.cat && x.dataset.match === key.match && x.dataset.side === key.side);
+      if (el) { el.focus(); try { el.setSelectionRange(key.s, key.e); } catch (err) {} }
+    }
+  }, 0);
+}
+
 function refreshDerived(catId) {
   const cat = getCat(catId);
   renderStandingsView();
@@ -1939,7 +2001,8 @@ function refreshDerived(catId) {
     const m = cat.matches.find(x => x.id === mid);
     if (m) s.textContent = displayName(cat, m, +side);
   });
-  renderSchedule();
+  syncScoreInputs();
+  scheduleTableRefresh();
   renderNextUp();
 }
 
@@ -1964,7 +2027,7 @@ document.addEventListener('change', e => {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' || !e.target.classList.contains('score-box')) return;
   e.preventDefault();
-  const all = Array.from(document.querySelectorAll('.score-box'));
+  const all = Array.from(document.querySelectorAll('.score-box')).filter(x => x.offsetParent !== null);
   const next = all[all.indexOf(e.target) + 1];
   if (next) { next.focus(); next.select(); } else e.target.blur();
 });
@@ -1994,25 +2057,72 @@ function findAt(slot, courtNo) {
 
 function matchWarnings(cat, m) {
   const w = [];
-  const name = x => `${displayName(cat, x, 1)} vs ${displayName(cat, x, 2)}`;
-  if (m.stage !== 'ko') {
-    cat.matches.forEach(x => {
-      if (x === m || x.stage === 'ko' || x.slot !== m.slot) return;
-      const shared = [m.team1, m.team2].filter(t => t === x.team1 || t === x.team2);
-      if (shared.length) w.push(`${shared.join(' & ')} also plays at the same time (${name(x)}, ${x.court}).`);
-    });
-  }
+  if (!m) return w;
+
+  // Minimum slot gap between two matches of the same team.
+  //   2 = one slot of rest is required (adjacent slots warn).
+  //   1 = back-to-back is allowed.
+  const MIN_MATCH_GAP = 2;
+
+  // Flatten every match from every category so we see all courts.
+  const all = [];
+  state.categories.forEach(c => {
+    const full = c._full || c;
+    (full.matches || []).forEach(x => all.push({ cat: full, m: x }));
+  });
+
+  // ── Same time OR immediately before/after, any court, same team ──
+  all.forEach(({ cat: oc, m: x }) => {
+    if (x === m) return;
+    if (x.stage === 'ko') return;          // KO teams resolved later
+    if (x.day !== m.day) return;           // different day = overnight rest
+    const gap = Math.abs(x.slot - m.slot);
+    if (gap >= MIN_MATCH_GAP) return;
+
+    const shared = [m.team1, m.team2].filter(t => t === x.team1 || t === x.team2);
+    if (!shared.length) return;
+
+    // Adjacent slots: if a break falls between them, the team did get rest.
+    if (gap === 1) {
+      const perDay = (() => {
+        const mm    = Math.max(1, parseInt(state.matchMin) || 10);
+        const start = toMin(state.dayStarts);
+        const brk   = (state.breaks || []).reduce((s, b) => s + (parseInt(b.min) || 0), 0);
+        return Math.max(1, Math.floor((toMin(state.playUntil) - start - brk) / mm));
+      })();
+      const si = Math.min(m.slot, x.slot) % perDay;
+      if (getActiveBreaks().some(b => b.before === si + 1)) return;
+    }
+
+    const when  = gap === 0
+      ? 'at the same time'
+      : (x.slot < m.slot ? 'immediately before (no rest)' : 'immediately after (no rest)');
+    const who   = `${displayName(oc, x, 1)} vs ${displayName(oc, x, 2)}`;
+    const where = `${x.court}${oc.id === cat.id ? '' : ' · ' + oc.name}`;
+    w.push(`${shared.join(' & ')} also plays ${when} (${who}, ${where}).`);
+  });
+
+  // ── Court restriction for this category / KO round (unchanged) ──
   const koList = m.stage === 'ko' ? (cat.koMatchCourts || {})[m.id] : null;
-  const useKo = !!(koList && koList.length);
-  const cc = (useKo ? koList : (cat.courts || [])).map(Number);
-  if (cc.length && !cc.includes(m.courtNo)) w.push(`${cat.name}${useKo ? ' ' + m.round + ' is' : ' is'} assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
+  const useKo  = !!(koList && koList.length);
+  const cc     = (useKo ? koList : (cat.courts || [])).map(Number);
+  if (cc.length && !cc.includes(m.courtNo)) {
+    w.push(`${cat.name}${useKo ? ' ' + m.round + ' is' : ' is'} assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
+  }
+
+  // ── Dependency ordering (unchanged) ──
   (m.deps || []).forEach(d => {
     const dm = cat.matches.find(x => x.id === d);
-    if (dm && dm.slot >= m.slot) w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
+    if (dm && dm.slot >= m.slot) {
+      w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
+    }
   });
   cat.matches.forEach(x => {
-    if ((x.deps || []).includes(m.id) && x.slot <= m.slot) w.push(`${x.round} is scheduled at or before this match.`);
+    if ((x.deps || []).includes(m.id) && x.slot <= m.slot) {
+      w.push(`${x.round} is scheduled at or before this match.`);
+    }
   });
+
   return [...new Set(w)];
 }
 function warnBadge(cat, m) {
@@ -2611,7 +2721,7 @@ updateTournamentSelectDropdown();
   const withCats = fn => { const all = state.categories; state.categories = catsIn(); try { fn(); } finally { state.categories = all; } };
 
   wrap('allMatches', o => { const l = o(); return filterScope && active() ? l.filter(x => inF(x.cat, x.m)) : l; });
-  wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // clash checks always look at the full category
+wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // keep the match argument!
   wrap('renderMatchesByTimeSlot', (o, cat) => {
     if (!active()) return o(cat);
     return o({ ...cat, matches: cat.matches.filter(m => inF(cat, m)), _full: cat });
@@ -2716,32 +2826,59 @@ function scheduleAll() {
     return !list || list.includes(ct);
   };
 
-  const pend = cats.map(c => [...c.matches]);
+    const pend = cats.map(c => [...c.matches]);
   const slotOf = cats.map(() => ({}));
   let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
   let prev = cats.map(() => new Set());
-    const byRound = state.playOrder === 'round';
-  let turn = 0;   // the category whose round is being played
+  let prevAll = new Set();                       // NEW: teams playing in the previous slot, any category
+  const koEnd = state.koEnd === 'end';
+  let lastGroup = -1;
+  const byRound = state.playOrder === 'round';
+  let turn = 0;
   const curRnd = ci => { let r = Infinity; pend[ci].forEach(x => { if (x.stage !== 'ko' && (x.rnd ?? 0) < r) r = x.rnd ?? 0; }); return r; };
   const timeAt = sl => { const si = sl % perDay; const t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / perDay), timeMin: t, time: formatTime(t) }; };
 
+  // NEW: is there real rest between two adjacent slots?  (break between them, or overnight)
+  const breakBetween = (s1, s2) => {
+    if (s1 > s2) [s1, s2] = [s2, s1];
+    if (s2 - s1 !== 1) return false;
+    const d1 = Math.floor(s1 / perDay), d2 = Math.floor(s2 / perDay);
+    if (d1 !== d2) return true;                                  // overnight = rest
+    const si = s1 % perDay;
+    return getActiveBreaks().some(b => b.before === si + 1);     // break falls between the two slots
+  };
+
   while (left > 0 && slot < 5000) {
     const used = cats.map(() => new Set());
+    const usedAll = new Set();                   // NEW: teams placed in this slot, across every category
     if (byRound) for (let i = 0; i < cats.length && !pend[turn].length; i++) turn = (turn + 1) % cats.length;
     const place = (ci, m, court) => {
       left--;
       slotOf[ci][m.id] = slot;
+      if (m.stage !== 'ko') lastGroup = slot;
       used[ci].add(m.team1); used[ci].add(m.team2);
+      usedAll.add(m.team1); usedAll.add(m.team2);                // NEW
       Object.assign(m, timeAt(slot), { courtNo: court, court: 'C' + court });
     };
-    const pick = (ci, rest, court) => {
+    const pick = (ci, strict, court) => {
       const idx = pend[ci].findIndex(m => {
         if (!courtOK(ci, m, court)) return false;
         if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
-        if (m.stage === 'ko') return true;
+        if (m.stage === 'ko') return !koEnd || (lastGroup < slot && pend.every(l => !l.some(x => x.stage !== 'ko')));
         if (byRound && (m.rnd ?? 0) !== curRnd(ci)) return false;
+
+        // ── HARD: same team already scheduled this slot (same or any category) ──
         if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
-        return !rest || (!prev[ci].has(m.team1) && !prev[ci].has(m.team2));
+        if (usedAll.has(m.team1) || usedAll.has(m.team2)) return false;
+
+        // ── SOFT (strict only): no back-to-back with previous slot ──
+        if (strict) {
+          const prevClash =
+            prev[ci].has(m.team1) || prev[ci].has(m.team2) ||
+            prevAll.has(m.team1)   || prevAll.has(m.team2);
+          if (prevClash && !breakBetween(slot - 1, slot)) return false;
+        }
+        return true;
       });
       return idx < 0 ? null : pend[ci].splice(idx, 1)[0];
     };
@@ -2749,7 +2886,7 @@ function scheduleAll() {
     for (let court = 1; court <= courts; court++) {
       for (let k = 0; k < cats.length; k++) {
         const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
-        const m = pick(ci, true, court) || pick(ci, false, court);
+        const m = pick(ci, true, court);
         if (!m) continue;
         place(ci, m, court);
         if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
@@ -2757,9 +2894,9 @@ function scheduleAll() {
       }
     }
     prev = used;
+    prevAll = usedAll;                           // NEW: roll this slot into "previous" for next iteration
     slot++;
   }
-
   // Remember the automatic timetable, so "Auto" and "Reset" can always return to it
   cats.forEach(c => c.matches.forEach(m => { m.aSlot = m.slot; m.aCourt = m.courtNo; }));
 
@@ -2971,7 +3108,7 @@ function switchMainView(view) {
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || !e.target.classList.contains('pen-box')) return;
     e.preventDefault();
-    const all = Array.from(document.querySelectorAll('.score-box, .pen-box'));
+    const all = Array.from(document.querySelectorAll('.score-box, .pen-box')).filter(x => x.offsetParent !== null);
     const next = all[all.indexOf(e.target) + 1];
     if (next) { next.focus(); next.select(); } else e.target.blur();
   });
@@ -2996,8 +3133,9 @@ function switchMainView(view) {
 
   const css = `
     /* ---- 1. stable columns in the match bar ---- */
-    .match-card { padding-top: 8px !important; padding-bottom: 8px !important; }
-    .match-card > div:first-child { display: flex; align-items: center; }
+    .match-card { padding-top: 8px !important; padding-bottom: 8px !important; flex-wrap: wrap; gap: 6px 12px; }
+    .match-card > div:first-child { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 4px; column-gap: 10px; }
+    .match-card > div:last-child { flex: 0 1 auto; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
     .match-card .mc-time { order: 1; flex: 0 0 138px; width: 138px; min-width: 138px !important; font-size: 11.5px; }
     .match-card .mc-court { order: 2; flex: 0 0 30px; width: 30px; box-sizing: border-box; text-align: center; }
     .match-card .mc-status { order: 3; flex: 0 0 78px; width: 78px; display: flex; align-items: center; }
