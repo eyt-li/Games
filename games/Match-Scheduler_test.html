@@ -1408,7 +1408,11 @@ function buildMatches(cat) {
       // NEW: Keep the scorers, and swap them if the teams swapped
       m.scorers1 = same ? (prev.scorers1 || []) : (prev.scorers2 || []);
       m.scorers2 = same ? (prev.scorers2 || []) : (prev.scorers1 || []);
+      if (prev.pin) m.pin = prev.pin;
+      if (prev.status) m.status = prev.status;
     }
+    list.push(m);
+  };
   if (state.playOrder === 'group') {
     // one whole group at a time
     perGroup.forEach(({ g, rounds }) => rounds.forEach((pairs, r) => pairs.forEach(([a, b]) => addMatch(g, r, a, b))));
@@ -1517,7 +1521,7 @@ function scheduleAll() {
       if (taken.has(court)) continue;
       for (let k = 0; k < cats.length; k++) {
         const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
-
+        const m = pick(ci, true, court);
         if (!m) continue;
         place(ci, m, court);
         if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
@@ -1891,7 +1895,7 @@ function legendHtml(all) {
 }
 // In Edit mode the Score column holds the two score boxes, so scores can be typed straight into the Full schedule
 function scoreCell(cat, m) {
-  if (!editMode) return `        <td class="py-2 px-2 text-center font-medium text-xs">
+  if (!editMode) return `<td class="py-2 px-2 text-center font-medium text-xs">
           ${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}
           ${(m.scorers1?.length || m.scorers2?.length) ? `<button class="ml-1 text-gray-400 hover:text-gray-700" onclick="openScorersModal('${cat.id}', '${m.id}')" title="View goal scorers">⚽</button>` : ''}
         </td>`;
