@@ -23,10 +23,10 @@
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
   .tab-active { background: white; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
   .tab-inactive { background: transparent; border: 1px solid transparent; }
-  input[type="text"], input[type="number"], input[type="date"], input[type="time"], select {
+  input[type="text"], input[type="number"], input[type="date"], input[type="time"], select, textarea {
     border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 10px; font-size: 13px; outline: none;
   }
-  input:focus, select:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+  input:focus, select:focus, textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
   input:disabled { background: #f3f4f6; color: #6b7280; cursor: not-allowed; }
   .btn { padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; border: 1px solid #d1d5db; background: white; cursor: pointer; transition: all 0.15s; }
   .btn:hover { background: #f9fafb; }
@@ -1258,6 +1258,7 @@ function normalize(d) {
 
       m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? ''; m.status = m.status || '';
       m.team1 = m.team1 ?? null; m.team2 = m.team2 ?? null; m.group = m.group ?? null; m.deps = arr(m.deps);
+      m.scorers1 = arr(m.scorers1); m.scorers2 = arr(m.scorers2);
     });
   });
   return s;
@@ -1400,9 +1401,16 @@ function buildMatches(cat) {
     const group = isGrouped(cat) ? g : null;
     const prev = old[pairKey(group, a, b)];
     const m = { id: safeId(`g_${group || 'x'}_${a}_${b}`), stage: 'group', round: 'Group stage', group, team1: a, team2: b, score1: '', score2: '', rnd: r };
-    if (prev) { const same = prev.team1 === a; m.score1 = same ? prev.score1 : prev.score2; m.score2 = same ? prev.score2 : prev.score1; }
-    if (prev && prev.pin) m.pin = prev.pin;
-    if (prev && prev.status) m.status = prev.status;
+    if (prev) {
+      const same = prev.team1 === a;
+      m.score1 = same ? prev.score1 : prev.score2;
+      m.score2 = same ? prev.score2 : prev.score1;
+      // NEW: Keep the scorers, and swap them if the teams swapped
+      m.scorers1 = same ? (prev.scorers1 || []) : (prev.scorers2 || []);
+      m.scorers2 = same ? (prev.scorers2 || []) : (prev.scorers1 || []);
+      if (prev.pin) m.pin = prev.pin;
+      if (prev.status) m.status = prev.status;
+    }
     list.push(m);
   };
   if (state.playOrder === 'group') {
@@ -1413,9 +1421,13 @@ function buildMatches(cat) {
     for (let r = 0; r < maxR; r++) perGroup.forEach(({ g, rounds }) => (rounds[r] || []).forEach(([a, b]) => addMatch(g, r, a, b)));
   }
   const groupIds = list.map(m => m.id);
-  koDefs(cat, groups, groupIds).forEach(k => {
+    koDefs(cat, groups, groupIds).forEach(k => {
     const prev = old['ko:' + k.id];
-    if (prev) { k.score1 = prev.score1; k.score2 = prev.score2; if (prev.pin) k.pin = prev.pin; if (prev.status) k.status = prev.status; }
+    if (prev) {
+      k.score1 = prev.score1; k.score2 = prev.score2;
+      k.scorers1 = prev.scorers1 || []; k.scorers2 = prev.scorers2 || []; // NEW
+      if (prev.pin) k.pin = prev.pin; if (prev.status) k.status = prev.status;
+    }
     list.push(k);
   });
   cat.matches = list;
@@ -1509,7 +1521,7 @@ function scheduleAll() {
       if (taken.has(court)) continue;
       for (let k = 0; k < cats.length; k++) {
         const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
-
+        const m = pick(ci, true, court);
         if (!m) continue;
         place(ci, m, court);
         if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
@@ -1707,8 +1719,11 @@ function renderMatchesByTimeSlot(cat) {
           <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score1 !== '' ? 'filled' : ''}" value="${m.score1}" data-cat="${cat.id}" data-match="${m.id}" data-side="1" ${!editMode ? 'readonly' : ''}>
           <span class="text-gray-400 font-medium text-xs">–</span>
           <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score2 !== '' ? 'filled' : ''}" value="${m.score2}" data-cat="${cat.id}" data-match="${m.id}" data-side="2" ${!editMode ? 'readonly' : ''}>
-          ` : `<span class="score-pill ${(m.score1 !== '' || m.score2 !== '') ? 'filled' : ''}">${(m.score1 !== '' || m.score2 !== '') ? (m.score1 !== '' ? m.score1 : 0) + ' – ' + (m.score2 !== '' ? m.score2 : 0) : '– : –'}</span>`}
-        </div>
+          <button class="btn text-xs py-1 px-2" onclick="openScorersModal('${cat.id}', '${m.id}')" title="Add goal scorers">⚽ Scorers</button>
+          ` : `
+          <span class="score-pill ${(m.score1 !== '' || m.score2 !== '') ? 'filled' : ''}">${(m.score1 !== '' || m.score2 !== '') ? (m.score1 !== '' ? m.score1 : 0) + ' – ' + (m.score2 !== '' ? m.score2 : 0) : '– : –'}</span>
+          ${(m.scorers1?.length || m.scorers2?.length) ? `<button class="btn text-xs py-1 px-2 bg-gray-50" onclick="openScorersModal('${cat.id}', '${m.id}')" title="View goal scorers">⚽</button>` : ''}
+          `}        </div>
       </div>`).join('')}
   `;
   }).join('');
@@ -1880,7 +1895,10 @@ function legendHtml(all) {
 }
 // In Edit mode the Score column holds the two score boxes, so scores can be typed straight into the Full schedule
 function scoreCell(cat, m) {
-  if (!editMode) return `<td class="py-2 px-2 text-center font-medium text-xs">${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}</td>`;
+  if (!editMode) return `<td class="py-2 px-2 text-center font-medium text-xs">
+          ${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}
+          ${(m.scorers1?.length || m.scorers2?.length) ? `<button class="ml-1 text-gray-400 hover:text-gray-700" onclick="openScorersModal('${cat.id}', '${m.id}')" title="View goal scorers">⚽</button>` : ''}
+        </td>`;
   const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
   return `<td class="py-2 px-2 text-center"><div class="flex items-center justify-center gap-1">
       <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score1 !== '' ? 'filled' : ''}" value="${m.score1}" ${d} data-side="1">
@@ -2344,6 +2362,57 @@ function showModal(html) {
   document.body.appendChild(o);
   return o;
 }
+  function showModal(html) {
+  const o = document.createElement('div');
+  o.className = 'password-modal';
+  o.style.zIndex = '200';
+  o.innerHTML = `<div class="password-box">${html}</div>`;
+  o.addEventListener('click', e => { if (e.target === o) o.remove(); });
+  document.body.appendChild(o);
+  return o;
+}
+
+// PASTE THE NEW FUNCTION HERE:
+window.openScorersModal = function(catId, matchId) {
+  const cat = getCat(catId);
+  const m = cat.matches.find(x => x.id === matchId);
+  if (!m) return;
+  const t1 = displayName(cat, m, 1);
+  const t2 = displayName(cat, m, 2);
+  const s1 = (m.scorers1 || []).join('\n');
+  const s2 = (m.scorers2 || []).join('\n');
+  
+  const o = showModal(`
+    <h3 class="font-semibold text-gray-900 mb-2">Goal Scorers</h3>
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-700 mb-1">${esc(t1)}</label>
+        <textarea id="scorers1" rows="5" class="w-full text-xs" placeholder="One name per line" ${!editMode ? 'readonly' : ''}>${esc(s1)}</textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-700 mb-1">${esc(t2)}</label>
+        <textarea id="scorers2" rows="5" class="w-full text-xs" placeholder="One name per line" ${!editMode ? 'readonly' : ''}>${esc(s2)}</textarea>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn flex-1" data-c>Close</button>
+      ${editMode ? `<button class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-s>Save</button>` : ''}
+    </div>
+  `);
+  o.firstElementChild.style.width = 'min(500px, 92vw)';
+  
+  o.querySelector('[data-c]').onclick = () => o.remove();
+  if (editMode) {
+    o.querySelector('[data-s]').onclick = () => {
+      m.scorers1 = o.querySelector('#scorers1').value.split('\n').map(x => x.trim()).filter(Boolean);
+      m.scorers2 = o.querySelector('#scorers2').value.split('\n').map(x => x.trim()).filter(Boolean);
+      save();
+      o.remove();
+      render();
+    };
+  }
+};
+
 function confirmDialog(message, onYes, yesLabel) {
   const o = showModal(`<p class="text-sm text-gray-800 mb-4">${esc(message)}</p>
     <div class="flex gap-2">
@@ -3365,7 +3434,344 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
+// ============================================================
+// TEAM PLAYER LISTS (with shirt numbers) + "LOG NEW GOAL" SCORERS
+// Replaces the older "TEAM PLAYER LISTS + DROPDOWN GOAL SCORERS" block.
+// Goals are stored per match in m.goals = [{side:1|2, p:'Name', min:'4'}]
+// m.scorers1 / m.scorers2 are kept in sync for the old views.
+// ============================================================
+(function () {
+  const css = `
+    .roster-btn { margin-left: 4px; padding: 1px 6px; border-radius: 999px; border: 1px solid #d1d5db; background: #fff;
+      font-size: 11px; font-weight: 600; color: #374151; cursor: pointer; white-space: nowrap; }
+    .roster-btn:hover { background: #f3f4f6; }
+    .match-card [onclick*="openScorersModal"] { display: none !important; }
+    body.no-scorers .goals-panel { display: none !important; }
 
+    .goals-panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; margin: -2px 0 10px; }
+    .goals-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .goals-title { font-size: 11px; font-weight: 700; letter-spacing: .05em; color: #6b7280; text-transform: uppercase; }
+    .goal-add { padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; color: #fff; background: #10b981;
+      border: 1px solid #10b981; cursor: pointer; }
+    .goal-add:hover { background: #059669; }
+    .goal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+    .goal-cell { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 10px; border-radius: 6px;
+      background: #f9fafb; border: 1px solid #e5e7eb; font-size: 13px; min-width: 0; }
+    .goal-cell .gname { font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .goal-cell .gmin { margin-left: auto; font-weight: 700; color: #047857; font-size: 12px; white-space: nowrap; }
+    .goal-cell.empty { color: #9ca3af; background: transparent; border-style: dashed; }
+    .goal-x { color: #9ca3af; font-size: 15px; line-height: 1; padding: 0 2px; cursor: pointer; background: none; border: 0; }
+    .goal-x:hover { color: #dc2626; }
+    .gl-team { flex: 1; padding: 10px 8px; border-radius: 10px; border: 2px solid #e5e7eb; background: #fff; font-weight: 700;
+      font-size: 13px; cursor: pointer; color: #374151; }
+    .gl-team.on { border-color: #10b981; background: #ecfdf5; color: #065f46; }
+    .gl-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; color: #374151; text-transform: uppercase; margin: 12px 0 6px; }
+    @media (max-width: 639px) { .goal-row { grid-template-columns: 1fr; } }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const sortNames = l => l.slice().sort((a, b) => a.n.localeCompare(b.n, undefined, { sensitivity: 'base' }));
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  // ---------- Rosters: [{t:'Team', n:'Name', no:'7'}] ----------
+  const roster = (cat, team) => {
+    const seen = new Set();
+    return toA(cat.roster).filter(r => r && r.t === team && !seen.has(r.n) && seen.add(r.n));
+  };
+  const rosterLabel = r => r.n + (r.no ? ' (#' + r.no + ')' : '');
+  function setRoster(cat, team, players) {
+    cat.roster = toA(cat.roster).filter(r => r.t !== team).concat(players.map(p => ({ t: team, n: p.n, no: p.no || '' })));
+  }
+  function parseLine(s) {
+    s = s.trim();
+    const mt = s.match(/^(.*?)\s*(?:#|,|\()\s*(\d{1,3})\)?\s*$/);
+    return mt && mt[1] ? { n: mt[1].trim(), no: mt[2] } : { n: s, no: '' };
+  }
+
+  function openRosterModal(catId, index) {
+    const cat = getCat(catId);
+    const team = cat && cat.teams[index];
+    if (!team) return;
+    const o = showModal(`
+      <h3 class="font-semibold text-gray-900 mb-1">Players — ${esc(team)}</h3>
+      <p class="text-xs text-gray-500 mb-2">One player per line. Add a shirt number with <b>#</b>, for example <b>Adam Hakimi #7</b>.</p>
+      <textarea id="rosterText" rows="10" class="w-full text-xs">${esc(roster(cat, team).map(r => r.n + (r.no ? ' #' + r.no : '')).join('\n'))}</textarea>
+      <div class="flex gap-2 mt-3">
+        <button class="btn flex-1" data-c>Cancel</button>
+        <button class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-s>Save</button>
+      </div>`);
+    o.firstElementChild.style.width = 'min(420px, 92vw)';
+    o.querySelector('[data-c]').onclick = () => o.remove();
+    o.querySelector('[data-s]').onclick = () => {
+      const seen = new Set();
+      const players = o.querySelector('#rosterText').value.split('\n').map(parseLine).filter(p => p.n && !seen.has(p.n) && seen.add(p.n));
+      setRoster(cat, team, players);
+      save(); o.remove(); render();
+      toast(`${players.length} player${players.length === 1 ? '' : 's'} saved for ${team}.`);
+    };
+    o.querySelector('#rosterText').focus();
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.roster-btn');
+    if (b && editMode) openRosterModal(b.dataset.cat, +b.dataset.i);
+  });
+  function decorateTeams() {
+    if (!editMode) return;
+    state.categories.forEach(cat => {
+      const box = document.getElementById('teamList-' + cat.id);
+      if (!box) return;
+      Array.from(box.children).forEach((chip, i) => {
+        if (chip.querySelector('.roster-btn') || cat.teams[i] === undefined) return;
+        const n = roster(cat, cat.teams[i]).length;
+        chip.insertAdjacentHTML('beforeend',
+          `<button type="button" class="roster-btn" data-cat="${esc(cat.id)}" data-i="${i}" title="Edit players of this team">👥${n ? ' ' + n : ''}</button>`);
+      });
+    });
+  }
+  wrap('updateTeamName', (o, catId, index, newName) => {
+    const cat = getCat(catId), old = cat && cat.teams[index];
+    o(catId, index, newName);
+    const now = cat && cat.teams[index];
+    if (old && now && old !== now) {
+      cat.roster = toA(cat.roster).map(r => r.t === old ? { ...r, t: now } : r);
+      save();
+    }
+  });
+
+  // ---------- Goals ----------
+  // Goals of a match. Old scorer names (no minute) are shown as goals too.
+  function goalsOf(m) {
+    const g = toA(m.goals).map(x => ({ side: +x.side, p: x.p || '', min: x.min ?? '' }));
+    if (g.length) return g;
+    return [1, 2].flatMap(s => toA(m['scorers' + s]).map(p => ({ side: s, p, min: '' })));
+  }
+  const syncScorers = m => {
+    const g = toA(m.goals);
+    m.scorers1 = g.filter(x => +x.side === 1).map(x => x.p).filter(Boolean);
+    m.scorers2 = g.filter(x => +x.side === 2).map(x => x.p).filter(Boolean);
+  };
+  function bumpScore(m, side, delta) {
+    const k = 'score' + side, o = 'score' + (side === 1 ? 2 : 1);
+    const cur = m[k] === '' || m[k] == null ? 0 : parseInt(m[k]) || 0;
+    m[k] = String(Math.max(0, cur + delta));
+    if (m[o] === '' || m[o] == null) m[o] = '0';
+  }
+
+  // Keep goals when matches are rebuilt (adding teams, remote updates ...)
+  wrap('buildMatches', (o, cat) => {
+    const keep = {};
+    cat.matches.forEach(m => { if (toA(m.goals).length) keep[m.id] = m.goals; });
+    o(cat);
+    cat.matches.forEach(m => { if (keep[m.id]) m.goals = keep[m.id]; });
+  });
+
+  // The strip under each match card
+function panelHtml(cat, m) {
+  const goals = goalsOf(m).map((g, i) => ({ ...g, i }));
+  const byMin = (a, b) => ((parseInt(a.min) || 999) - (parseInt(b.min) || 999)) || a.i - b.i;
+  const left = goals.filter(g => g.side === 1).sort(byMin);
+  const right = goals.filter(g => g.side === 2).sort(byMin);
+  const rows = Math.max(left.length, right.length);
+  const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+  const cell = g => !g
+    ? '<div class="goal-cell empty">—</div>'
+    : `<div class="goal-cell">⚽ <span class="gname">${esc(g.p || 'Unknown')}</span>
+        ${g.min !== '' ? `<span class="gmin">${esc(g.min)}'</span>` : '<span class="gmin"></span>'}
+        ${editMode ? `<button type="button" class="goal-x" data-gdel ${d} data-i="${g.i}" title="Remove this goal">×</button>` : ''}</div>`;
+  let body = '';
+  for (let r = 0; r < rows; r++) body += `<div class="goal-row">${cell(left[r])}${cell(right[r])}</div>`;
+  return `<div class="goals-panel" ${d}>
+    <div class="goals-head"><span class="goals-title">⚽ Goalscorers</span>
+      ${editMode ? `<button type="button" class="goal-add" data-gadd ${d}>+ Add Goal</button>` : ''}</div>
+    ${body}
+  </div>`;
+}
+  function decoratePanels() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      const nx = card.nextElementSibling;
+      if (nx && nx.classList.contains('goals-panel')) nx.remove();
+      const hit = matchFromCard(card);
+      if (!hit) return;
+      const { cat, m } = hit;
+      if (!editMode && !goalsOf(m).length) return;
+      card.insertAdjacentHTML('afterend', panelHtml(cat, m));
+    });
+  }
+  wrap('renderCategories', o => { o(); decorateTeams(); decoratePanels(); });
+  wrap('render', o => { o(); decorateTeams(); decoratePanels(); });
+
+  // ---------- "Log New Goal" window ----------
+  function openGoalModal(catId, matchId) {
+    const cat = getCat(catId);
+    const m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m || !editMode) return;
+    const names = [displayName(cat, m, 1), displayName(cat, m, 2)];
+    let side = 1, player = '', other = false;
+    const o = showModal('<div id="glWrap"></div>');
+    o.firstElementChild.style.width = 'min(440px, 94vw)';
+    const w = o.querySelector('#glWrap');
+
+    const playersFor = s => cat.teams.includes(names[s - 1]) ? sortNames(roster(cat, names[s - 1])) : [];
+    function playerField() {
+      const list = playersFor(side);
+      if (!list.length || other) {
+        return `<input type="text" id="glPlayer" class="w-full" placeholder="Player name" value="${esc(player)}">
+          ${list.length ? '<button type="button" class="text-xs text-gray-500 underline mt-1" data-back>Back to list</button>' : '<p class="text-xs text-gray-400 mt-1">No players listed for this team. Use 👥 on the team to add them.</p>'}`;
+      }
+      return `<select id="glPlayer" class="w-full">
+        <option value="">Select player…</option>
+        ${list.map(r => `<option value="${esc(r.n)}"${r.n === player ? ' selected' : ''}>${esc(rosterLabel(r))}</option>`).join('')}
+        <option value="__other">✏ Other…</option></select>`;
+    }
+    function draw() {
+      w.innerHTML = `
+        <h3 class="font-semibold text-gray-900">⚽ Log New Goal</h3>
+        <p class="text-xs text-gray-500">${esc(names[0])} vs ${esc(names[1])} (${esc(m.court || '')})</p>
+        <span class="gl-label">1. Scoring team</span>
+        <div class="flex gap-2">
+          <button type="button" class="gl-team${side === 1 ? ' on' : ''}" data-side="1">${esc(names[0])}</button>
+          <button type="button" class="gl-team${side === 2 ? ' on' : ''}" data-side="2">${esc(names[1])}</button>
+        </div>
+        <span class="gl-label">2. Select player</span>
+        <div id="glPlayerBox">${playerField()}</div>
+        <span class="gl-label">3. Match minute</span>
+        <input type="text" id="glMin" inputmode="numeric" maxlength="3" class="w-full" placeholder="min (')">
+        <div class="flex gap-2 mt-4">
+          <button type="button" class="btn flex-1" data-cancel>Cancel</button>
+          <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-save>Save Goal ⚽</button>
+        </div>`;
+    }
+    draw();
+    w.addEventListener('input', e => { if (e.target.id === 'glMin') e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
+    w.addEventListener('change', e => {
+      if (e.target.id !== 'glPlayer') return;
+      if (e.target.value === '__other') { other = true; player = ''; w.querySelector('#glPlayerBox').innerHTML = playerField(); w.querySelector('#glPlayer').focus(); }
+      else player = e.target.value;
+    });
+    w.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.side) {
+        const keep = w.querySelector('#glMin').value;
+        side = +b.dataset.side; player = ''; other = false; draw(); w.querySelector('#glMin').value = keep;
+      } else if (b.hasAttribute('data-back')) { other = false; player = ''; w.querySelector('#glPlayerBox').innerHTML = playerField(); }
+      else if (b.hasAttribute('data-cancel')) o.remove();
+      else if (b.hasAttribute('data-save')) {
+        const p = (w.querySelector('#glPlayer').value || '').trim();
+        if (!p || p === '__other') { toast('Choose the player who scored.'); return; }
+        const min = w.querySelector('#glMin').value.trim();
+        m.goals = goalsOf(m).concat([{ side, p, min }]);
+        const had = toA(m.goals).length - 1;
+        bumpScore(m, side, 1);
+        syncScorers(m);
+        save(); o.remove(); render();
+      }
+    });
+  }
+
+  document.addEventListener('click', e => {
+    const add = e.target.closest && e.target.closest('[data-gadd]');
+    const del = e.target.closest && e.target.closest('[data-gdel]');
+    if (add) { openGoalModal(add.dataset.cat, add.dataset.match); return; }
+    if (del && editMode) {
+      const cat = getCat(del.dataset.cat), m = cat && cat.matches.find(x => x.id === del.dataset.match);
+      if (!m) return;
+      confirmDialog('Remove this goal? The score goes down by 1.', () => {
+        const list = goalsOf(m), i = +del.dataset.i, g = list[i];
+        if (!g) return;
+        list.splice(i, 1);
+        m.goals = list;
+        bumpScore(m, g.side, -1);
+        syncScorers(m);
+        save(); render();
+      }, 'Remove');
+    }
+  });
+
+  // The ⚽ button in the Full schedule opens a read-only list (or the Add Goal window in Edit mode)
+  window.openScorersModal = function (catId, matchId) {
+    const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m) return;
+    if (editMode) { openGoalModal(catId, matchId); return; }
+    const g = goalsOf(m);
+    const line = x => `<li style="font-size:13px;padding:2px 0">⚽ ${esc(x.p)}${x.min !== '' ? ` <b style="color:#047857">${esc(x.min)}'</b>` : ''} <span class="text-xs text-gray-400">· ${esc(displayName(cat, m, x.side))}</span></li>`;
+    const o = showModal(`<h3 class="font-semibold text-gray-900 mb-2">Goal Scorers</h3>
+      ${g.length ? `<ul>${g.map(line).join('')}</ul>` : '<p class="text-sm text-gray-500">No scorers recorded.</p>'}
+      <button class="btn w-full mt-3" data-c>Close</button>`);
+    o.querySelector('[data-c]').onclick = () => o.remove();
+  };
+
+  if (currentView === 'tournament') render();
+})();
+  // ============================================================
+// OPTION: TRACK GOAL SCORERS (on / off per tournament)
+// Paste at the very end of the main script block (after your other add-ons).
+// state.trackScorers: undefined or true = on, false = off.
+// ============================================================
+(function () {
+  const css = `
+    body.no-scorers .roster-btn,
+    body.no-scorers [onclick*="openScorersModal"] { display: none !important; }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const scorersOn = () => state.trackScorers !== false;
+
+  // The checkbox in the Setup panel, right after "Knockouts"
+  document.getElementById('koEnd').parentElement.insertAdjacentHTML('afterend', `
+    <div>
+      <label class="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+        <input type="checkbox" id="trackScorers" style="width:16px;height:16px">
+        Track who scored (goal scorers)
+      </label>
+      <p class="text-xs text-gray-500 mt-1">Turn off if you only record the score.</p>
+    </div>`);
+  const box = document.getElementById('trackScorers');
+  box.addEventListener('change', () => {
+    if (!editMode) { box.checked = scorersOn(); return; }
+    state.trackScorers = box.checked;
+    save();
+    render();
+  });
+
+  function applyScorersMode() {
+    document.body.classList.toggle('no-scorers', !scorersOn());
+    box.checked = scorersOn();
+    box.disabled = !editMode;
+  }
+
+  // Keep the setting when data arrives from Firebase / storage (normalize() drops unknown fields)
+  wrap('normalize', (o, d) => {
+    const s = o(d);
+    if (d && d.trackScorers === false) s.trackScorers = false;
+    return s;
+  });
+
+  // Snapshot share links carry it too
+  wrap('compactState', o => { const r = o(); r.ts = scorersOn() ? 1 : 0; return r; });
+  wrap('expandState', (o, obj) => { o(obj); if (obj.ts === 0) state.trackScorers = false; });
+
+  // Do not open the scorers window when the option is off
+  wrap('openScorersModal', (o, ...a) => { if (!scorersOn()) return; return o(...a); });
+
+  wrap('render', o => { o(); applyScorersMode(); });
+  applyScorersMode();
+  if (currentView === 'tournament') render();
+})();
 </script>
 
 </body>
