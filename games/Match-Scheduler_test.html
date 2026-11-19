@@ -3577,21 +3577,26 @@ function switchMainView(view) {
   });
 
   // The strip under each match card
-  function panelHtml(cat, m) {
-    const goals = goalsOf(m).map((g, i) => ({ ...g, i }));
-    goals.sort((a, b) => ((parseInt(a.min) || 999) - (parseInt(b.min) || 999)) || a.i - b.i);
-    const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
-    const cell = (g, s) => g.side !== s
-      ? '<div class="goal-cell empty">—</div>'
-      : `<div class="goal-cell">⚽ <span class="gname">${esc(g.p || 'Unknown')}</span>
-          ${g.min !== '' ? `<span class="gmin">${esc(g.min)}'</span>` : '<span class="gmin"></span>'}
-          ${editMode ? `<button type="button" class="goal-x" data-gdel ${d} data-i="${g.i}" title="Remove this goal">×</button>` : ''}</div>`;
-    return `<div class="goals-panel" ${d}>
-      <div class="goals-head"><span class="goals-title">⚽ Goalscorers</span>
-        ${editMode ? `<button type="button" class="goal-add" data-gadd ${d}>+ Add Goal</button>` : ''}</div>
-      ${goals.map(g => `<div class="goal-row">${cell(g, 1)}${cell(g, 2)}</div>`).join('')}
-    </div>`;
-  }
+function panelHtml(cat, m) {
+  const goals = goalsOf(m).map((g, i) => ({ ...g, i }));
+  const byMin = (a, b) => ((parseInt(a.min) || 999) - (parseInt(b.min) || 999)) || a.i - b.i;
+  const left = goals.filter(g => g.side === 1).sort(byMin);
+  const right = goals.filter(g => g.side === 2).sort(byMin);
+  const rows = Math.max(left.length, right.length);
+  const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+  const cell = g => !g
+    ? '<div class="goal-cell empty">—</div>'
+    : `<div class="goal-cell">⚽ <span class="gname">${esc(g.p || 'Unknown')}</span>
+        ${g.min !== '' ? `<span class="gmin">${esc(g.min)}'</span>` : '<span class="gmin"></span>'}
+        ${editMode ? `<button type="button" class="goal-x" data-gdel ${d} data-i="${g.i}" title="Remove this goal">×</button>` : ''}</div>`;
+  let body = '';
+  for (let r = 0; r < rows; r++) body += `<div class="goal-row">${cell(left[r])}${cell(right[r])}</div>`;
+  return `<div class="goals-panel" ${d}>
+    <div class="goals-head"><span class="goals-title">⚽ Goalscorers</span>
+      ${editMode ? `<button type="button" class="goal-add" data-gadd ${d}>+ Add Goal</button>` : ''}</div>
+    ${body}
+  </div>`;
+}
   function decoratePanels() {
     document.querySelectorAll('.match-card').forEach(card => {
       const nx = card.nextElementSibling;
