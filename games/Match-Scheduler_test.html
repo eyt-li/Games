@@ -4698,7 +4698,7 @@ function switchMainView(view) {
   st.textContent = css;
   document.head.appendChild(st);
 })();
-  // ============================================================
+// ============================================================
 // CHOOSE WHICH TEAM IS ON THE LEFT (edit mode): "⇄ Swap" button
 // Paste at the very end of the main script block.
 // Group matches: cat.flips = [{l:'Team on left', r:'Team on right'}]
@@ -4831,6 +4831,16 @@ function switchMainView(view) {
       (last.firstElementChild || last).insertAdjacentHTML('beforeend', BTN(cat, m));
     });
   }
+  ['renderCategories', 'renderSchedule', 'render'].forEach(n => wrap(n, o => { o(); decorate(); }));
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.flip-btn');
+    if (b) flipMatch(b.dataset.cat, b.dataset.match);
+  });
+
+  if (currentView === 'tournament') render();
+})();
+  
 </script>
 
 </body>
