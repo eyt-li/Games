@@ -4631,7 +4631,7 @@ function switchMainView(view) {
   const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
 
   // ---------- light colour for knockout rows (change 0.12 to make it paler or stronger) ----------
-  wrap('rowBg', (o, cat, m) => m.stage === 'ko' ? hexToRgba('#facc15', 0.12) : o(cat, m));
+  wrap('rowBg', (o, cat, m) => m.stage === 'ko' ? hexToRgba('#facc15', 0.06) : o(cat, m));
   wrap('legendHtml', (o, all) => o(all).replace('#fde68a', '#fef9c3'));
 
   // ---------- keep the two score boxes (with their - / + buttons) in one group ----------
