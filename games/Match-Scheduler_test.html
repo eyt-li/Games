@@ -1361,7 +1361,11 @@ function koDefs(cat, groups, groupIds) {
   const top = (g, size) => {
     const k = size >= 4 ? 4 : size >= 2 ? 2 : 0;
     const s = [1, 2, 3, 4].slice(0, k).map(p => seed(g, p));
-    return k === 4 ? [s[0], s[3], s[1], s[2]] : s;
+    if (k === 4) {
+      // NEW: Check the category's koSeed setting
+      return cat.koSeed === 'seq' ? [s[0], s[2], s[1], s[3]] : [s[0], s[3], s[1], s[2]];
+    }
+    return s;
   };
   let q = [];
   if (cat.format === 'round-robin-knockouts') q = top(null, n);
@@ -1629,6 +1633,14 @@ function renderCategories() {
               `<option value="${n}" ${cat.groups === n ? 'selected' : ''}>${n} group${n > 1 ? 's' : ''}</option>`).join('')}
           </select>` : `<div class="btn text-xs bg-gray-50">${cat.groups} groups</div>`) : '<div></div>'}
         </div>
+        ${(cat.format === 'round-robin-knockouts' || (isGrouped(cat) && cat.groups === 1)) ? `
+        <div class="flex items-center gap-2 mt-1">
+          <span class="text-xs text-gray-600 w-12">Semis</span>
+          ${editMode ? `<select class="btn text-xs flex-1" onchange="updateCatSeed('${cat.id}', this.value)">
+            <option value="cross" ${cat.koSeed !== 'seq' ? 'selected' : ''}>1st vs 4th (2nd vs 3rd)</option>
+            <option value="seq" ${cat.koSeed === 'seq' ? 'selected' : ''}>1st vs 3rd (2nd vs 4th)</option>
+          </select>` : `<div class="btn text-xs bg-gray-50 flex-1">${cat.koSeed === 'seq' ? '1st vs 3rd (2nd vs 4th)' : '1st vs 4th (2nd vs 3rd)'}</div>`}
+        </div>` : ''}
         <div class="flex items-center gap-2">
           <span class="text-xs text-gray-600">Color</span>
           <div class="flex gap-1.5 items-center">
@@ -2214,6 +2226,11 @@ function updateCatFormat(catId, format) {
   if (!cat.groups) cat.groups = 2;
   changed(cat);
 }
+  function updateCatSeed(catId, seed) {
+  const cat = getCat(catId);
+  cat.koSeed = seed;
+  changed(cat);
+}
 function updateCatGroups(catId, groups) { const cat = getCat(catId); cat.groups = parseInt(groups); changed(cat); }
 function deleteCategory(catId) {
   const cat = getCat(catId);
@@ -2452,15 +2469,13 @@ function compactState() {
       }).join(',').replace(/,+$/, '');
       const pn = tmp.matches.map(m => { const r = cat.matches.find(x => x.id === m.id); return r && r.pin ? r.pin.slot + ':' + r.pin.court : ''; }).join(',').replace(/,+$/, '');
       const stt = tmp.matches.map(m => { const r = cat.matches.find(x => x.id === m.id); return r && r.status === 'ongoing' ? 'o' : (r && r.status === 'completed' ? 'c' : ''); }).join(',').replace(/,+$/, '');
-      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || [], cat.koMatchCourts || {}, stt];
-    })
+      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || [], cat.koMatchCourts || {}, stt, cat.koSeed || 'cross'];    })
   };
 }
 function expandState(o) {
   const st = { tName: o.tn || 'Schedule 1', pwHash: '', eventDate: o.d, dayStarts: o.s, playUntil: o.u, matchMin: o.m, courts: o.c, breaks: o.brk || [], categories: [] };
   o.k.forEach((k, i) => {
-    const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), courts: k[8] || [], koMatchCourts: (k[9] && !Array.isArray(k[9])) ? k[9] : {}, matches: [] };
-    buildMatches(cat);
+    const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), courts: k[8] || [], koMatchCourts: (k[9] && !Array.isArray(k[9])) ? k[9] : {}, matches: [], koSeed: k[11] || 'cross' };    buildMatches(cat);
     const sc = k[6].split(',');
     cat.matches.forEach((m, j) => { if (sc[j]) { const [a, b] = sc[j].split('-'); m.score1 = a; m.score2 = b ?? ''; } });
     const pn = (k[7] || '').split(',');
