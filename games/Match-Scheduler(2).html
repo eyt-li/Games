@@ -3435,10 +3435,8 @@ function switchMainView(view) {
   if (currentView === 'tournament') render();
 })();
 // ============================================================
-// TEAM PLAYER LISTS (with shirt numbers) + "LOG NEW GOAL" SCORERS
-// Replaces the older "TEAM PLAYER LISTS + DROPDOWN GOAL SCORERS" block.
-// Goals are stored per match in m.goals = [{side:1|2, p:'Name', min:'4'}]
-// m.scorers1 / m.scorers2 are kept in sync for the old views.
+// TEAM PLAYER LISTS (with shirt numbers) + "LOG NEW GOAL" SCORERS  (v3)
+// Goals: m.goals = [{side:1|2, p:'Name', min:'4', sec:'12'}]
 // ============================================================
 (function () {
   const css = `
@@ -3455,18 +3453,34 @@ function switchMainView(view) {
       border: 1px solid #10b981; cursor: pointer; }
     .goal-add:hover { background: #059669; }
     .goal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+    .goal-row1 { margin-top: 6px; }
+    .gh { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-align: center; }
+    .gh.s1 { background: #d1fae5; color: #065f46; }
+    .gh.s2 { background: #dbeafe; color: #1e40af; }
     .goal-cell { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 10px; border-radius: 6px;
-      background: #f9fafb; border: 1px solid #e5e7eb; font-size: 13px; min-width: 0; }
+      background: #f9fafb; border: 1px solid #e5e7eb; border-left: 4px solid var(--gc, #e5e7eb); font-size: 13px; min-width: 0; }
+    .goal-cell.s1 { --gc: #10b981; }
+    .goal-cell.s2 { --gc: #3b82f6; }
     .goal-cell .gname { font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .goal-cell .gmin { margin-left: auto; font-weight: 700; color: #047857; font-size: 12px; white-space: nowrap; }
-    .goal-cell.empty { color: #9ca3af; background: transparent; border-style: dashed; }
+    .goal-cell.empty { color: #9ca3af; background: transparent; border: 1px dashed #e5e7eb; }
+    .gteam { display: none; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; white-space: nowrap;
+      max-width: 38%; overflow: hidden; text-overflow: ellipsis; }
+    .goal-cell.s1 .gteam { background: #d1fae5; color: #065f46; }
+    .goal-cell.s2 .gteam { background: #dbeafe; color: #1e40af; }
     .goal-x { color: #9ca3af; font-size: 15px; line-height: 1; padding: 0 2px; cursor: pointer; background: none; border: 0; }
     .goal-x:hover { color: #dc2626; }
+    .goals-narrow { display: none; }
+    @media (max-width: 899px) {
+      .goals-wide { display: none; }
+      .goals-narrow { display: block; }
+      .gteam { display: inline-block; }
+    }
     .gl-team { flex: 1; padding: 10px 8px; border-radius: 10px; border: 2px solid #e5e7eb; background: #fff; font-weight: 700;
       font-size: 13px; cursor: pointer; color: #374151; }
     .gl-team.on { border-color: #10b981; background: #ecfdf5; color: #065f46; }
     .gl-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; color: #374151; text-transform: uppercase; margin: 12px 0 6px; }
-    @media (max-width: 639px) { .goal-row { grid-template-columns: 1fr; } }
+    .gl-sub { display: block; font-size: 10px; color: #6b7280; margin-bottom: 3px; }
   `;
   const st = document.createElement('style');
   st.textContent = css;
@@ -3550,11 +3564,17 @@ function switchMainView(view) {
   });
 
   // ---------- Goals ----------
-  // Goals of a match. Old scorer names (no minute) are shown as goals too.
   function goalsOf(m) {
-    const g = toA(m.goals).map(x => ({ side: +x.side, p: x.p || '', min: x.min ?? '' }));
+    const g = toA(m.goals).map(x => ({ side: +x.side, p: x.p || '', min: x.min ?? '', sec: x.sec ?? '' }));
     if (g.length) return g;
-    return [1, 2].flatMap(s => toA(m['scorers' + s]).map(p => ({ side: s, p, min: '' })));
+    return [1, 2].flatMap(s => toA(m['scorers' + s]).map(p => ({ side: s, p, min: '', sec: '' })));
+  }
+  const tkey = g => (g.min === '' && g.sec === '') ? 999999 : (parseInt(g.min) || 0) * 60 + (parseInt(g.sec) || 0);
+  const byTime = (a, b) => (tkey(a) - tkey(b)) || a.i - b.i;
+  function tfmt(g) {
+    if (g.min === '' && g.sec === '') return '';
+    const mi = parseInt(g.min) || 0;
+    return esc(mi + "'" + (g.sec !== '' ? String(parseInt(g.sec) || 0).padStart(2, '0') + '"' : ''));
   }
   const syncScorers = m => {
     const g = toA(m.goals);
@@ -3568,7 +3588,6 @@ function switchMainView(view) {
     if (m[o] === '' || m[o] == null) m[o] = '0';
   }
 
-  // Keep goals when matches are rebuilt (adding teams, remote updates ...)
   wrap('buildMatches', (o, cat) => {
     const keep = {};
     cat.matches.forEach(m => { if (toA(m.goals).length) keep[m.id] = m.goals; });
@@ -3576,27 +3595,28 @@ function switchMainView(view) {
     cat.matches.forEach(m => { if (keep[m.id]) m.goals = keep[m.id]; });
   });
 
-  // The strip under each match card
-function panelHtml(cat, m) {
-  const goals = goalsOf(m).map((g, i) => ({ ...g, i }));
-  const byMin = (a, b) => ((parseInt(a.min) || 999) - (parseInt(b.min) || 999)) || a.i - b.i;
-  const left = goals.filter(g => g.side === 1).sort(byMin);
-  const right = goals.filter(g => g.side === 2).sort(byMin);
-  const rows = Math.max(left.length, right.length);
-  const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
-  const cell = g => !g
-    ? '<div class="goal-cell empty">—</div>'
-    : `<div class="goal-cell">⚽ <span class="gname">${esc(g.p || 'Unknown')}</span>
-        ${g.min !== '' ? `<span class="gmin">${esc(g.min)}'</span>` : '<span class="gmin"></span>'}
-        ${editMode ? `<button type="button" class="goal-x" data-gdel ${d} data-i="${g.i}" title="Remove this goal">×</button>` : ''}</div>`;
-  let body = '';
-  for (let r = 0; r < rows; r++) body += `<div class="goal-row">${cell(left[r])}${cell(right[r])}</div>`;
-  return `<div class="goals-panel" ${d}>
-    <div class="goals-head"><span class="goals-title">⚽ Goalscorers</span>
-      ${editMode ? `<button type="button" class="goal-add" data-gadd ${d}>+ Add Goal</button>` : ''}</div>
-    ${body}
-  </div>`;
-}
+  function panelHtml(cat, m) {
+    const goals = goalsOf(m).map((g, i) => ({ ...g, i }));
+    const names = [displayName(cat, m, 1), displayName(cat, m, 2)];
+    const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+    const cell = g => !g
+      ? '<div class="goal-cell empty">—</div>'
+      : `<div class="goal-cell s${g.side === 2 ? 2 : 1}">⚽ <span class="gname">${esc(g.p || 'Unknown')}</span>
+          <span class="gteam">${esc(names[g.side === 2 ? 1 : 0])}</span>
+          <span class="gmin">${tfmt(g)}</span>
+          ${editMode ? `<button type="button" class="goal-x" data-gdel ${d} data-i="${g.i}" title="Remove this goal">×</button>` : ''}</div>`;
+    const left = goals.filter(g => g.side !== 2).sort(byTime);
+    const right = goals.filter(g => g.side === 2).sort(byTime);
+    let wide = goals.length ? `<div class="goal-row"><div class="gh s1">${esc(names[0])}</div><div class="gh s2">${esc(names[1])}</div></div>` : '';
+    for (let r = 0; r < Math.max(left.length, right.length); r++) wide += `<div class="goal-row">${cell(left[r])}${cell(right[r])}</div>`;
+    const narrow = goals.slice().sort(byTime).map(g => `<div class="goal-row1">${cell(g)}</div>`).join('');
+    return `<div class="goals-panel" ${d}>
+      <div class="goals-head"><span class="goals-title">⚽ Goalscorers</span>
+        ${editMode ? `<button type="button" class="goal-add" data-gadd ${d}>+ Add Goal</button>` : ''}</div>
+      <div class="goals-wide">${wide}</div>
+      <div class="goals-narrow">${narrow}</div>
+    </div>`;
+  }
   function decoratePanels() {
     document.querySelectorAll('.match-card').forEach(card => {
       const nx = card.nextElementSibling;
@@ -3645,15 +3665,20 @@ function panelHtml(cat, m) {
         </div>
         <span class="gl-label">2. Select player</span>
         <div id="glPlayerBox">${playerField()}</div>
-        <span class="gl-label">3. Match minute</span>
-        <input type="text" id="glMin" inputmode="numeric" maxlength="3" class="w-full" placeholder="min (')">
+        <span class="gl-label">3. Time of goal</span>
+        <div class="grid grid-cols-2 gap-3">
+          <div><span class="gl-sub">Minute</span><input type="text" id="glMin" inputmode="numeric" maxlength="3" class="w-full" placeholder="min (')"></div>
+          <div><span class="gl-sub">Second</span><input type="text" id="glSec" inputmode="numeric" maxlength="2" class="w-full" placeholder='sec (")'></div>
+        </div>
         <div class="flex gap-2 mt-4">
           <button type="button" class="btn flex-1" data-cancel>Cancel</button>
           <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-save>Save Goal ⚽</button>
         </div>`;
     }
     draw();
-    w.addEventListener('input', e => { if (e.target.id === 'glMin') e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
+    w.addEventListener('input', e => {
+      if (e.target.id === 'glMin' || e.target.id === 'glSec') e.target.value = e.target.value.replace(/[^0-9]/g, '');
+    });
     w.addEventListener('change', e => {
       if (e.target.id !== 'glPlayer') return;
       if (e.target.value === '__other') { other = true; player = ''; w.querySelector('#glPlayerBox').innerHTML = playerField(); w.querySelector('#glPlayer').focus(); }
@@ -3663,16 +3688,18 @@ function panelHtml(cat, m) {
       const b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.side) {
-        const keep = w.querySelector('#glMin').value;
-        side = +b.dataset.side; player = ''; other = false; draw(); w.querySelector('#glMin').value = keep;
+        const mi = w.querySelector('#glMin').value, se = w.querySelector('#glSec').value;
+        side = +b.dataset.side; player = ''; other = false; draw();
+        w.querySelector('#glMin').value = mi; w.querySelector('#glSec').value = se;
       } else if (b.hasAttribute('data-back')) { other = false; player = ''; w.querySelector('#glPlayerBox').innerHTML = playerField(); }
       else if (b.hasAttribute('data-cancel')) o.remove();
       else if (b.hasAttribute('data-save')) {
         const p = (w.querySelector('#glPlayer').value || '').trim();
         if (!p || p === '__other') { toast('Choose the player who scored.'); return; }
         const min = w.querySelector('#glMin').value.trim();
-        m.goals = goalsOf(m).concat([{ side, p, min }]);
-        const had = toA(m.goals).length - 1;
+        let sec = w.querySelector('#glSec').value.trim();
+        if (sec !== '') sec = String(Math.min(59, parseInt(sec) || 0));
+        m.goals = goalsOf(m).concat([{ side, p, min, sec }]);
         bumpScore(m, side, 1);
         syncScorers(m);
         save(); o.remove(); render();
@@ -3699,13 +3726,12 @@ function panelHtml(cat, m) {
     }
   });
 
-  // The ⚽ button in the Full schedule opens a read-only list (or the Add Goal window in Edit mode)
   window.openScorersModal = function (catId, matchId) {
     const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
     if (!m) return;
     if (editMode) { openGoalModal(catId, matchId); return; }
-    const g = goalsOf(m);
-    const line = x => `<li style="font-size:13px;padding:2px 0">⚽ ${esc(x.p)}${x.min !== '' ? ` <b style="color:#047857">${esc(x.min)}'</b>` : ''} <span class="text-xs text-gray-400">· ${esc(displayName(cat, m, x.side))}</span></li>`;
+    const g = goalsOf(m).map((x, i) => ({ ...x, i })).sort(byTime);
+    const line = x => `<li style="font-size:13px;padding:2px 0">⚽ ${esc(x.p)}${tfmt(x) ? ` <b style="color:#047857">${tfmt(x)}</b>` : ''} <span class="text-xs text-gray-400">· ${esc(displayName(cat, m, x.side))}</span></li>`;
     const o = showModal(`<h3 class="font-semibold text-gray-900 mb-2">Goal Scorers</h3>
       ${g.length ? `<ul>${g.map(line).join('')}</ul>` : '<p class="text-sm text-gray-500">No scorers recorded.</p>'}
       <button class="btn w-full mt-3" data-c>Close</button>`);
@@ -3772,6 +3798,866 @@ function panelHtml(cat, m) {
   applyScorersMode();
   if (currentView === 'tournament') render();
 })();
+  // ============================================================
+// CONTACT BUTTON AT THE TOP + BIGGER, CENTERED FOOTER
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const css = `
+    /* ---- Contact button (top) ---- */
+    .contact-btn.sm { padding: 6px 12px; font-size: 13px; }
+    .home-contact { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+
+    /* ---- Footer: everything centered, bigger logo ---- */
+    .site-footer .site-footer-inner { flex-direction: column; justify-content: center; align-items: center;
+      text-align: center; gap: 14px; padding: 28px 16px; }
+    .site-footer .footer-brand { flex-direction: column; justify-content: center; align-items: center; gap: 10px; text-align: center; }
+    .site-footer .logo-badge { padding: 10px; border-radius: 16px; }
+    .site-footer .logo-badge svg { width: 56px; height: 56px; }
+
+    @media (max-width: 639px) {
+      /* header: icon only, so it fits next to the other buttons */
+      header .contact-btn .contact-label { display: none; }
+      header .contact-btn.sm { padding: 6px 8px; box-shadow: none; }
+      header .contact-btn.sm svg { width: 18px; height: 18px; }
+
+      .home-contact { justify-content: center; }
+
+      .site-footer .site-footer-inner { padding: 24px 12px; }
+      .site-footer .logo-badge svg { width: 64px; height: 64px; }
+      .site-footer .contact-btn { width: auto; }
+    }
+  `;
+  const st = document.createElement('style');
+  st.id = 'contactFooterStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const link = 'https://www.instagram.com/3_little_cubs/';
+  const btn = `<a class="contact-btn sm" href="${link}" target="_blank" rel="noopener noreferrer" title="Contact Us">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+      <span class="contact-label">Contact Us</span></a>`;
+
+  // 1. In the header (shown inside a tournament)
+  const pdf = document.getElementById('exportPdfBtn');
+  if (pdf && !document.querySelector('header .contact-btn')) pdf.insertAdjacentHTML('beforebegin', btn);
+
+  // 2. At the top of the Home screen (the header is hidden there)
+  const home = document.getElementById('homeView');
+  if (home && !home.querySelector('.home-contact')) home.insertAdjacentHTML('afterbegin', `<div class="home-contact">${btn}</div>`);
+})();
+  // ============================================================
+// BIGGER LIVE BORDER + MATCH TIMER + EDIT SCORERS + SCHEDULE BUILDER
+// Paste at the very end of the main script block (after the goals block).
+// ============================================================
+(function () {
+  const css = `
+    .match-card.is-live { box-shadow: 0 0 0 4px #f59e0b !important; }              /* ring thickness: change 4px */
+    .schedule-row.is-live td:first-child { box-shadow: inset 6px 0 0 #f59e0b !important; }
+    .mclock { order: 3; display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px;
+      background: #f3f4f6; border: 1px solid #d1d5db; font-size: 12px; font-weight: 700; color: #374151; white-space: nowrap;
+      font-variant-numeric: tabular-nums; }
+    .mclock.run { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+    .mclk-btn { border: 0; background: none; cursor: pointer; font-size: 12px; padding: 0 2px; }
+    body.is-editing .goal-cell:not(.empty) { cursor: pointer; }
+    body.is-editing .goal-cell:not(.empty):hover { border-color: #10b981; }
+    .sb-btn { padding: 2px 7px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; }
+    .sb-btn:hover { background: #f3f4f6; }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  // ============ MATCH TIMER ============
+  let off = 0;   // use the Firebase server clock so every device shows the same time
+  if (db) { try { db.ref('.info/serverTimeOffset').on('value', s => { off = s.val() || 0; }); } catch (e) {} }
+  const now = () => Date.now() + off;
+  const elapsed = m => m.clk ? m.clk.a + (m.clk.s ? Math.max(0, now() - m.clk.s) : 0) : 0;
+  const running = m => !!(m.clk && m.clk.s);
+  const startClk = m => { if (!m.clk) m.clk = { a: 0, s: now() }; else if (!m.clk.s) m.clk.s = now(); };
+  const pauseClk = m => { if (m.clk && m.clk.s) { m.clk.a += Math.max(0, now() - m.clk.s); m.clk.s = 0; } };
+  const fmt = ms => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+
+  wrap('setMatchStatus', (o, catId, matchId, status) => {
+    o(catId, matchId, status);
+    const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m || !editMode) return;
+    if (m.status === 'ongoing') startClk(m); else pauseClk(m);
+    save(); render();
+  });
+
+  function decorateClocks() {
+    document.body.classList.toggle('is-editing', !!editMode);
+    document.querySelectorAll('.match-card').forEach(card => {
+      card.querySelectorAll('.mclock').forEach(x => x.remove());
+      const hit = matchFromCard(card);
+      if (!hit || !hit.m.clk) return;
+      const { cat, m } = hit;
+      const left = card.firstElementChild;
+      const anchor = left.querySelector('.mc-status') || left.querySelector('.mc-court') || left.firstElementChild;
+      const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+      anchor.insertAdjacentHTML('afterend',
+        `<span class="mclock${running(m) ? ' run' : ''}" ${d}>⏱ <b class="mct">${fmt(elapsed(m))}</b>` +
+        `${editMode ? ` <button type="button" class="mclk-btn" data-clk ${d} title="${running(m) ? 'Pause' : 'Resume'}">${running(m) ? '⏸' : '▶'}</button>` : ''}</span>`);
+    });
+  }
+  wrap('renderCategories', o => { o(); decorateClocks(); });
+  wrap('render', o => { o(); decorateClocks(); });
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-clk]');
+    if (!b || !editMode) return;
+    const cat = getCat(b.dataset.cat), m = cat && cat.matches.find(x => x.id === b.dataset.match);
+    if (!m) return;
+    if (running(m)) pauseClk(m); else startClk(m);
+    save(); render();
+  });
+  setInterval(() => {
+    document.querySelectorAll('.mclock').forEach(el => {
+      const c = getCat(el.dataset.cat), m = c && c.matches.find(x => x.id === el.dataset.match);
+      const t = el.querySelector('.mct');
+      if (m && t) t.textContent = fmt(elapsed(m));
+    });
+  }, 500);
+
+  // keep the timer when matches are rebuilt; keep manual mode when data is loaded
+  wrap('normalize', (o, d) => { const s = o(d); if (d && d.manualMode) s.manualMode = true; return s; });
+
+  // ---- Fill the goal time from the timer when the "Log New Goal" window opens ----
+  let lastGoal = null, lastWrap = null, autoOn = false;
+  const clkMatch = () => { const c = lastGoal && getCat(lastGoal.cat); const m = c && c.matches.find(x => x.id === lastGoal.match); return m && m.clk ? m : null; };
+  function fillTime() {
+    const m = clkMatch(), mi = document.getElementById('glMin'), se = document.getElementById('glSec');
+    if (!m || !mi || !se) return;
+    const s = Math.floor(elapsed(m) / 1000);
+    mi.value = String(Math.floor(s / 60)); se.value = String(s % 60);
+  }
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('[data-gadd]');
+    if (a) lastGoal = { cat: a.dataset.cat, match: a.dataset.match };
+    const sv = e.target.closest && e.target.closest('#glWrap [data-save]');
+    if (sv && autoOn) fillTime();           // refresh to the exact moment of saving
+  }, true);
+  document.addEventListener('input', e => { if (e.target.id === 'glMin' || e.target.id === 'glSec') autoOn = false; });
+  new MutationObserver(() => {
+    const wEl = document.getElementById('glWrap');
+    if (!wEl) { lastWrap = null; return; }
+    const mi = document.getElementById('glMin');
+    if (!mi || !document.getElementById('glSec')) return;
+    if (wEl !== lastWrap) { lastWrap = wEl; autoOn = !!clkMatch(); if (autoOn) fillTime(); }
+    if (autoOn && !wEl.querySelector('.glauto') && mi.closest('.grid'))
+      mi.closest('.grid').insertAdjacentHTML('afterend', '<p class="glauto text-xs text-gray-400 mt-1">⏱ Time filled from the match timer. Type to change it.</p>');
+  }).observe(document.body, { childList: true, subtree: true });
+
+  // ============ CLICK A SCORER TO EDIT IT ============
+  const rosterOf = (cat, team) => {
+    const seen = new Set();
+    return toA(cat.roster).filter(r => r && r.t === team && !seen.has(r.n) && seen.add(r.n))
+      .sort((a, b) => a.n.localeCompare(b.n, undefined, { sensitivity: 'base' }));
+  };
+  const goalsOf = m => {
+    const g = toA(m.goals).map(x => ({ side: +x.side, p: x.p || '', min: x.min ?? '', sec: x.sec ?? '' }));
+    if (g.length) return g;
+    return [1, 2].flatMap(s => toA(m['scorers' + s]).map(p => ({ side: s, p, min: '', sec: '' })));
+  };
+  const syncScorers = m => {
+    const g = toA(m.goals);
+    m.scorers1 = g.filter(x => +x.side === 1).map(x => x.p).filter(Boolean);
+    m.scorers2 = g.filter(x => +x.side === 2).map(x => x.p).filter(Boolean);
+  };
+  const bump = (m, side, delta) => {
+    const k = 'score' + side, o2 = 'score' + (side === 1 ? 2 : 1);
+    const cur = m[k] === '' || m[k] == null ? 0 : parseInt(m[k]) || 0;
+    m[k] = String(Math.max(0, cur + delta));
+    if (m[o2] === '' || m[o2] == null) m[o2] = '0';
+  };
+
+  function openGoalEdit(catId, matchId, idx) {
+    const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m || !editMode) return;
+    const list = goalsOf(m), g0 = list[idx];
+    if (!g0) return;
+    const names = [displayName(cat, m, 1), displayName(cat, m, 2)];
+    let side = g0.side === 2 ? 2 : 1, player = g0.p, other = false;
+    const o = showModal('<div id="geWrap"></div>');
+    o.firstElementChild.style.width = 'min(440px, 94vw)';
+    const w = o.querySelector('#geWrap');
+    const playersFor = s => cat.teams.includes(names[s - 1]) ? rosterOf(cat, names[s - 1]) : [];
+    const playerField = () => {
+      const pl = playersFor(side);
+      if (!pl.length || other) return `<input type="text" id="gePlayer" class="w-full" placeholder="Player name" value="${esc(player)}">`;
+      const known = pl.some(r => r.n === player);
+      return `<select id="gePlayer" class="w-full"><option value="">Select player…</option>
+        ${player && !known ? `<option value="${esc(player)}" selected>${esc(player)}</option>` : ''}
+        ${pl.map(r => `<option value="${esc(r.n)}"${r.n === player ? ' selected' : ''}>${esc(r.n + (r.no ? ' (#' + r.no + ')' : ''))}</option>`).join('')}
+        <option value="__other">✏ Other…</option></select>`;
+    };
+    function draw(mi, se) {
+      w.innerHTML = `
+        <h3 class="font-semibold text-gray-900">✏ Edit Goal</h3>
+        <p class="text-xs text-gray-500">${esc(names[0])} vs ${esc(names[1])}</p>
+        <span class="gl-label">1. Scoring team</span>
+        <div class="flex gap-2">
+          <button type="button" class="gl-team${side === 1 ? ' on' : ''}" data-side="1">${esc(names[0])}</button>
+          <button type="button" class="gl-team${side === 2 ? ' on' : ''}" data-side="2">${esc(names[1])}</button>
+        </div>
+        <span class="gl-label">2. Player</span>
+        <div id="geBox">${playerField()}</div>
+        <span class="gl-label">3. Time of goal</span>
+        <div class="grid grid-cols-2 gap-3">
+          <div><span class="gl-sub">Minute</span><input type="text" id="geMin" inputmode="numeric" maxlength="3" class="w-full" value="${esc(mi)}"></div>
+          <div><span class="gl-sub">Second</span><input type="text" id="geSec" inputmode="numeric" maxlength="2" class="w-full" value="${esc(se)}"></div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button type="button" class="btn flex-1" data-cancel>Cancel</button>
+          <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-save>Save</button>
+        </div>`;
+    }
+    draw(String(g0.min), String(g0.sec));
+    w.addEventListener('input', e => { if (e.target.id === 'geMin' || e.target.id === 'geSec') e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
+    w.addEventListener('change', e => {
+      if (e.target.id !== 'gePlayer') return;
+      if (e.target.value === '__other') { other = true; player = ''; w.querySelector('#geBox').innerHTML = playerField(); w.querySelector('#gePlayer').focus(); }
+      else player = e.target.value;
+    });
+    w.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.side) {
+        const mi = w.querySelector('#geMin').value, se = w.querySelector('#geSec').value;
+        side = +b.dataset.side; player = ''; other = false; draw(mi, se);
+      } else if (b.hasAttribute('data-cancel')) o.remove();
+      else if (b.hasAttribute('data-save')) {
+        const p = (w.querySelector('#gePlayer').value || '').trim();
+        if (!p || p === '__other') { toast('Choose the player who scored.'); return; }
+        const min = w.querySelector('#geMin').value.trim();
+        let sec = w.querySelector('#geSec').value.trim();
+        if (sec !== '') sec = String(Math.min(59, parseInt(sec) || 0));
+        const all = goalsOf(m), old = all[idx];
+        all[idx] = { side, p, min, sec };
+        m.goals = all;
+        if (old.side !== side) { bump(m, old.side, -1); bump(m, side, 1); }
+        syncScorers(m);
+        save(); o.remove(); render();
+      }
+    });
+  }
+  document.addEventListener('click', e => {
+    if (!editMode || e.target.closest('.goal-x')) return;
+    const cell = e.target.closest('.goal-cell');
+    if (!cell || cell.classList.contains('empty')) return;
+    const x = cell.querySelector('[data-gdel]');
+    if (x) openGoalEdit(x.dataset.cat, x.dataset.match, +x.dataset.i);
+  });
+
+  // ============ SCHEDULE BUILDER (manual matches chosen from dropdowns) ============
+  const newFid = () => 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+  function manualBuild(cat, prev) {
+    alignGroups(cat);
+    const grouped = isGrouped(cat);
+    const gOf = t => { const i = cat.teams.indexOf(t); return i < 0 ? null : teamGroup(cat, i); };
+    cat.fixtures = toA(cat.fixtures).filter(f => f && f.a !== f.b && cat.teams.includes(f.a) && cat.teams.includes(f.b) &&
+      (!grouped || (gOf(f.a) === f.g && gOf(f.b) === f.g)));
+    const ko = cat.matches.filter(m => m.stage === 'ko');
+    const kid = new Set(ko.map(k => k.id));
+    const groupMatches = cat.fixtures.map(f => {
+      const p = prev[f.id];
+      const m = p && p.stage !== 'ko' ? p : { id: f.id, stage: 'group', round: 'Group stage', score1: '', score2: '', status: '', deps: [], scorers1: [], scorers2: [] };
+      return Object.assign(m, { team1: f.a, team2: f.b, group: grouped ? f.g : null, rnd: 0 });
+    });
+    const gids = groupMatches.map(m => m.id);
+    ko.forEach(k => {
+      const had = (k.deps || []).some(d => !kid.has(d));
+      k.deps = (k.deps || []).filter(d => kid.has(d)).concat(had ? gids : []);
+    });
+    cat.matches = groupMatches.concat(ko);
+    cat.matches.forEach((m, i) => { m.ord = i; });
+  }
+  wrap('buildMatches', (o, cat) => {
+    const prev = {}, keep = {};
+    cat.matches.forEach(m => { prev[m.id] = m; if (m.clk) keep[m.id] = m.clk; });
+    o(cat);
+    if (state.manualMode) manualBuild(cat, prev);
+    cat.matches.forEach(m => { if (keep[m.id]) m.clk = keep[m.id]; });
+  });
+  wrap('updateTeamName', (o, catId, index, newName) => {
+    const cat = getCat(catId), old = cat && cat.teams[index];
+    o(catId, index, newName);
+    const nw = cat && cat.teams[index];
+    if (old && nw && old !== nw) {
+      toA(cat.fixtures).forEach(f => { if (f.a === old) f.a = nw; if (f.b === old) f.b = nw; });
+      save();
+    }
+  });
+
+  function openBuilder() {
+    if (!editMode) return;
+    let catId = state.categories[0] ? state.categories[0].id : '', g = 'A', a = '', b = '';
+    const o = showModal('<div id="sbWrap"></div>');
+    const box = o.firstElementChild;
+    box.style.width = 'min(660px, 96vw)'; box.style.maxHeight = '90vh'; box.style.overflowY = 'auto';
+    const w = o.querySelector('#sbWrap');
+    const multi = c => isGrouped(c) && c.groups > 1;
+    const teamsIn = (c, gr) => c.teams.filter((t, i) => !multi(c) || teamGroup(c, i) === gr);
+    const effG = c => isGrouped(c) ? (multi(c) ? g : 'A') : null;
+
+    function draw() {
+      if (!state.manualMode) {
+        w.innerHTML = `<h3 class="font-semibold text-gray-900 mb-1">🗓 Schedule builder</h3>
+          <p class="text-sm text-gray-600 mb-3">Right now the app creates the matches for you from your teams. Turn on manual mode to choose each match yourself from dropdowns (category, group, teams). Your current matches are kept as the starting list.</p>
+          <div class="flex gap-2"><button class="btn flex-1" data-act="close">Close</button>
+          <button class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="on">Turn on manual mode</button></div>`;
+        return;
+      }
+      const cat = getCat(catId);
+      if (!cat) { w.innerHTML = '<p class="text-sm text-gray-500">Add a category first.</p><button class="btn w-full mt-3" data-act="close">Close</button>'; return; }
+      if (isGrouped(cat) && g.charCodeAt(0) - 65 >= cat.groups) g = 'A';
+      const list = teamsIn(cat, effG(cat));
+      if (!list.includes(a)) a = '';
+      if (!list.includes(b) || b === a) b = '';
+      const opts = (arr, sel, ph) => `<option value="">${ph}</option>` + arr.map(t => `<option value="${esc(t)}"${t === sel ? ' selected' : ''}>${esc(t)}</option>`).join('');
+      w.innerHTML = `<h3 class="font-semibold text-gray-900 mb-1">🗓 Schedule builder</h3>
+        <p class="text-xs text-gray-500 mb-3">Pick the category, group and teams, then add the match. Matches are placed in this order; you can still nudge times with ◀ ▶ on the schedule.</p>
+        <div class="grid grid-cols-2 gap-2">
+          <div><span class="gl-sub">Category</span><select id="sbCat" class="w-full">${state.categories.map(c => `<option value="${esc(c.id)}"${c.id === catId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+          ${multi(cat) ? `<div><span class="gl-sub">Group</span><select id="sbGrp" class="w-full">${groupLetters(cat.groups).map(l => `<option value="${l}"${l === g ? ' selected' : ''}>Group ${l}</option>`).join('')}</select></div>` : '<div></div>'}
+          <div><span class="gl-sub">Team 1</span><select id="sbA" class="w-full">${opts(list, a, 'Select team…')}</select></div>
+          <div><span class="gl-sub">Team 2</span><select id="sbB" class="w-full">${opts(list.filter(t => t !== a), b, 'Select team…')}</select></div>
+        </div>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <button class="btn bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="add">+ Add match</button>
+          <button class="btn" data-act="all">Add all missing matches${isGrouped(cat) ? ' (all groups)' : ''}</button>
+        </div>
+        ${state.categories.map(c => {
+          const fx = toA(c.fixtures);
+          if (!fx.length) return '';
+          return `<div class="mt-4"><div class="font-semibold text-sm flex items-center gap-2"><span class="cat-dot" style="background:${c.color}"></span>${esc(c.name)} <span class="text-xs text-gray-500 font-normal">${fx.length} match${fx.length === 1 ? '' : 'es'}</span></div>
+            ${fx.map((f, i) => `<div class="flex items-center gap-2 py-1 border-b border-gray-100 text-sm">
+              <span class="text-xs text-gray-400" style="width:20px">${i + 1}</span>
+              ${multi(c) ? groupBadge(f.g, c) : ''}
+              <span class="flex-1 font-medium" style="min-width:0">${esc(f.a)} <span class="text-gray-400 text-xs">vs</span> ${esc(f.b)}</span>
+              <button class="sb-btn" data-act="up" data-c="${esc(c.id)}" data-i="${i}" ${i === 0 ? 'disabled' : ''}>▲</button>
+              <button class="sb-btn" data-act="down" data-c="${esc(c.id)}" data-i="${i}" ${i === fx.length - 1 ? 'disabled' : ''}>▼</button>
+              <button class="sb-btn" data-act="del" data-c="${esc(c.id)}" data-i="${i}" title="Remove">×</button>
+            </div>`).join('')}</div>`;
+        }).join('')}
+        <div class="flex gap-2 mt-4"><button class="btn flex-1" data-act="off">Turn off manual mode</button><button class="btn flex-1" data-act="close">Close</button></div>`;
+    }
+    draw();
+
+    w.addEventListener('change', e => {
+      const id = e.target.id;
+      if (id === 'sbCat') { catId = e.target.value; g = 'A'; a = b = ''; draw(); }
+      else if (id === 'sbGrp') { g = e.target.value; a = b = ''; draw(); }
+      else if (id === 'sbA') { a = e.target.value; if (b === a) b = ''; draw(); }
+      else if (id === 'sbB') b = e.target.value;
+    });
+    w.addEventListener('click', e => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn || btn.disabled) return;
+      const act = btn.dataset.act;
+      if (act === 'close') { o.remove(); return; }
+      if (act === 'on') {
+        state.manualMode = true;
+        state.categories.forEach(c => {
+          if (!toA(c.fixtures).length) c.fixtures = c.matches.filter(m => m.stage !== 'ko').map(m => ({ id: m.id, g: m.group || null, a: m.team1, b: m.team2 }));
+        });
+        state.categories.forEach(c => buildMatches(c));
+        changed(); draw(); return;
+      }
+      if (act === 'off') {
+        confirmDialog('Go back to automatic matches? Scores are kept, but the goal lists of matches may be lost.', () => {
+          state.manualMode = false;
+          state.categories.forEach(c => buildMatches(c));
+          changed(); draw();
+        }, 'Turn off');
+        return;
+      }
+      const cat = getCat(btn.dataset.c || catId);
+      if (!cat) return;
+      if (act === 'add') {
+        if (!a || !b) { toast('Choose both teams.'); return; }
+        cat.fixtures = toA(cat.fixtures).concat([{ id: newFid(), g: effG(cat), a, b }]);
+        a = b = '';
+        changed(cat); draw();
+      } else if (act === 'all') {
+        const have = new Set(toA(cat.fixtures).map(f => pairKey(isGrouped(cat) ? f.g : null, f.a, f.b)));
+        const add = [];
+        (isGrouped(cat) ? groupLetters(cat.groups) : [null]).forEach(gr => {
+          const ts = cat.teams.filter((t, i) => !isGrouped(cat) || teamGroup(cat, i) === gr);
+          rrRounds(ts).forEach(r => r.forEach(([x, y]) => {
+            if (!have.has(pairKey(gr, x, y))) add.push({ id: newFid(), g: gr, a: x, b: y });
+          }));
+        });
+        if (!add.length) { toast('No missing matches.'); return; }
+        cat.fixtures = toA(cat.fixtures).concat(add);
+        changed(cat); draw();
+      } else {
+        const fx = toA(cat.fixtures), i = +btn.dataset.i;
+        if (act === 'up' && i > 0) [fx[i - 1], fx[i]] = [fx[i], fx[i - 1]];
+        else if (act === 'down' && i < fx.length - 1) [fx[i + 1], fx[i]] = [fx[i], fx[i + 1]];
+        else if (act === 'del') {
+          const f = fx[i], mm = f && cat.matches.find(x => x.id === f.id);
+          const rm = () => { fx.splice(i, 1); cat.fixtures = fx; changed(cat); draw(); };
+          if (mm && (mm.score1 !== '' || mm.score2 !== '')) { confirmDialog('This match already has a score. Remove it?', rm, 'Remove'); return; }
+          rm(); return;
+        }
+        cat.fixtures = fx;
+        changed(cat); draw();
+      }
+    });
+  }
+
+  // Button in the Setup panel (above Break Times)
+  const brk = document.getElementById('breaksList').parentElement;
+  brk.insertAdjacentHTML('beforebegin', `<div class="border-t border-gray-100 pt-3">
+    <button id="sbOpen" type="button" class="btn w-full">🗓 Schedule builder</button>
+    <p class="text-xs text-gray-500 mt-1">Choose each match from dropdowns: category, group, teams.</p></div>`);
+  document.getElementById('sbOpen').onclick = openBuilder;
+
+  if (currentView === 'tournament') render();
+})();
+
+
+// ============================================================
+// SCHEDULE BUILDER v2: create categories/teams + empty slots with dropdowns
+// Paste at the very end of the main script block (after the other add-ons).
+// state.slotMode = true: matches are placed by the slot they were chosen in.
+// Group matches: cat.fixtures[] = {id,g,a,b,ps(slot),pc(court)}
+// Knockouts:     cat.koPos = { sf1:{ps,pc}, final:{ps,pc}, ... }
+// ============================================================
+(function () {
+  const css = `
+    body.slot-mode .move-btn, body.slot-mode .unpin-btn { display: none !important; }
+    .sl-time { font-size: 12px; font-weight: 700; color: #374151; background: #f3f4f6; border-radius: 6px; padding: 3px 10px; margin: 8px 0 3px; }
+    .sl-brk { font-size: 11px; font-weight: 700; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 2px 10px; margin-top: 8px; text-align: center; }
+    .sl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 3px 4px 3px 8px; border-left: 4px solid transparent; border-radius: 4px; }
+    .sl-row.on { border-left-color: var(--c, #10b981); background: #f9fafb; }
+    .sl-row select { flex: 1 1 105px; min-width: 0; font-size: 12px; padding: 4px 6px; }
+    .sl-ko { flex: 2 1 160px; font-size: 12px; font-weight: 600; color: #374151; }
+    .sl-tab { flex: 1; padding: 7px 10px; font-size: 13px; font-weight: 600; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }
+    .sl-tab.on { background: #10b981; border-color: #10b981; color: #fff; }
+    .sb-btn { padding: 2px 7px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; }
+    .sb-btn:hover { background: #f3f4f6; }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const newFid = () => 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const FORMATS = [['round-robin', 'Round robin'], ['round-robin-final', 'Round robin + final & 3rd place'],
+    ['round-robin-knockouts', 'Round robin + knockouts'], ['groups-playoffs', 'Groups + playoffs']];
+
+  // ---------- time helpers ----------
+  const mmN = () => Math.max(1, parseInt(state.matchMin) || 10);
+  const courtsN = () => Math.max(1, parseInt(state.courts) || 1);
+  const perDayN = () => {
+    const br = (state.breaks || []).reduce((s, b) => s + (parseInt(b.min) || 0), 0);
+    return Math.max(1, Math.floor((toMin(state.playUntil) - toMin(state.dayStarts) - br) / mmN()));
+  };
+  const timeOfSlot = sl => { const pd = perDayN(), si = sl % pd; return toMin(state.dayStarts) + si * mmN() + getTotalBreakTimeAtSlot(si); };
+
+  // ---------- positions ----------
+  const fxAt = (c, ps, pc) => toA(c.fixtures).find(f => +f.ps === ps && +f.pc === pc);
+  const koAt = (c, ps, pc) => { const kp = c.koPos || {}; return Object.keys(kp).find(id => kp[id] && +kp[id].ps === ps && +kp[id].pc === pc) || null; };
+  function cellOf(ps, pc) {
+    for (const c of state.categories) {
+      const f = fxAt(c, ps, pc); if (f) return { c, f };
+      const k = koAt(c, ps, pc); if (k) return { c, ko: k };
+    }
+    return null;
+  }
+  const posOf = (c, m) => {
+    if (m.stage === 'ko') return (c.koPos || {})[m.id] || null;
+    const f = toA(c.fixtures).find(x => x.id === m.id);
+    return f && f.ps != null ? { ps: +f.ps, pc: +f.pc } : null;
+  };
+  function daysN() {
+    let mx = -1;
+    state.categories.forEach(c => {
+      toA(c.fixtures).forEach(f => { if (f.ps != null) mx = Math.max(mx, +f.ps); });
+      Object.values(c.koPos || {}).forEach(p => { if (p) mx = Math.max(mx, +p.ps); });
+    });
+    return Math.max(state.slotDays || 1, Math.ceil((mx + 1) / perDayN()));
+  }
+
+  // ---------- keep the new fields when data is loaded ----------
+  wrap('normalize', (o, d) => {
+    const s = o(d);
+    if (d && d.manualMode) s.manualMode = true;
+    if (d && d.slotMode) s.slotMode = true;
+    if (d && d.slotDays) s.slotDays = +d.slotDays;
+    return s;
+  });
+
+  // ---------- the scheduler: slot mode places every match where it was chosen ----------
+  wrap('scheduleAll', o => {
+    o();
+    if (!state.slotMode) return;
+    const courts = courtsN(), mm = mmN(), pd = perDayN(), start = toMin(state.dayStarts);
+    const tm = sl => { const si = sl % pd, t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / pd), timeMin: t, time: formatTime(t) }; };
+    let maxS = -1; const loose = [];
+    state.categories.forEach(c => c.matches.forEach(m => {
+      const p = posOf(c, m);
+      if (p && Number.isInteger(p.ps) && p.ps >= 0 && p.pc >= 1 && p.pc <= courts) {
+        Object.assign(m, tm(p.ps), { courtNo: p.pc, court: 'C' + p.pc });
+        maxS = Math.max(maxS, p.ps);
+      } else loose.push(m);
+    }));
+    loose.forEach((m, i) => Object.assign(m, tm(maxS + 1 + Math.floor(i / courts)), { courtNo: (i % courts) + 1, court: 'C' + ((i % courts) + 1) }));
+    state.categories.forEach(c => c.matches.sort(matchOrder));
+  });
+  wrap('render', o => { document.body.classList.toggle('slot-mode', !!state.slotMode); o(); decorateFull(); });
+
+  // ---------- builder window ----------
+  function openBuilder() {
+    if (!editMode) return;
+    let tab = (!state.categories.length || !state.categories.some(c => c.teams.length) || !state.slotMode) && !state.slotMode ? 't' : 's';
+    const drafts = {};
+    const o = showModal('<div id="sbWrap"></div>');
+    const box = o.firstElementChild;
+    box.style.width = 'min(720px, 96vw)'; box.style.maxHeight = '90vh'; box.style.overflowY = 'auto';
+    const w = o.querySelector('#sbWrap');
+    const multi = c => isGrouped(c) && c.groups > 1;
+
+    function stageOpts(cat, ps, pc) {
+      const out = [];
+      if (isGrouped(cat)) groupLetters(cat.groups).forEach(l => out.push(['g:' + l, cat.groups > 1 ? 'Group ' + l : 'Group stage']));
+      else out.push(['g:_', 'Round robin']);
+      const kp = cat.koPos || {};
+      cat.matches.filter(m => m.stage === 'ko').forEach(m => {
+        const p = kp[m.id];
+        if (!p || (+p.ps === ps && +p.pc === pc)) out.push(['k:' + m.id, m.round]);
+      });
+      return out;
+    }
+    const teamsFor = (cat, stg) => {
+      const L = stg.slice(2);
+      return cat.teams.filter((t, i) => L === '_' || !isGrouped(cat) || teamGroup(cat, i) === L);
+    };
+    function rowState(ps, pc) {
+      const hit = cellOf(ps, pc);
+      if (hit && hit.f) return { c: hit.c.id, st: 'g:' + (isGrouped(hit.c) ? (hit.f.g || 'A') : '_'), a: hit.f.a, b: hit.f.b, fid: hit.f.id, cat: hit.c };
+      if (hit && hit.ko) return { c: hit.c.id, st: 'k:' + hit.ko, a: '', b: '', ko: hit.ko, cat: hit.c };
+      return Object.assign({ c: '', st: '', a: '', b: '' }, drafts[ps + ':' + pc] || {});
+    }
+
+    // ----- Teams tab -----
+    function teamsHtml() {
+      const cats = state.categories.map(cat => {
+        alignGroups(cat);
+        return `<div class="border border-gray-200 rounded-lg p-3 mb-3">
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <span class="cat-dot" style="background:${cat.color}"></span>
+            <input type="text" value="${esc(cat.name)}" data-k="cname" data-c="${esc(cat.id)}" style="flex:1;min-width:120px">
+            <select data-k="cfmt" data-c="${esc(cat.id)}">${FORMATS.map(([v, l]) => `<option value="${v}"${cat.format === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+            ${isGrouped(cat) ? `<select data-k="cgrp" data-c="${esc(cat.id)}">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}"${cat.groups === n ? ' selected' : ''}>${n} group${n > 1 ? 's' : ''}</option>`).join('')}</select>` : ''}
+            <button type="button" class="sb-btn" data-act="delcat" data-c="${esc(cat.id)}" title="Delete category">×</button>
+          </div>
+          <div class="flex gap-2 mb-2">
+            <input type="text" id="ti-${esc(cat.id)}" placeholder="Team names, separated by commas" class="flex-1" style="min-width:0">
+            ${multi(cat) ? `<select id="tg-${esc(cat.id)}">${groupLetters(cat.groups).map(l => `<option value="${l}">Group ${l}</option>`).join('')}</select>` : ''}
+            <button type="button" class="btn" data-act="addt" data-c="${esc(cat.id)}">+ Add</button>
+          </div>
+          <div class="flex flex-wrap gap-1.5">${cat.teams.length ? cat.teams.map((t, i) => `
+            <span class="flex items-center gap-1 border rounded-md px-2 py-1" style="border-color:#e5e7eb;background:${multi(cat) ? groupColor(teamGroup(cat, i), cat) : '#f9fafb'}">
+              <span class="text-xs font-medium">${esc(t)}</span>
+              ${multi(cat) ? `<select class="group-select" data-k="tgrp" data-c="${esc(cat.id)}" data-i="${i}">${groupLetters(cat.groups).map(l => `<option value="${l}"${teamGroup(cat, i) === l ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}
+              <button type="button" class="text-gray-400" data-act="delt" data-c="${esc(cat.id)}" data-i="${i}">×</button></span>`).join('') : '<span class="text-xs text-gray-400">No teams yet</span>'}</div>
+        </div>`;
+      }).join('');
+      return cats + (state.categories.length >= 12 ? '' : `<div class="flex gap-2 mt-1">
+          <input type="text" id="newCat" placeholder="New category name (e.g. Under 10)" class="flex-1" style="min-width:0">
+          <button type="button" class="btn bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="addcat">+ Add category</button></div>`) +
+        `<div class="flex gap-2 mt-4"><button type="button" class="btn flex-1" data-act="close">Close</button>
+          <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-tab="s">Next: Schedule →</button></div>`;
+    }
+
+    // ----- Schedule tab -----
+    function schedHtml() {
+      if (!state.slotMode) {
+        const have = state.categories.some(c => c.matches.length);
+        return `<p class="text-sm text-gray-600 mb-3">This makes empty time slots for the day from your Setup (start time, play until, match length, courts, breaks). Every slot gets dropdowns for category, group and teams.</p>
+          ${state.categories.length ? '' : '<p class="text-xs text-red-500 mb-2">Add a category and some teams on the Teams tab first.</p>'}
+          <div class="flex flex-col gap-2">
+            <button type="button" class="btn bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="blank">Start with empty slots</button>
+            ${have ? '<button type="button" class="btn" data-act="keep">Keep my current matches in their slots</button>' : ''}
+            <button type="button" class="btn" data-tab="t">← Back to Teams</button></div>`;
+      }
+      const pd = perDayN(), mm = mmN(), courts = courtsN(), nd = daysN(), brks = getActiveBreaks();
+      const busy = {};
+      state.categories.forEach(c => toA(c.fixtures).forEach(f => { if (f.ps != null) (busy[+f.ps] = busy[+f.ps] || []).push({ pc: +f.pc, t: [f.a, f.b] }); }));
+      let h = '<p class="text-xs text-gray-500 mb-1">Pick a category, a group (or a knockout round) and the two teams. The match appears in the schedule as soon as both teams are chosen.</p>';
+      for (let d = 0; d < nd; d++) {
+        h += `<div class="font-semibold text-xs text-gray-700 mt-4 uppercase">${dayHeader(d)}</div>`;
+        for (let si = 0; si < pd; si++) {
+          const sl = d * pd + si, t = timeOfSlot(sl), bk = brks.find(b => b.before === si);
+          if (bk) h += `<div class="sl-brk">☕ ${esc(bk.label.toUpperCase())} (${formatTime(bk.startMin)} - ${formatTime(bk.endMin)})</div>`;
+          h += `<div class="sl-time">${formatTime(t)} – ${formatTime(t + mm)}</div>`;
+          for (let pc = 1; pc <= courts; pc++) h += rowHtml(sl, pc, busy);
+        }
+      }
+      h += `<div class="flex flex-wrap gap-2 mt-4">
+        <button type="button" class="btn" data-act="addday">+ Add another day</button>
+        ${nd > 1 ? '<button type="button" class="btn" data-act="rmday">− Remove last day</button>' : ''}
+        <button type="button" class="btn" data-tab="t">Teams</button>
+        <button type="button" class="btn" data-act="auto">Back to automatic</button>
+        <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="close">Done</button></div>`;
+      return h;
+    }
+    function rowHtml(ps, pc, busy) {
+      const r = rowState(ps, pc), cat = r.c ? getCat(r.c) : null;
+      const d = `data-ps="${ps}" data-pc="${pc}"`;
+      let stage = '', teams = '';
+      if (cat) {
+        stage = `<select ${d} data-k="st"><option value="">Group…</option>${stageOpts(cat, ps, pc).map(([v, l]) => `<option value="${esc(v)}"${v === r.st ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+        if (r.st.startsWith('k:')) {
+          const m = cat.matches.find(x => x.id === r.st.slice(2));
+          teams = `<span class="sl-ko">${m ? esc(displayName(cat, m, 1)) + ' <span class="text-gray-400">vs</span> ' + esc(displayName(cat, m, 2)) : ''}</span>`;
+        } else if (r.st) {
+          const ts = teamsFor(cat, r.st);
+          const sel = (k, other, cur, ph) => `<select ${d} data-k="${k}"><option value="">${ph}</option>${ts.filter(t => t !== other).map(t => `<option value="${esc(t)}"${t === cur ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+          teams = sel('a', r.b, r.a, 'Team 1…') + '<span class="text-xs text-gray-400">vs</span>' + sel('b', r.a, r.b, 'Team 2…');
+        }
+      }
+      const warn = r.fid && (busy[ps] || []).some(x => x.pc !== pc && x.t.some(n => n === r.a || n === r.b));
+      return `<div class="sl-row${(r.fid || r.ko) ? ' on' : ''}" style="--c:${cat ? cat.color : '#10b981'}">
+        <span class="court-badge">C${pc}</span>
+        <select ${d} data-k="c"><option value="">Category…</option>${state.categories.map(c => `<option value="${esc(c.id)}"${c.id === r.c ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+        ${stage}${teams}
+        ${warn ? '<span class="warn-badge" title="A team in this match also plays at the same time on another court.">⚠ Clash</span>' : ''}
+        ${r.c ? `<button type="button" class="sb-btn" data-act="clr" ${d} title="Clear this slot">×</button>` : ''}
+      </div>`;
+    }
+
+    function draw() {
+      const top = box.scrollTop;
+      w.innerHTML = `<h3 class="font-semibold text-gray-900 mb-2">🗓 Schedule builder</h3>
+        <div class="flex gap-2 mb-3"><button type="button" class="sl-tab${tab === 't' ? ' on' : ''}" data-tab="t">1. Categories & teams</button>
+        <button type="button" class="sl-tab${tab === 's' ? ' on' : ''}" data-tab="s">2. Schedule</button></div>` + (tab === 't' ? teamsHtml() : schedHtml());
+      box.scrollTop = top;
+    }
+
+    // ----- changing a slot -----
+    function applyCell(ps, pc, cur, d) {
+      const key = ps + ':' + pc, ko = (d.st || '').startsWith('k:');
+      const reuse = !!(cur.fid && !ko && d.c === cur.c && d.st === cur.st && d.a && d.b);
+      const run = () => {
+        if (reuse) { const f = fxAt(cur.cat, ps, pc); if (f) { f.a = d.a; f.b = d.b; } }
+        else {
+          if (cur.fid) cur.cat.fixtures = toA(cur.cat.fixtures).filter(f => f.id !== cur.fid);
+          if (cur.ko && cur.cat.koPos) delete cur.cat.koPos[cur.ko];
+          const cat = d.c ? getCat(d.c) : null;
+          if (cat && ko) { cat.koPos = cat.koPos || {}; cat.koPos[d.st.slice(2)] = { ps, pc }; }
+          else if (cat && d.st && d.a && d.b)
+            cat.fixtures = toA(cat.fixtures).concat([{ id: newFid(), g: d.st === 'g:_' ? null : d.st.slice(2), a: d.a, b: d.b, ps, pc }]);
+        }
+        if (cellOf(ps, pc) || !d.c) delete drafts[key]; else drafts[key] = d;
+        state.categories.forEach(c => buildMatches(c));
+        changed(); draw();
+      };
+      const m = cur.fid && cur.cat.matches.find(x => x.id === cur.fid);
+      if (!reuse && m && (m.score1 !== '' || m.score2 !== '')) { draw(); confirmDialog('This match already has a score. Remove it from this slot?', run, 'Remove'); }
+      else run();
+    }
+    function slotChange(ps, pc, k, v) {
+      const cur = rowState(ps, pc);
+      let d = { c: cur.c, st: cur.st, a: cur.a, b: cur.b };
+      if (k === 'c') { d = { c: v, st: '', a: '', b: '' }; const cat = getCat(v); if (cat) { const so = stageOpts(cat, ps, pc); d.st = so.length ? so[0][0] : ''; } }
+      else if (k === 'st') { d.st = v; d.a = d.b = ''; }
+      else if (k === 'a') { d.a = v; if (d.b === v) d.b = ''; }
+      else if (k === 'b') { d.b = v; if (d.a === v) d.a = ''; }
+      applyCell(ps, pc, cur, d);
+    }
+
+    function startSlots(keep) {
+      state.manualMode = true; state.slotMode = true;
+      state.categories.forEach(c => {
+        if (keep) {
+          if (!toA(c.fixtures).length) c.fixtures = c.matches.filter(m => m.stage !== 'ko').map(m => ({ id: m.id, g: m.group || null, a: m.team1, b: m.team2 }));
+          toA(c.fixtures).forEach(f => { const m = c.matches.find(x => x.id === f.id); if (m && f.ps == null) { f.ps = m.slot; f.pc = m.courtNo; } });
+          c.koPos = {};
+          c.matches.filter(m => m.stage === 'ko').forEach(m => { c.koPos[m.id] = { ps: m.slot, pc: m.courtNo }; });
+        } else { c.fixtures = []; c.koPos = {}; }
+      });
+      state.slotDays = 1;
+      state.slotDays = keep ? daysN() : 1;
+      state.categories.forEach(c => buildMatches(c));
+      changed(); tab = 's'; draw();
+    }
+
+    // ----- events -----
+    w.addEventListener('change', e => {
+      const s = e.target, k = s.dataset.k;
+      if (!k) return;
+      if (s.dataset.ps !== undefined) { slotChange(+s.dataset.ps, +s.dataset.pc, k, s.value); return; }
+      const cat = getCat(s.dataset.c);
+      if (!cat) return;
+      if (k === 'cname') { cat.name = s.value.trim() || 'Untitled'; render(); save(); }
+      else if (k === 'cfmt') { cat.format = s.value; if (!cat.groups) cat.groups = 2; changed(cat); draw(); }
+      else if (k === 'cgrp') { cat.groups = parseInt(s.value); changed(cat); draw(); }
+      else if (k === 'tgrp') { alignGroups(cat); cat.teamGroups[+s.dataset.i] = s.value; changed(cat); draw(); }
+    });
+    w.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      if (e.target.id === 'newCat') w.querySelector('[data-act="addcat"]').click();
+      else if (e.target.id && e.target.id.startsWith('ti-')) { const b = w.querySelector(`[data-act="addt"][data-c="${e.target.id.slice(3)}"]`); if (b) b.click(); }
+    });
+    w.addEventListener('click', e => {
+      const tb = e.target.closest('[data-tab]');
+      if (tb) { tab = tb.dataset.tab; draw(); return; }
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      const act = b.dataset.act, cat = b.dataset.c ? getCat(b.dataset.c) : null;
+      if (act === 'close') { o.remove(); return; }
+      if (act === 'addcat') {
+        const inp = w.querySelector('#newCat'), name = (inp.value || '').trim();
+        if (!name) { toast('Type a category name.'); return; }
+        state.categories.push({ id: 'cat' + Date.now(), name, color: COLORS[state.categories.length % COLORS.length], format: 'round-robin', groups: 2, teams: [], teamGroups: [], matches: [] });
+        changed(); draw(); return;
+      }
+      if (act === 'delcat' && cat) {
+        confirmDialog(`Delete "${cat.name}" and all its matches?`, () => { state.categories = state.categories.filter(c => c !== cat); changed(); draw(); }, 'Delete');
+        return;
+      }
+      if (act === 'addt' && cat) {
+        const inp = w.querySelector('#ti-' + cat.id), gs = w.querySelector('#tg-' + cat.id);
+        const names = [...new Set((inp.value || '').split(',').map(s => s.trim()).filter(Boolean))];
+        if (!names.length) return;
+        const dup = names.filter(n => cat.teams.some(t => t.toLowerCase() === n.toLowerCase()));
+        if (dup.length) { toast('Already in this category: ' + dup.join(', ')); return; }
+        if (cat.teams.length + names.length > 16) { toast('Maximum 16 teams per category!'); return; }
+        alignGroups(cat);
+        names.forEach(n => { cat.teams.push(n); cat.teamGroups.push(gs ? gs.value : 'A'); });
+        changed(cat); draw();
+        const again = w.querySelector('#ti-' + cat.id); if (again) again.focus();
+        return;
+      }
+      if (act === 'delt' && cat) {
+        const i = +b.dataset.i, t = cat.teams[i];
+        confirmDialog(`Remove "${t}"? Its matches are removed too.`, () => {
+          alignGroups(cat); cat.teams.splice(i, 1); cat.teamGroups.splice(i, 1); changed(cat); draw();
+        }, 'Remove');
+        return;
+      }
+      if (act === 'blank') {
+        if (!state.categories.length) { toast('Add a category first.'); return; }
+        const scored = state.categories.some(c => c.matches.some(m => m.score1 !== '' || m.score2 !== ''));
+        if (scored) confirmDialog('Starting with empty slots removes the current matches and their scores. Continue?', () => startSlots(false), 'Start empty');
+        else startSlots(false);
+        return;
+      }
+      if (act === 'keep') { startSlots(true); return; }
+      if (act === 'clr') {
+        const ps = +b.dataset.ps, pc = +b.dataset.pc;
+        applyCell(ps, pc, rowState(ps, pc), { c: '', st: '', a: '', b: '' });
+        return;
+      }
+      if (act === 'addday') { state.slotDays = daysN() + 1; save(); draw(); return; }
+      if (act === 'rmday') {
+        const nd = daysN(), pd = perDayN(), lo = (nd - 1) * pd;
+        const used = state.categories.some(c => toA(c.fixtures).some(f => +f.ps >= lo) || Object.values(c.koPos || {}).some(p => p && +p.ps >= lo));
+        if (used) { toast('The last day still has matches. Clear them first.'); return; }
+        state.slotDays = Math.max(1, nd - 1); save(); draw(); return;
+      }
+      if (act === 'auto') {
+        confirmDialog('Go back to automatic matches? The app will generate matches from the teams again. Scores are kept where the same teams meet.', () => {
+          state.slotMode = false; state.manualMode = false;
+          state.categories.forEach(c => buildMatches(c));
+          changed(); tab = 't'; draw();
+        }, 'Go back');
+      }
+    });
+    draw();
+  }
+
+  // ---------- buttons that open it ----------
+  document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.sb2-open')) openBuilder(); });
+  const old = document.getElementById('sbOpen');
+  if (old) old.parentElement.style.display = 'none';
+  document.getElementById('breaksList').parentElement.insertAdjacentHTML('beforebegin',
+    `<div class="border-t border-gray-100 pt-3"><button type="button" class="btn w-full sb2-open">🗓 Schedule builder</button>
+      <p class="text-xs text-gray-500 mt-1">Add categories and teams, then choose every match from dropdowns.</p></div>`);
+  function decorateFull() {
+    const h = document.querySelector('#scheduleView h2');
+    if (!h) return;
+    const ex = document.getElementById('sbOpen2');
+    if (editMode && !ex) h.insertAdjacentHTML('afterend', '<button type="button" id="sbOpen2" class="btn sb2-open mb-3">🗓 Open schedule builder</button>');
+    if (!editMode && ex) ex.remove();
+  }
+
+  // data loaded before this block ran lost the new fields: restore them and rebuild once
+  try {
+    const raw = currentScheduleId && getStoredScheduleData(currentScheduleId);
+    if (raw) { if (raw.manualMode) state.manualMode = true; if (raw.slotMode) state.slotMode = true; if (raw.slotDays) state.slotDays = +raw.slotDays; }
+  } catch (e) {}
+  if (state.slotMode) { state.categories.forEach(c => buildMatches(c)); scheduleAll(); }
+  if (currentView === 'tournament') render();
+})();
+
+// ============================================================
+// LIGHT KNOCKOUT ROW COLOUR + SCORES ALWAYS STAY IN ONE ROW
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const css = `
+    /* scores stay together: the group is one unit that wraps as a whole */
+    .score-group { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 4px; white-space: nowrap; flex: 0 0 auto; }
+    .score-group .score-box, .score-group .sc-btn { flex: 0 0 auto; }
+    .score-pill { white-space: nowrap; }
+
+    /* Full schedule: the score column never breaks onto two lines */
+    #scheduleBody tr.schedule-row > td:nth-child(7) { white-space: nowrap; }
+    #scheduleBody tr.schedule-row > td:nth-child(7) > div { flex-wrap: nowrap; }
+    #scheduleBody .score-box { flex: 0 0 auto; }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+
+  // ---------- light colour for knockout rows (change 0.12 to make it paler or stronger) ----------
+  wrap('rowBg', (o, cat, m) => m.stage === 'ko' ? hexToRgba('#facc15', 0.12) : o(cat, m));
+  wrap('legendHtml', (o, all) => o(all).replace('#fde68a', '#fef9c3'));
+
+  // ---------- keep the two score boxes (with their - / + buttons) in one group ----------
+  function groupScores() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      const right = card.lastElementChild;
+      if (!right || right.querySelector('.score-group')) return;
+      const boxes = Array.from(right.children).filter(x => x.classList.contains('score-box'));
+      if (boxes.length < 2) return;
+      const isBtn = x => x && x.classList.contains('sc-btn');
+      const first = isBtn(boxes[0].previousElementSibling) ? boxes[0].previousElementSibling : boxes[0];
+      const last = isBtn(boxes[1].nextElementSibling) ? boxes[1].nextElementSibling : boxes[1];
+      const nodes = [];
+      for (let n = first; n; n = n.nextElementSibling) { nodes.push(n); if (n === last) break; }
+      if (nodes[nodes.length - 1] !== last) return;
+      const g = document.createElement('span');
+      g.className = 'score-group';
+      right.insertBefore(g, first);
+      nodes.forEach(n => g.appendChild(n));
+    });
+  }
+  ['renderCategories', 'render'].forEach(n => wrap(n, o => { o(); groupScores(); }));
+
+  if (currentView === 'tournament') render();
+})();
+  
 </script>
 
 </body>
