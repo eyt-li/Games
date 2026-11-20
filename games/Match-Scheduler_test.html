@@ -4228,6 +4228,170 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
+
+  // ============================================================
+// SCHEDULE BUILDER v2: create categories/teams + empty slots with dropdowns
+// Paste at the very end of the main script block (after the other add-ons).
+// state.slotMode = true: matches are placed by the slot they were chosen in.
+// Group matches: cat.fixtures[] = {id,g,a,b,ps(slot),pc(court)}
+// Knockouts:     cat.koPos = { sf1:{ps,pc}, final:{ps,pc}, ... }
+// ============================================================
+(function () {
+  const css = `
+    body.slot-mode .move-btn, body.slot-mode .unpin-btn { display: none !important; }
+    .sl-time { font-size: 12px; font-weight: 700; color: #374151; background: #f3f4f6; border-radius: 6px; padding: 3px 10px; margin: 8px 0 3px; }
+    .sl-brk { font-size: 11px; font-weight: 700; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 2px 10px; margin-top: 8px; text-align: center; }
+    .sl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 3px 4px 3px 8px; border-left: 4px solid transparent; border-radius: 4px; }
+    .sl-row.on { border-left-color: var(--c, #10b981); background: #f9fafb; }
+    .sl-row select { flex: 1 1 105px; min-width: 0; font-size: 12px; padding: 4px 6px; }
+    .sl-ko { flex: 2 1 160px; font-size: 12px; font-weight: 600; color: #374151; }
+    .sl-tab { flex: 1; padding: 7px 10px; font-size: 13px; font-weight: 600; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }
+    .sl-tab.on { background: #10b981; border-color: #10b981; color: #fff; }
+    .sb-btn { padding: 2px 7px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; }
+    .sb-btn:hover { background: #f3f4f6; }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const newFid = () => 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const FORMATS = [['round-robin', 'Round robin'], ['round-robin-final', 'Round robin + final & 3rd place'],
+    ['round-robin-knockouts', 'Round robin + knockouts'], ['groups-playoffs', 'Groups + playoffs']];
+
+  // ---------- time helpers ----------
+  const mmN = () => Math.max(1, parseInt(state.matchMin) || 10);
+  const courtsN = () => Math.max(1, parseInt(state.courts) || 1);
+  const perDayN = () => {
+    const br = (state.breaks || []).reduce((s, b) => s + (parseInt(b.min) || 0), 0);
+    return Math.max(1, Math.floor((toMin(state.playUntil) - toMin(state.dayStarts) - br) / mmN()));
+  };
+  const timeOfSlot = sl => { const pd = perDayN(), si = sl % pd; return toMin(state.dayStarts) + si * mmN() + getTotalBreakTimeAtSlot(si); };
+
+  // ---------- positions ----------
+  const fxAt = (c, ps, pc) => toA(c.fixtures).find(f => +f.ps === ps && +f.pc === pc);
+  const koAt = (c, ps, pc) => { const kp = c.koPos || {}; return Object.keys(kp).find(id => kp[id] && +kp[id].ps === ps && +kp[id].pc === pc) || null; };
+  function cellOf(ps, pc) {
+    for (const c of state.categories) {
+      const f = fxAt(c, ps, pc); if (f) return { c, f };
+      const k = koAt(c, ps, pc); if (k) return { c, ko: k };
+    }
+    return null;
+  }
+  const posOf = (c, m) => {
+    if (m.stage === 'ko') return (c.koPos || {})[m.id] || null;
+    const f = toA(c.fixtures).find(x => x.id === m.id);
+    return f && f.ps != null ? { ps: +f.ps, pc: +f.pc } : null;
+  };
+  function daysN() {
+    let mx = -1;
+    state.categories.forEach(c => {
+      toA(c.fixtures).forEach(f => { if (f.ps != null) mx = Math.max(mx, +f.ps); });
+      Object.values(c.koPos || {}).forEach(p => { if (p) mx = Math.max(mx, +p.ps); });
+    });
+    return Math.max(state.slotDays || 1, Math.ceil((mx + 1) / perDayN()));
+  }
+
+  // ---------- keep the new fields when data is loaded ----------
+  wrap('normalize', (o, d) => {
+    const s = o(d);
+    if (d && d.manualMode) s.manualMode = true;
+    if (d && d.slotMode) s.slotMode = true;
+    if (d && d.slotDays) s.slotDays = +d.slotDays;
+    return s;
+  });
+
+  // ---------- the scheduler: slot mode places every match where it was chosen ----------
+  wrap('scheduleAll', o => {
+    o();
+    if (!state.slotMode) return;
+    const courts = courtsN(), mm = mmN(), pd = perDayN(), start = toMin(state.dayStarts);
+    const tm = sl => { const si = sl % pd, t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / pd), timeMin: t, time: formatTime(t) }; };
+    let maxS = -1; const loose = [];
+    state.categories.forEach(c => c.matches.forEach(m => {
+      const p = posOf(c, m);
+      if (p && Number.isInteger(p.ps) && p.ps >= 0 && p.pc >= 1 && p.pc <= courts) {
+        Object.assign(m, tm(p.ps), { courtNo: p.pc, court: 'C' + p.pc });
+        maxS = Math.max(maxS, p.ps);
+      } else loose.push(m);
+    }));
+    loose.forEach((m, i) => Object.assign(m, tm(maxS + 1 + Math.floor(i / courts)), { courtNo: (i % courts) + 1, court: 'C' + ((i % courts) + 1) }));
+    state.categories.forEach(c => c.matches.sort(matchOrder));
+  });
+  wrap('render', o => { document.body.classList.toggle('slot-mode', !!state.slotMode); o(); decorateFull(); });
+
+  // ---------- builder window ----------
+  function openBuilder() {
+    if (!editMode) return;
+    let tab = (!state.categories.length || !state.categories.some(c => c.teams.length) || !state.slotMode) && !state.slotMode ? 't' : 's';
+    const drafts = {};
+    const o = showModal('<div id="sbWrap"></div>');
+    const box = o.firstElementChild;
+    box.style.width = 'min(720px, 96vw)'; box.style.maxHeight = '90vh'; box.style.overflowY = 'auto';
+    const w = o.querySelector('#sbWrap');
+    const multi = c => isGrouped(c) && c.groups > 1;
+
+    function stageOpts(cat, ps, pc) {
+      const out = [];
+      if (isGrouped(cat)) groupLetters(cat.groups).forEach(l => out.push(['g:' + l, cat.groups > 1 ? 'Group ' + l : 'Group stage']));
+      else out.push(['g:_', 'Round robin']);
+      const kp = cat.koPos || {};
+      cat.matches.filter(m => m.stage === 'ko').forEach(m => {
+        const p = kp[m.id];
+        if (!p || (+p.ps === ps && +p.pc === pc)) out.push(['k:' + m.id, m.round]);
+      });
+      return out;
+    }
+    const teamsFor = (cat, stg) => {
+      const L = stg.slice(2);
+      return cat.teams.filter((t, i) => L === '_' || !isGrouped(cat) || teamGroup(cat, i) === L);
+    };
+    function rowState(ps, pc) {
+      const hit = cellOf(ps, pc);
+      if (hit && hit.f) return { c: hit.c.id, st: 'g:' + (isGrouped(hit.c) ? (hit.f.g || 'A') : '_'), a: hit.f.a, b: hit.f.b, fid: hit.f.id, cat: hit.c };
+      if (hit && hit.ko) return { c: hit.c.id, st: 'k:' + hit.ko, a: '', b: '', ko: hit.ko, cat: hit.c };
+      return Object.assign({ c: '', st: '', a: '', b: '' }, drafts[ps + ':' + pc] || {});
+    }
+
+    // ----- Teams tab -----
+    function teamsHtml() {
+      const cats = state.categories.map(cat => {
+        alignGroups(cat);
+        return `<div class="border border-gray-200 rounded-lg p-3 mb-3">
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <span class="cat-dot" style="background:${cat.color}"></span>
+            <input type="text" value="${esc(cat.name)}" data-k="cname" data-c="${esc(cat.id)}" style="flex:1;min-width:120px">
+            <select data-k="cfmt" data-c="${esc(cat.id)}">${FORMATS.map(([v, l]) => `<option value="${v}"${cat.format === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+            ${isGrouped(cat) ? `<select data-k="cgrp" data-c="${esc(cat.id)}">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}"${cat.groups === n ? ' selected' : ''}>${n} group${n > 1 ? 's' : ''}</option>`).join('')}</select>` : ''}
+            <button type="button" class="sb-btn" data-act="delcat" data-c="${esc(cat.id)}" title="Delete category">×</button>
+          </div>
+          <div class="flex gap-2 mb-2">
+            <input type="text" id="ti-${esc(cat.id)}" placeholder="Team names, separated by commas" class="flex-1" style="min-width:0">
+            ${multi(cat) ? `<select id="tg-${esc(cat.id)}">${groupLetters(cat.groups).map(l => `<option value="${l}">Group ${l}</option>`).join('')}</select>` : ''}
+            <button type="button" class="btn" data-act="addt" data-c="${esc(cat.id)}">+ Add</button>
+          </div>
+          <div class="flex flex-wrap gap-1.5">${cat.teams.length ? cat.teams.map((t, i) => `
+            <span class="flex items-center gap-1 border rounded-md px-2 py-1" style="border-color:#e5e7eb;background:${multi(cat) ? groupColor(teamGroup(cat, i), cat) : '#f9fafb'}">
+              <span class="text-xs font-medium">${esc(t)}</span>
+              ${multi(cat) ? `<select class="group-select" data-k="tgrp" data-c="${esc(cat.id)}" data-i="${i}">${groupLetters(cat.groups).map(l => `<option value="${l}"${teamGroup(cat, i) === l ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}
+              <button type="button" class="text-gray-400" data-act="delt" data-c="${esc(cat.id)}" data-i="${i}">×</button></span>`).join('') : '<span class="text-xs text-gray-400">No teams yet</span>'}</div>
+        </div>`;
+      }).join('');
+      return cats + (state.categories.length >= 12 ? '' : `<div class="flex gap-2 mt-1">
+          <input type="text" id="newCat" placeholder="New category name (e.g. Under 10)" class="flex-1" style="min-width:0">
+          <button type="button" class="btn bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="addcat">+ Add category</button></div>`) +
+        `<div class="flex gap-2 mt-4"><button type="button" class="btn flex-1" data-act="close">Close</button>
+          <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-tab="s">Next: Schedule →</button></div>`;
+    }
+
+    // ----- Schedule tab -----
+    function schedHtml() {
+      if (!state.slotMode) {
+        const have = state.categories.some(c => c.matches.length);
+        return `<p class="text-sm text-gray-600 mb-3">This makes empty time slots for the day from your Setup (start time, play until, match length, courts, breaks). Every slot gets dropdowns for category, group and teams.</p>
+          ${state.categories.length ? '' : '<p class="text-xs text-red-500 mb-2">Add a category and some teams on the Teams tab first.</p>'}
+          <div class="flex flex-col gap-2">
 </script>
 
 </body>
