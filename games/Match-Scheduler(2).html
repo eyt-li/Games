@@ -4855,7 +4855,112 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
-  
+  // ============================================================
+// PLACING MATCHES FOR EVERYONE OUTSIDE THE TOP 4
+// Paste at the very end of the main script block (after your other add-ons).
+//
+// In Edit mode, each category with knockouts gets a "Placing matches" choice.
+// When it is on, after the group stage the teams outside the top 4 also play:
+//   - one group:      the bottom 2 play each other, then the next 2, and so on
+//                     (8 teams: 7th/8th, then 5th/6th; the top 4 play the semi-finals)
+//   - several groups: the bottom team of a group plays the bottom team of the other group,
+//                     second from bottom plays second from bottom, and so on, until the
+//                     teams that go to the semi-finals (2 groups: the top 2 of each group)
+// The teams are filled in automatically when the group stage is finished.
+// cat.placement = true / false
+// ============================================================
+(function () {
+  const CAPABLE = ['round-robin-final', 'round-robin-knockouts', 'groups-playoffs'];
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const ordn = n => {
+    const v = n % 100;
+    return n + ((v >= 11 && v <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'));
+  };
+  const isPl = m => m.stage === 'ko' && /^pl/.test(m.id);
+
+  // ---------- the extra matches ----------
+  function placementDefs(cat, groups, groupIds) {
+    if (!cat.placement || !CAPABLE.includes(cat.format)) return [];
+    const mk = (id, round, r1, r2) => ({ id, stage: 'ko', round, group: null, team1: null, team2: null, ref1: r1, ref2: r2, deps: groupIds, score1: '', score2: '' });
+    const seed = (g, p) => ({ t: 'seed', g: g || undefined, p });
+    const keys = Object.keys(groups).sort();
+    const out = [];
+    if (keys.length <= 1) {
+      // one group: bottom two, then the next two ... the top 4 are not included
+      const g = (keys[0] && keys[0] !== '_') ? keys[0] : undefined;
+      const n = cat.teams.length;
+      for (let r = n, i = 1; r - 1 >= 5; r -= 2, i++) out.push(mk('pl' + i, `${ordn(r - 1)}/${ordn(r)} place`, seed(g, r - 1), seed(g, r)));
+    } else {
+      // several groups: bottom v bottom, second bottom v second bottom ... neighbouring groups meet (A-B, C-D)
+      const q = Math.ceil(4 / keys.length);            // teams per group that go to the semi-finals
+      for (let gi = 0; gi + 1 < keys.length; gi += 2) {
+        const ga = keys[gi], gb = keys[gi + 1], na = groups[ga].length, nb = groups[gb].length;
+        for (let k = 0; na - k > q && nb - k > q; k++) {
+          const ra = na - k, rb = nb - k;
+          const label = keys.length === 2
+            ? `${ordn(na + nb - 2 * k - 1)}/${ordn(na + nb - 2 * k)} place`
+            : `${ordn(ra)} place · ${ga} v ${gb}`;
+          out.push(mk(`pl_${gi / 2 + 1}_${k + 1}`, label, seed(ga, ra), seed(gb, rb)));
+        }
+      }
+    }
+    return out;
+  }
+  wrap('koDefs', (o, cat, groups, groupIds) => o(cat, groups, groupIds).concat(placementDefs(cat, groups, groupIds)));
+
+  // ---------- snapshot share links carry the setting ----------
+  let exp = null;
+  wrap('buildMatches', (o, cat) => {
+    if (exp && !exp.seen.has(cat)) { exp.seen.add(cat); cat.placement = !!exp.pl[exp.n++]; }
+    return o(cat);
+  });
+  wrap('compactState', o => {
+    const r = o();
+    if (state.categories.some(c => c.placement)) r.pl = state.categories.map(c => c.placement ? 1 : 0);
+    return r;
+  });
+  wrap('expandState', (o, obj) => {
+    exp = { pl: obj.pl || [], n: 0, seen: new WeakSet() };
+    try { o(obj); } finally { exp = null; }
+  });
+
+  // ---------- the choice in the category card (Edit mode) ----------
+  function decorate() {
+    if (!editMode) return;
+    state.categories.forEach(cat => {
+      if (!CAPABLE.includes(cat.format)) return;
+      const list = document.getElementById('teamList-' + cat.id);
+      if (!list) return;
+      const block = list.parentElement;
+      if (block.previousElementSibling && block.previousElementSibling.classList.contains('pl-row')) return;
+      block.insertAdjacentHTML('beforebegin',
+        `<div class="pl-row flex items-center gap-2 flex-wrap">
+           <span class="text-xs text-gray-600">Placing matches</span>
+           <select class="btn text-xs pl-sel" data-cat="${esc(cat.id)}">
+             <option value="">None</option>
+             <option value="1"${cat.placement ? ' selected' : ''}>Everyone outside the top 4 (7th/8th, 5th/6th ...)</option>
+           </select>
+         </div>`);
+    });
+  }
+  ['renderCategories', 'render'].forEach(n => wrap(n, o => { o(); decorate(); }));
+
+  document.addEventListener('change', e => {
+    const s = e.target;
+    if (!s.classList || !s.classList.contains('pl-sel') || !editMode) return;
+    const cat = getCat(s.dataset.cat);
+    if (!cat) return;
+    const on = s.value === '1';
+    const apply = () => { cat.placement = on; changed(cat); };
+    const scored = cat.matches.some(m => isPl(m) && (m.score1 !== '' || m.score2 !== ''));
+    if (!on && scored) {
+      s.value = '1';
+      confirmDialog('Turn off placing matches? Their scores will be removed.', apply, 'Turn off');
+    } else apply();
+  });
+
+  if (currentView === 'tournament') render();
+})();
 </script>
 
 </body>
