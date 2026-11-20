@@ -3,10 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="google-adsense-account" content="ca-pub-6023887019214036">
 <title>MatchBoard</title>
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6023887019214036"
-     crossorigin="anonymous"></script>
 <!-- PDF Export Libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
@@ -26,10 +23,10 @@
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
   .tab-active { background: white; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
   .tab-inactive { background: transparent; border: 1px solid transparent; }
-  input[type="text"], input[type="number"], input[type="date"], input[type="time"], select {
+  input[type="text"], input[type="number"], input[type="date"], input[type="time"], select, textarea {
     border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 10px; font-size: 13px; outline: none;
   }
-  input:focus, select:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+  input:focus, select:focus, textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
   input:disabled { background: #f3f4f6; color: #6b7280; cursor: not-allowed; }
   .btn { padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; border: 1px solid #d1d5db; background: white; cursor: pointer; transition: all 0.15s; }
   .btn:hover { background: #f9fafb; }
@@ -39,8 +36,10 @@
   .color-picker-wrapper input[type="color"] { position: absolute; top: -4px; left: -4px; width: 34px; height: 34px; border: none; cursor: pointer; }
   .standings-table th { font-size: 10px; text-transform: uppercase; color: #6b7280; font-weight: 500; letter-spacing: 0.05em; }
   .standings-table td { font-size: 13px; padding: 8px 10px; }
-  .schedule-row:nth-child(even) { background: #eff6ff; }
-  .schedule-row:hover { background: #dbeafe; }
+  .schedule-row { background: #fff; }
+  .schedule-row:hover { filter: brightness(0.96); }
+  .schedule-row td:first-child { box-shadow: inset 4px 0 0 var(--rowc, transparent); }
+  .schedule-table .score-box { width: 40px; height: 32px; font-size: 13px; }
   .team-chip input { width: 70px; }
   .group-select { padding: 3px 6px; font-size: 11px; border-radius: 4px; border: 1px solid #d1d5db; background: white; }
   .time-slot-header { background: #f3f4f6; padding: 6px 12px; font-weight: 600; font-size: 12px; color: #374151; border-radius: 6px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
@@ -64,16 +63,49 @@
   .standings-table th, .standings-table td, .schedule-table th, .schedule-table td { border-bottom: 1px solid #cbd5e1; }
   .standings-table th, .schedule-table th { border-bottom-color: #94a3b8; }
   .standings-table th:not(:last-child), .standings-table td:not(:last-child), .schedule-table th:not(:last-child), .schedule-table td:not(:last-child) { border-right: 1px solid #e2e8f0; }
+  .status-badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .status-badge.live { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  .status-badge.done { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #d97706; display: inline-block; animation: pulse 1.6s infinite; }
+  .status-btn { padding: 4px 8px; font-size: 11px; white-space: nowrap; }
+  .status-btn.on-live { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+  .status-btn.on-done { background: #10b981; border-color: #10b981; color: #fff; }
+  .match-card.is-live { box-shadow: 0 0 0 2px #f59e0b; }
+  .schedule-row.is-live td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
+  .status-in-time { display: none; }
+  @media (max-width: 639px) { .status-in-time { display: inline-flex; margin-top: 2px; } }
+  .logo-badge { display: inline-flex; align-items: center; justify-content: center; background: #f3f1ec; border: 1px solid #e3dfd5; border-radius: 8px; padding: 4px; line-height: 0; }
+  .logo-badge.sm { border-radius: 6px; padding: 3px; }
+  /* more breathing room inside match cards */
+.match-card { column-gap: 24px; row-gap: 10px; }
+.match-card > div:first-child { column-gap: 12px; row-gap: 6px; }
+.match-card > div:last-child { gap: 10px 8px; justify-content: flex-end; }
+.match-card .group-badge { white-space: nowrap; margin-left: 4px; }
+
+    /* ---- Footer ---- */
+  .site-footer { background: #fff; border-top: 1px solid #e5e7eb; margin-top: 24px; }
+  .site-footer-inner { max-width: 80rem; margin: 0 auto; padding: 20px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .footer-brand { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6b7280; }
+  .footer-brand b { color: #111827; font-weight: 600; }
+  .contact-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #fff; text-decoration: none;
+    background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+    box-shadow: 0 2px 8px rgba(220, 39, 67, 0.25); transition: transform .15s, box-shadow .15s; }
+  .contact-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(220, 39, 67, 0.35); }
+  .contact-btn svg { width: 16px; height: 16px; }
+  @media (max-width: 639px) {
+    .site-footer-inner { flex-direction: column; text-align: center; padding: 14px 12px; }
+  }
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="logoMark" viewBox="0 0 258 222"><path fill-rule="evenodd" d="M136.8,216.2 138.0,218.5 139.5,219.8 146.5,221.8 244.8,221.8 249.5,220.0 254.5,215.8 256.2,213.0 257.8,208.8 257.8,206.0 256.2,202.0 253.8,198.2 250.0,195.2 245.2,193.5 151.8,193.5 150.5,194.5 144.0,205.0 137.2,212.5ZM142.0,111.0 150.2,124.0 152.2,125.2 228.2,125.0 232.2,123.8 236.8,120.0 239.2,115.8 240.0,112.5 239.5,107.2 237.8,103.5 235.2,100.8 231.8,98.5 224.2,97.2 152.8,97.2 150.0,98.8ZM136.5,7.0 137.2,10.0 144.5,18.0 150.5,28.0 151.8,28.8 243.5,29.0 249.0,27.8 251.8,26.0 254.5,23.2 257.8,16.2 256.8,11.0 254.5,6.5 250.8,3.0 245.2,1.0 145.5,1.0 140.0,2.5 137.2,5.0ZM9.5,1.8 6.2,3.5 3.5,6.2 1.2,10.5 0.5,14.0 1.0,18.2 3.5,23.5 6.0,26.0 9.5,28.0 14.8,29.0 88.8,29.2 94.0,30.8 101.2,34.2 104.2,36.5 110.8,43.5 113.5,48.2 116.0,55.8 116.5,59.5 116.0,70.5 114.0,76.2 110.8,82.2 104.0,89.8 96.2,94.5 86.2,97.2 39.5,97.2 32.8,97.8 28.5,99.8 25.2,102.5 22.8,107.5 22.2,112.0 23.2,116.5 25.2,120.0 30.0,123.8 33.8,125.0 86.2,125.2 90.8,126.0 97.8,128.8 105.0,133.5 109.2,138.0 113.0,143.8 115.8,150.8 116.8,157.0 116.8,161.8 115.2,169.8 111.0,178.5 105.5,185.0 101.2,188.2 96.0,191.0 88.2,193.2 11.8,193.8 9.2,194.5 5.8,196.8 2.0,201.8 0.8,205.8 1.5,212.2 2.8,214.8 6.0,218.2 9.0,220.2 13.5,221.8 83.5,221.8 96.5,220.0 107.0,216.5 115.8,211.8 120.8,208.2 129.8,199.8 132.0,196.8 139.5,183.8 142.0,176.8 144.0,167.0 144.2,155.5 143.8,151.0 142.0,142.8 139.8,136.0 136.2,129.0 131.8,122.0 128.5,118.0 122.0,111.8 122.2,110.2 129.8,103.0 134.8,96.2 139.5,87.2 142.2,79.2 144.2,67.2 144.2,58.5 142.0,45.5 139.0,37.8 132.2,26.0 128.8,21.5 123.2,16.0 115.8,10.5 109.2,6.8 100.2,3.2 88.0,1.0 12.8,1.0Z"/></symbol></svg>
 
 <!-- HEADER -->
 <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
     <div class="flex items-center gap-3">
       <div class="flex items-center gap-2 cursor-pointer" onclick="switchMainView('home')">
-        <svg class="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
+        <span class="logo-badge"><svg width="20" height="20" class="w-5 h-5 text-gray-900" viewBox="0 0 258 222" fill="currentColor" aria-hidden="true"><use href="#logoMark"/></svg></span>
         <span class="font-semibold text-gray-900 text-sm">MatchBoard</span>
       </div>
       <button id="navHomeBtn" class="header-btn" onclick="switchMainView('home')">
@@ -90,6 +122,7 @@
         <span class="w-2 h-2 bg-emerald-500 rounded-full live-pulse"></span>
         <span class="text-xs font-medium text-emerald-700">Live</span>
       </div>
+      <span id="saveState" class="text-xs text-gray-400 whitespace-nowrap"></span>
       <button id="exportPdfBtn" class="header-btn">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
         Export PDF
@@ -105,6 +138,7 @@
     </div>
   </div>
 </header>
+<div id="storageWarn" class="hidden bg-amber-50 border-b border-amber-200 text-amber-900 text-xs px-4 py-2 text-center">This browser is not letting the page save data (private window or embedded preview), so your schedule will be lost when you close it. Use <b>Save page with data</b> on the Home screen to keep a copy.</div>
 
 <!-- HOMEPAGE VIEW -->
 <div id="homeView" class="max-w-7xl mx-auto px-4 py-8">
@@ -114,6 +148,7 @@
       <p class="text-sm text-gray-500">View and manage all active tournament schedules</p>
       <div class="flex flex-wrap gap-2 mt-3">
         <button class="btn" onclick="recoverDialog()">Recover tournaments</button>
+        <button class="btn" onclick="savePageCopy()">Save page with data</button>
         <button class="btn" onclick="exportBackup()">Download backup</button>
         <button class="btn" onclick="document.getElementById('importFile').click()">Import backup</button>
         <input type="file" id="importFile" accept=".json,application/json" class="hidden">
@@ -174,7 +209,7 @@
       <div id="setupCol" class="col-span-4">
         <div class="bg-white rounded-lg border border-gray-200 p-4">
           <h3 class="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-            <svg class="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/></svg>
+            <span class="logo-badge sm"><svg width="16" height="16" class="w-4 h-4 text-gray-900" viewBox="0 0 258 222" fill="currentColor" aria-hidden="true"><use href="#logoMark"/></svg></span>
             Setup
           </h3>
           <div class="space-y-3">
@@ -220,6 +255,23 @@
               </div>
             </div>
 
+             <!-- NEW: Match order -->
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">Match order</label>
+              <select id="playOrder" class="w-full">
+                <option value="">Mixed (categories alternate)</option>
+                <option value="group">One group at a time</option>
+                <option value="round">Round by round, category by category</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">Knockouts (semi / final / placing)</label>
+              <select id="koEnd" class="w-full">
+                <option value="">As soon as a category is ready</option>
+                <option value="end">All at the end of the day</option>
+              </select>
+            </div>
+            <!-- END NEW -->
             <!-- MULTIPLE BREAKS SECTION -->
             <div class="border-t border-gray-100 pt-3">
               <div class="flex items-center justify-between mb-2">
@@ -242,6 +294,13 @@
               <input type="password" id="confirmPassword" placeholder="Confirm new password" class="w-full" onkeypress="if(event.key==='Enter') changePassword()">
               <button class="btn w-full" onclick="changePassword()">Update password</button>
               <p id="passwordMsg" class="text-xs hidden"></p>
+              <!-- hitwebcounter Code START -->
+              <div></div>
+              <div></div>
+              <a href="https://www.hitwebcounter.com/" target="_blank" rel="noopener" title="Free Stats Visits">
+              <img src="https://www.hitwebcounter.com/counter/counter.php?page=21527816&amp;style=0032&amp;nbdigits=3&amp;type=ip" alt="Free Stats Visits" decoding="async" style="border:0;max-width:100%;height:auto;" />
+              </a>
+              <!-- hitwebcounter Code END -->
             </div>
           </div>
 
@@ -301,8 +360,42 @@
     <div id="standingsBody" class="space-y-4"></div>
   </div>
 </div>
-
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <div class="footer-brand">
+      <span class="logo-badge sm"><svg width="16" height="16" class="text-gray-900" viewBox="0 0 258 222" fill="currentColor" aria-hidden="true"><use href="#logoMark"/></svg></span>
+      <span><b>MatchBoard</b> · Tournament schedules made simple</span>
+    </div>
+    <a class="contact-btn" href="https://www.instagram.com/3_little_cubs/" target="_blank" rel="noopener noreferrer">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+      Contact Us
+    </a>
+  </div>
+</footer>
+<!-- Tournaments saved inside this page by "Save page with data" live here -->
+<script id="embeddedBackup" type="application/json"></script>
 <script>
+// A clean copy of this page as it was loaded (used by "Save page with data")
+const PRISTINE_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+// If the browser blocks saving (private window, embedded preview), keep working in memory and warn.
+(function ensureStorage() {
+  let ok = false;
+  try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); ok = true; } catch (e) {}
+  window.__storageOK = ok;
+  if (ok) return;
+  const mem = {};
+  const shim = {
+    getItem: k => (k in mem ? mem[k] : null),
+    setItem: (k, v) => { mem[k] = String(v); },
+    removeItem: k => { delete mem[k]; },
+    key: i => Object.keys(mem)[i] ?? null,
+    get length() { return Object.keys(mem).length; }
+  };
+  try { Object.defineProperty(window, 'localStorage', { value: shim, configurable: true }); } catch (e) {}
+})();
+
 // ============================================
 // FIREBASE CONFIG & SCHEDULER STATE
 // ============================================
@@ -378,12 +471,45 @@ function getStoredScheduleData(id) {
     return data ? JSON.parse(data) : null;
   } catch(e) { return null; }
 }
+function markSaved(ok) {
+  const el = document.getElementById('saveState');
+  if (!el) return;
+  if (!window.__storageOK) { el.textContent = 'Not saved'; el.style.color = '#b45309'; el.title = 'This browser is blocking saving. Use Save page with data on the Home screen.'; return; }
+  el.textContent = ok ? 'Saved ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Could not save';
+  el.style.color = ok ? '#9ca3af' : '#dc2626';
+}
 function saveStoredScheduleData(id, d) {
-  try { localStorage.setItem('matchboard_data_' + id, JSON.stringify(d)); } catch(e){}
+  try { localStorage.setItem('matchboard_data_' + id, JSON.stringify(d)); markSaved(true); } catch(e){ markSaved(false); }
 }
 
 tournamentList = getStoredTournaments();
 saveStoredTournaments(tournamentList);
+
+// Tournaments saved inside this page (Save page with data) come back automatically
+(function importEmbedded() {
+  let j;
+  try { j = JSON.parse(document.getElementById('embeddedBackup').textContent || 'null'); } catch (e) { return; }
+  const items = (j && Array.isArray(j.tournaments)) ? j.tournaments : [];
+  if (!items.length) return;
+  let added = 0;
+  items.forEach(t => {
+    if (!t || !t.id || !t.data) return;
+    const local = getStoredScheduleData(t.id);
+    const localHasData = local && local.categories && Object.keys(local.categories).length;
+    if (tournamentList[t.id] && localHasData) return;           // this browser already has its own copy
+    tournamentList[t.id] = { id: t.id, name: t.name || t.data.tName || 'Tournament', owner: MY_ID };
+    saveStoredScheduleData(t.id, t.data);
+    added++;
+  });
+  if (added) {
+    // drop the empty starter tournament that a brand-new browser creates
+    Object.values(tournamentList).forEach(t => {
+      const d = getStoredScheduleData(t.id);
+      if (t.name === 'Schedule 1' && !(d && d.categories && Object.keys(d.categories).length) && Object.keys(tournamentList).length > 1) delete tournamentList[t.id];
+    });
+    saveStoredTournaments(tournamentList);
+  }
+})();
 currentScheduleId = Object.keys(tournamentList)[0] || '';
 
 function getDbPath() {
@@ -415,7 +541,12 @@ async function exportToPDF() {
     }
 
 
-    const numberOf = new Map(list.map((x, i) => [x.m, i + 1]));
+    let seq = 0;
+    const labelOf = new Map(list.map(x => {
+      const m = x.m;
+      if (m.stage !== 'ko') return [m, 'M' + (++seq)];
+      return [m, { sf1: 'SF1', sf2: 'SF2', third: '3/4', final: 'Finals' }[m.id] || String(m.round).toUpperCase()];
+    }));
     const courtNos = [...new Set(list.map(x => x.m.courtNo))].sort((a, b) => a - b);
 
 
@@ -430,26 +561,28 @@ async function exportToPDF() {
     };
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.setTextColor(0);
-    doc.text((state.tName || 'TOURNAMENT SCHEDULE').toUpperCase(), 14, 18);
+    doc.text((state.tName || 'TOURNAMENT SCHEDULE').toUpperCase(), 8, 11);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`${list.length} matches  |  ${courtNos.length} court(s)  |  ${mm} min per match`, 14, 25);
+    doc.setFontSize(9);
+    doc.text(`${list.length} matches  |  ${courtNos.length} court(s)  |  ${mm} min per match`, 8, 16.5);
 
     const pageH = doc.internal.pageSize.getHeight();
-    let y = 34;
+    let y = 24;
 
     courtNos.forEach(cn => {
       const rows = list.filter(x => x.m.courtNo === cn);
       const body = [], meta = [];
       let lastDay = -1;
+      let nBreaks = 0;
       let prevM = null;
       rows.forEach(({ cat, m }) => {
         const brk = checkBreakBetween(prevM, m);
         if (brk) {
-          body.push([{ content: `☕ ${brk.label.toUpperCase()} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})`, colSpan: 7, styles: { fillColor: [254, 243, 199], textColor: [146, 64, 14], fontStyle: 'bold', halign: 'center' } }]);
+          body.push([{ content: `${brk.label.toUpperCase()} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})`, colSpan: 7, styles: { fillColor: [254, 243, 199], textColor: [146, 64, 14], fontStyle: 'bold', halign: 'center', fontSize: 7, cellPadding: 1, minCellHeight: 5 } }]);
           meta.push(null);
+          nBreaks++;
         }
         prevM = m;
         if (m.day !== lastDay) {
@@ -463,27 +596,27 @@ async function exportToPDF() {
         }
         const isKO = m.stage === 'ko';
         body.push([
-          `M${numberOf.get(m)}`,
+          labelOf.get(m),
           `${m.time} - ${formatTime(m.timeMin + mm)}`,
           displayName(cat, m, 1),
-          '',
-          '',
+          m.score1 !== '' ? String(m.score1) : '',
+          m.score2 !== '' ? String(m.score2) : '',
           displayName(cat, m, 2),
-          `${cat.name}${m.group ? ` (Group ${m.group})` : ''}${isKO ? ` - ${m.round}` : ''}`
+          `${cat.name}${m.group ? ` (${m.group})` : ''}${isKO ? ` - ${m.round}` : ''}`
         ]);
         meta.push({ color: cat.color, gcolor: m.group ? groupColor(m.group, cat) : null, isKO, s1: m.score1, s2: m.score2 });
       });
 
       // keep this court's schedule on a single page whenever it can fit
       const usable = pageH - 15 - 16 - 14;                    // page height minus margins and the court title
-      const estimate = rh => 10 + body.length * rh + 4;       // header row + every row
+      const estimate = rh => 10 + (body.length - nBreaks) * rh + nBreaks * 5 + 4;       // header row + every row
       let rowH = 11;
       while (rowH > 8 && estimate(rowH) > usable) rowH -= 0.5; // squeeze rows a little if needed
       if (y + 14 + estimate(rowH) > pageH - 16 && estimate(rowH) <= usable) { doc.addPage(); y = 18; }
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
       doc.setTextColor(30, 58, 138);
-      doc.text(`COURT ${cn}  -  ${rows.length} match${rows.length === 1 ? '' : 'es'}`, 14, y);
+      doc.text(`COURT ${cn}  -  ${rows.length} match${rows.length === 1 ? '' : 'es'}`, 8, y);
 
       doc.autoTable({
         startY: y + 3,
@@ -492,14 +625,14 @@ async function exportToPDF() {
         styles: { lineColor: [170, 178, 190], lineWidth: 0.25 },
         head: [['Match #', 'Time', { content: 'Team 1', styles: { halign: 'right' } }, { content: 'Score', colSpan: 2, styles: { halign: 'center' } }, 'Team 2', 'Category']],
         body,
-        margin: { left: 14, right: 14, top: 15, bottom: 16 },
+        margin: { left: 8, right: 8, top: 15, bottom: 16 },
         columnStyles: {
-          0: { cellWidth: 14, fontStyle: 'bold' },
+          0: { cellWidth: 15, fontStyle: 'bold' },
           1: { cellWidth: 36 },
-          2: { cellWidth: 34, halign: 'right', fontStyle: 'bold' },
-          3: { cellWidth: 13 },
-          4: { cellWidth: 13 },
-          5: { cellWidth: 34, fontStyle: 'bold' },
+          2: { cellWidth: 38, halign: 'right', fontStyle: 'bold' },
+          3: { cellWidth: 14, halign: 'center', fontStyle: 'bold', fontSize: 11 },
+          4: { cellWidth: 14, halign: 'center', fontStyle: 'bold', fontSize: 11 },
+          5: { cellWidth: 38, fontStyle: 'bold' },
           6: { cellWidth: 'auto' }
         },
         headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', fontSize: 10 },
@@ -520,22 +653,6 @@ async function exportToPDF() {
             data.cell.styles.textColor = [0, 0, 0];
             data.cell.styles.fontStyle = 'bold';
           }
-        },
-        didDrawCell: function (data) {
-          if (data.section !== 'body' || (data.column.index !== 3 && data.column.index !== 4)) return;
-          const info = meta[data.row.index];
-          if (!info) return;
-          const val = data.column.index === 3 ? info.s1 : info.s2;
-          const w = 9, h = Math.min(7.5, data.cell.height - 2.5);
-          const bx = data.cell.x + (data.cell.width - w) / 2;
-          const top = data.cell.y + (data.cell.height - h) / 2;
-          doc.setDrawColor(60); doc.setLineWidth(0.35);
-          doc.rect(bx, top, w, h, 'S');
-          if (val !== '' && val != null) {
-            doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(0);
-            doc.text(String(val), bx + w / 2, top + h / 2 + 1.5, { align: 'center' });
-          }
-          doc.setDrawColor(170, 178, 190); doc.setLineWidth(0.25);
         }
       });
       y = ((doc.lastAutoTable && doc.lastAutoTable.finalY) || (y + 20)) + 12;
@@ -548,7 +665,7 @@ async function exportToPDF() {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(128);
-      doc.text(`Page ${i} of ${pages}`, 14, pageH - 8);
+      doc.text(`Page ${i} of ${pages}`, 8, pageH - 8);
     }
 
 
@@ -588,7 +705,8 @@ const toMin = s => { const [h, m] = String(s).split(':').map(Number); return (h 
 const getCat = id => state.categories.find(c => c.id === id);
 const groupLetters = n => Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i));
 const isGrouped = c => c.format === 'groups-playoffs';
-const done = m => m.score1 !== '' && m.score2 !== '' && !isNaN(m.score1) && !isNaN(m.score2);
+const done = m => m.status !== 'ongoing' && m.score1 !== '' && m.score2 !== '' && !isNaN(m.score1) && !isNaN(m.score2);
+const finished = m => m.status === 'completed' || done(m);
 const ord = p => ['1st', '2nd', '3rd', '4th'][p - 1];
 const matchOrder = (a, b) => (a.slot - b.slot) || (a.courtNo - b.courtNo);
 const safeId = s => s.replace(/[.#$\[\]\/\s|]/g, '_');
@@ -687,8 +805,7 @@ const groupBadge = (g, cat, label) => `<span class="group-badge" style="backgrou
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 let savedGroupSelections = {};
 const DEFAULT_PASSWORD = 'admin123';
-const SETUP_IDS = ['tNameInput', 'eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts'];
-
+const SETUP_IDS = ['tNameInput', 'eventDate', 'dayStarts', 'playUntil', 'matchMin', 'courts', 'playOrder', 'koEnd'];  
 function switchMainView(view) {
   currentView = view;
   if (view === 'home') {
@@ -880,7 +997,7 @@ function restoreCandidates(items) {
 }
 async function recoverDialog() {
   const o = showModal(`<h3 class="font-semibold text-gray-900 mb-2">Recover tournaments</h3><p class="text-xs text-gray-500">Looking…</p>`);
-  o.firstElementChild.style.width = '440px';
+  o.firstElementChild.style.width = 'min(440px, 92vw)';
   let items = localCandidates(), err = '';
   try { items = items.concat(await onlineCandidates()); } catch (e) { err = 'Could not read the online database: ' + (e.message || e); }
   const row = (c, i) => `<label class="flex items-start gap-2 py-2 border-b border-gray-100 text-sm">
@@ -902,6 +1019,28 @@ async function recoverDialog() {
     o.remove();
     toast(`Restored ${picked.length} tournament${picked.length === 1 ? '' : 's'}.`);
   };
+}
+function collectBackupItems() {
+  return Object.values(tournamentList).map(t => {
+    const data = (t.id === currentScheduleId && state && toArr(state.categories).length) ? state : getStoredScheduleData(t.id);
+    return data ? { id: t.id, name: t.name, data } : null;
+  }).filter(Boolean);
+}
+function savePageCopy() {
+  const items = collectBackupItems();
+  if (!items.length) { toast('Nothing to save yet. Open a tournament and add some teams first.'); return; }
+  const json = JSON.stringify({ app: 'matchboard', version: 1, savedAt: new Date().toISOString(), tournaments: items }).replace(/</g, '\\u003c');
+  let html = PRISTINE_HTML.replace(/(<script id="embeddedBackup" type="application\/json">)[\s\S]*?(<\/script>)/, (m, a, b) => a + json + b);
+  // drop any style tags other scripts (like the Tailwind CDN) added while the page was loading
+  const headEnd = html.indexOf('</head>');
+  html = html.slice(0, headEnd).replace(/<style[^>]*>[\s\S]*?<\/style>/g, m => (m.includes('.match-card {') ? m : '')) + html.slice(headEnd);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'MatchBoard_saved_' + new Date().toISOString().slice(0, 10) + '.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast(`Saved a copy of this page with ${items.length} tournament${items.length === 1 ? '' : 's'} inside it.`);
 }
 function exportBackup() {
   const items = Object.values(tournamentList).map(t => {
@@ -1085,6 +1224,15 @@ function saveScore(cat, m, side, value) {
   try { db.ref(`${getDbPath()}/categories/${ci}/matches/${mi}/score${side}`).set(value); } catch (e) { console.error(e); }
   echo = false;
 }
+function saveStatus(cat, m) {
+  if (!currentScheduleId) return;
+  saveStoredScheduleData(currentScheduleId, state);
+  if (!db || !loaded) return;
+  const ci = state.categories.indexOf(cat), mi = cat.matches.indexOf(m);
+  echo = true;
+  try { db.ref(`${getDbPath()}/categories/${ci}/matches/${mi}/status`).set(m.status || null); } catch (e) { console.error(e); }
+  echo = false;
+}
 function normalize(d) {
   const arr = x => Array.isArray(x) ? x.filter(v => v != null) : (x ? Object.values(x) : []);
   const s = {
@@ -1095,6 +1243,8 @@ function normalize(d) {
     playUntil: d.playUntil || '11:30',
     matchMin: +d.matchMin || 10,
     courts: +d.courts || 2,
+    playOrder: d.playOrder || '',
+    koEnd: d.koEnd || '',
     breaks: arr(d.breaks),
     categories: arr(d.categories)
   };
@@ -1106,8 +1256,9 @@ function normalize(d) {
     c.matches.forEach(m => {
 
 
-      m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? '';
+      m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? ''; m.status = m.status || '';
       m.team1 = m.team1 ?? null; m.team2 = m.team2 ?? null; m.group = m.group ?? null; m.deps = arr(m.deps);
+      m.scorers1 = arr(m.scorers1); m.scorers2 = arr(m.scorers2);
     });
   });
   return s;
@@ -1210,7 +1361,11 @@ function koDefs(cat, groups, groupIds) {
   const top = (g, size) => {
     const k = size >= 4 ? 4 : size >= 2 ? 2 : 0;
     const s = [1, 2, 3, 4].slice(0, k).map(p => seed(g, p));
-    return k === 4 ? [s[0], s[3], s[1], s[2]] : s;
+    if (k === 4) {
+      // NEW: Check the category's koSeed setting
+      return cat.koSeed === 'seq' ? [s[0], s[2], s[1], s[3]] : [s[0], s[3], s[1], s[2]];
+    }
+    return s;
   };
   let q = [];
   if (cat.format === 'round-robin-knockouts') q = top(null, n);
@@ -1221,6 +1376,12 @@ function koDefs(cat, groups, groupIds) {
     else if (gs.length === 4) q = gs.map(g => seed(g, 1));
   }
   const mk = (id, round, r1, r2, deps) => ({ id, stage: 'ko', round, group: null, team1: null, team2: null, ref1: r1, ref2: r2, deps, score1: '', score2: '' });
+  if (cat.format === 'round-robin-final') {
+    const defs = [];
+    if (n >= 4) defs.push(mk('third', '3rd/4th place', seed(null, 3), seed(null, 4), groupIds));
+    if (n >= 2) defs.push(mk('final', 'Final', seed(null, 1), seed(null, 2), n >= 4 ? [...groupIds, 'third'] : groupIds));
+    return defs;
+  }
   if (q.length === 4) return [
     mk('sf1', 'Semi-final 1', q[0], q[1], groupIds),
     mk('sf2', 'Semi-final 2', q[2], q[3], groupIds),
@@ -1240,20 +1401,37 @@ function buildMatches(cat) {
   const perGroup = Object.keys(groups).sort().map(g => ({ g, rounds: rrRounds(groups[g]) }));
   const maxR = Math.max(0, ...perGroup.map(x => x.rounds.length));
   const list = [];
-  for (let r = 0; r < maxR; r++) {
-    perGroup.forEach(({ g, rounds }) => (rounds[r] || []).forEach(([a, b]) => {
-      const group = isGrouped(cat) ? g : null;
-      const prev = old[pairKey(group, a, b)];
-      const m = { id: safeId(`g_${group || 'x'}_${a}_${b}`), stage: 'group', round: 'Group stage', group, team1: a, team2: b, score1: '', score2: '' };
-      if (prev) { const same = prev.team1 === a; m.score1 = same ? prev.score1 : prev.score2; m.score2 = same ? prev.score2 : prev.score1; }
-      if (prev && prev.pin) m.pin = prev.pin;
-      list.push(m);
-    }));
+  const addMatch = (g, r, a, b) => {
+    const group = isGrouped(cat) ? g : null;
+    const prev = old[pairKey(group, a, b)];
+    const m = { id: safeId(`g_${group || 'x'}_${a}_${b}`), stage: 'group', round: 'Group stage', group, team1: a, team2: b, score1: '', score2: '', rnd: r };
+    if (prev) {
+      const same = prev.team1 === a;
+      m.score1 = same ? prev.score1 : prev.score2;
+      m.score2 = same ? prev.score2 : prev.score1;
+      // NEW: Keep the scorers, and swap them if the teams swapped
+      m.scorers1 = same ? (prev.scorers1 || []) : (prev.scorers2 || []);
+      m.scorers2 = same ? (prev.scorers2 || []) : (prev.scorers1 || []);
+      if (prev.pin) m.pin = prev.pin;
+      if (prev.status) m.status = prev.status;
+    }
+    list.push(m);
+  };
+  if (state.playOrder === 'group') {
+    // one whole group at a time
+    perGroup.forEach(({ g, rounds }) => rounds.forEach((pairs, r) => pairs.forEach(([a, b]) => addMatch(g, r, a, b))));
+  } else {
+    // round by round across the groups
+    for (let r = 0; r < maxR; r++) perGroup.forEach(({ g, rounds }) => (rounds[r] || []).forEach(([a, b]) => addMatch(g, r, a, b)));
   }
   const groupIds = list.map(m => m.id);
-  koDefs(cat, groups, groupIds).forEach(k => {
+    koDefs(cat, groups, groupIds).forEach(k => {
     const prev = old['ko:' + k.id];
-    if (prev) { k.score1 = prev.score1; k.score2 = prev.score2; if (prev.pin) k.pin = prev.pin; }
+    if (prev) {
+      k.score1 = prev.score1; k.score2 = prev.score2;
+      k.scorers1 = prev.scorers1 || []; k.scorers2 = prev.scorers2 || []; // NEW
+      if (prev.pin) k.pin = prev.pin; if (prev.status) k.status = prev.status;
+    }
     list.push(k);
   });
   cat.matches = list;
@@ -1305,24 +1483,33 @@ function scheduleAll() {
   const slotOf = cats.map(() => ({}));
   let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
   let prev = cats.map(() => new Set());
-
+  const koEnd = state.koEnd === 'end';
+  let lastGroup = -1;   // the last time slot that holds a group / round-robin match
+  const byRound = state.playOrder === 'round';
+  let turn = 0;   // the category whose round is being played
+  const curRnd = ci => { let r = Infinity; pend[ci].forEach(x => { if (x.stage !== 'ko' && (x.rnd ?? 0) < r) r = x.rnd ?? 0; }); return r; };
+  
   while (left > 0 && slot < 5000) {
     const used = cats.map(() => new Set());
     const taken = new Set();
+    if (byRound) for (let i = 0; i < cats.length && !pend[turn].length; i++) turn = (turn + 1) % cats.length;
     const place = (ci, m, court) => {
       left--; taken.add(court);
       slotOf[ci][m.id] = slot;
+      if (m.stage !== 'ko') lastGroup = slot;
       used[ci].add(m.team1); used[ci].add(m.team2);
       const si = slot % perDay;
       const bOffset = getTotalBreakTimeAtSlot(si);
       const t = start + si * mm + bOffset;
       Object.assign(m, { slot, day: Math.floor(slot / perDay), timeMin: t, time: formatTime(t), courtNo: court, court: 'C' + court });
+      
     };
     const pick = (ci, rest, court) => {
       const idx = pend[ci].findIndex(m => {
         if (!courtOK(ci, m, court)) return false;
         if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
-        if (m.stage === 'ko') return true;
+        if (m.stage === 'ko') return !koEnd || (lastGroup < slot && pend.every(l => !l.some(x => x.stage !== 'ko')));
+        if (byRound && (m.rnd ?? 0) !== curRnd(ci)) return false;
         if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
         return !rest || (!prev[ci].has(m.team1) && !prev[ci].has(m.team2));
       });
@@ -1337,10 +1524,11 @@ function scheduleAll() {
     for (let court = 1; court <= courts; court++) {
       if (taken.has(court)) continue;
       for (let k = 0; k < cats.length; k++) {
-        const ci = (k + slot + court - 1) % cats.length;
-        const m = pick(ci, true, court) || pick(ci, false, court);
+        const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
+        const m = pick(ci, true, court);
         if (!m) continue;
         place(ci, m, court);
+        if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
         break;
       }
     }
@@ -1435,6 +1623,7 @@ function renderCategories() {
         <div class="grid grid-cols-2 gap-2">
           ${editMode ? `<select class="btn text-xs" onchange="updateCatFormat('${cat.id}', this.value)">
             <option value="round-robin" ${cat.format === 'round-robin' ? 'selected' : ''}>Round robin</option>
+            <option value="round-robin-final" ${cat.format === 'round-robin-final' ? 'selected' : ''}>Round robin + final & 3rd place</option>
             <option value="round-robin-knockouts" ${cat.format === 'round-robin-knockouts' ? 'selected' : ''}>Round robin + knockouts</option>
             <option value="groups-playoffs" ${cat.format === 'groups-playoffs' ? 'selected' : ''}>Groups + playoffs</option>
           </select>` : `<div class="btn text-xs bg-gray-50">${getFormatLabel(cat.format)}</div>`}
@@ -1444,6 +1633,14 @@ function renderCategories() {
               `<option value="${n}" ${cat.groups === n ? 'selected' : ''}>${n} group${n > 1 ? 's' : ''}</option>`).join('')}
           </select>` : `<div class="btn text-xs bg-gray-50">${cat.groups} groups</div>`) : '<div></div>'}
         </div>
+        ${(cat.format === 'round-robin-knockouts' || (isGrouped(cat) && cat.groups === 1)) ? `
+        <div class="flex items-center gap-2 mt-1">
+          <span class="text-xs text-gray-600 w-12">Semis</span>
+          ${editMode ? `<select class="btn text-xs flex-1" onchange="updateCatSeed('${cat.id}', this.value)">
+            <option value="cross" ${cat.koSeed !== 'seq' ? 'selected' : ''}>1st vs 4th (2nd vs 3rd)</option>
+            <option value="seq" ${cat.koSeed === 'seq' ? 'selected' : ''}>1st vs 3rd (2nd vs 4th)</option>
+          </select>` : `<div class="btn text-xs bg-gray-50 flex-1">${cat.koSeed === 'seq' ? '1st vs 3rd (2nd vs 4th)' : '1st vs 4th (2nd vs 3rd)'}</div>`}
+        </div>` : ''}
         <div class="flex items-center gap-2">
           <span class="text-xs text-gray-600">Color</span>
           <div class="flex gap-1.5 items-center">
@@ -1514,11 +1711,12 @@ function renderMatchesByTimeSlot(cat) {
     return `
     ${brk ? `<div class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5 mb-2 text-center">☕ ${esc(brk.label.toUpperCase())} (${formatTime(brk.startMin)} - ${formatTime(brk.endMin)})</div>` : ''}
     ${s.matches.map(m => `
-      <div class="match-card px-4 py-3 flex items-center justify-between mb-1.5" style="border-left-color: ${cat.color}; background-color: ${m.group ? hexToRgba(groupColor(m.group, cat), 0.7) : hexToRgba(cat.color, 0.08)}">
+      <div class="match-card px-4 py-3 flex items-center justify-between mb-1.5${m.status === 'ongoing' ? ' is-live' : ''}" style="border-left-color: ${cat.color}; background-color: ${m.group ? hexToRgba(groupColor(m.group, cat), 0.7) : hexToRgba(cat.color, 0.08)}">
         <div class="flex items-center gap-3">
-          <span class="text-xs font-semibold text-gray-700 whitespace-nowrap" style="min-width:104px">${m.time} – ${formatTime(m.timeMin + (parseInt(state.matchMin) || 10))}</span>
+          <span class="text-xs font-semibold text-gray-700 whitespace-nowrap" style="display:inline-block;min-width:160px">${m.time} – ${formatTime(m.timeMin + (parseInt(state.matchMin) || 10))}</span>
           ${m.day > 0 ? `<span class="text-xs text-gray-500">Day ${m.day + 1}</span>` : ''}
-          <span class="court-badge">${m.court}</span>
+          <span class="court-badge" style="display:inline-block;width:32px;text-align:center;box-sizing:border-box">${m.court}</span>
+          ${statusBadge(m)}
           ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''}
           ${warnBadge(cat, m)}
           <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|1">${esc(displayName(cat, m, 1))}</span>
@@ -1527,21 +1725,29 @@ function renderMatchesByTimeSlot(cat) {
           ${m.group ? groupBadge(m.group, cat) : ''}
           ${m.stage === 'ko' ? `<span class="group-badge">${m.round}</span>` : ''}
         </div>
-        <div class="flex items-center gap-2">
-          ${moveButtons(cat, m)}
+        <div class="flex items-center gap-2 flex-wrap">
+          ${statusButtons(cat, m)}${moveButtons(cat, m)}
           ${editMode ? `
           <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score1 !== '' ? 'filled' : ''}" value="${m.score1}" data-cat="${cat.id}" data-match="${m.id}" data-side="1" ${!editMode ? 'readonly' : ''}>
           <span class="text-gray-400 font-medium text-xs">–</span>
           <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score2 !== '' ? 'filled' : ''}" value="${m.score2}" data-cat="${cat.id}" data-match="${m.id}" data-side="2" ${!editMode ? 'readonly' : ''}>
-          ` : `<span class="score-pill ${(m.score1 !== '' || m.score2 !== '') ? 'filled' : ''}">${(m.score1 !== '' || m.score2 !== '') ? (m.score1 !== '' ? m.score1 : 0) + ' – ' + (m.score2 !== '' ? m.score2 : 0) : '– : –'}</span>`}
-        </div>
+          <button class="btn text-xs py-1 px-2" onclick="openScorersModal('${cat.id}', '${m.id}')" title="Add goal scorers">⚽ Scorers</button>
+          ` : `
+          <span class="score-pill ${(m.score1 !== '' || m.score2 !== '') ? 'filled' : ''}">${(m.score1 !== '' || m.score2 !== '') ? (m.score1 !== '' ? m.score1 : 0) + ' – ' + (m.score2 !== '' ? m.score2 : 0) : '– : –'}</span>
+          ${(m.scorers1?.length || m.scorers2?.length) ? `<button class="btn text-xs py-1 px-2 bg-gray-50" onclick="openScorersModal('${cat.id}', '${m.id}')" title="View goal scorers">⚽</button>` : ''}
+          `}        </div>
       </div>`).join('')}
   `;
   }).join('');
 }
 
 function getFormatLabel(format) {
-  return { 'round-robin': 'Round robin', 'round-robin-knockouts': 'Round robin + knockouts', 'groups-playoffs': 'Groups + playoffs' }[format] || format;
+  return {
+    'round-robin': 'Round robin',
+    'round-robin-final': 'Round robin + final & 3rd place',
+    'round-robin-knockouts': 'Round robin + knockouts',
+    'groups-playoffs': 'Groups + playoffs'
+  }[format] || format;
 }
 
 function renderStandings(cat) {
@@ -1650,6 +1856,32 @@ document.addEventListener('click', e => {
   if (b) toggleCatCourt(b.dataset.cat, b.dataset.court, b.dataset.field);
 });
 
+function statusBadge(m) {
+  if (m.status === 'ongoing') return '<span class="status-badge live"><span class="status-dot"></span>Ongoing</span>';
+  if (finished(m)) return '<span class="status-badge done">✓ Completed</span>';
+  return '';
+}
+function statusButtons(cat, m) {
+  if (!editMode) return '';
+  const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+  return `<div class="flex items-center gap-1">
+    <button class="btn status-btn ${m.status === 'ongoing' ? 'on-live' : ''}" ${d} data-status="ongoing" title="Mark this match as being played now">Ongoing</button>
+    <button class="btn status-btn ${m.status === 'completed' ? 'on-done' : ''}" ${d} data-status="completed" title="Mark this match as finished">Completed</button>
+  </div>`;
+}
+function setMatchStatus(catId, matchId, status) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m) return;
+  m.status = (m.status === status) ? '' : status; // pressing the active one again clears it
+  render();
+  saveStatus(cat, m);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.status-btn');
+  if (b) setMatchStatus(b.dataset.cat, b.dataset.match, b.dataset.status);
+});
+
 function moveButtons(cat, m) {
   if (!editMode) return '';
   const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
@@ -1658,6 +1890,33 @@ function moveButtons(cat, m) {
     <button class="btn move-btn" ${d} data-dir="1" title="Move one time slot later">▶</button>
     ${m.pin ? `<button class="btn unpin-btn" ${d} title="Back to the automatic time">Auto</button>` : ''}
   </div>`;
+}
+
+// Row colours in the Full schedule: knockouts stand out, each group has its own shade, everything else uses the category colour
+function rowBg(cat, m) {
+  if (m.stage === 'ko') return hexToRgba('#facc15', 0.32);
+  if (m.group) return hexToRgba(groupColor(m.group, cat), 0.6);
+  return hexToRgba(cat.color, 0.16);
+}
+function legendHtml(all) {
+  const cats = [...new Set(all.map(x => x.cat))];
+  const chip = c => `<span class="inline-block rounded" style="width:12px;height:12px;background:${c}"></span>`;
+  return `<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">` +
+    cats.map(c => `<span class="inline-flex items-center gap-1.5">${chip(c.color)}${esc(c.name)}${isGrouped(c) && c.groups > 1 ? ' ' + groupLetters(c.groups).map(g => groupBadge(g, c)).join(' ') : ''}</span>`).join('') +
+    (all.some(x => x.m.stage === 'ko') ? `<span class="inline-flex items-center gap-1.5">${chip('#fde68a')}Knockout</span>` : '') + `</div>`;
+}
+// In Edit mode the Score column holds the two score boxes, so scores can be typed straight into the Full schedule
+function scoreCell(cat, m) {
+  if (!editMode) return `<td class="py-2 px-2 text-center font-medium text-xs">
+          ${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}
+          ${(m.scorers1?.length || m.scorers2?.length) ? `<button class="ml-1 text-gray-400 hover:text-gray-700" onclick="openScorersModal('${cat.id}', '${m.id}')" title="View goal scorers">⚽</button>` : ''}
+        </td>`;
+  const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+  return `<td class="py-2 px-2 text-center"><div class="flex items-center justify-center gap-1">
+      <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score1 !== '' ? 'filled' : ''}" value="${m.score1}" ${d} data-side="1">
+      <span class="text-gray-400 text-xs">–</span>
+      <input type="text" maxlength="2" inputmode="numeric" class="score-box ${m.score2 !== '' ? 'filled' : ''}" value="${m.score2}" ${d} data-side="2">
+    </div></td>`;
 }
 
 function renderSchedule() {
@@ -1669,7 +1928,7 @@ function renderSchedule() {
   }
   const courtNos = [...new Set(all.map(x => x.m.courtNo))].sort((a, b) => a - b);
   const colSpan = editMode ? 9 : 8;
-  box.innerHTML = courtNos.map(cn => {
+  box.innerHTML = legendHtml(all) + courtNos.map(cn => {
     const rows = all.filter(x => x.m.courtNo === cn);
     let lastDay = -1, prevM = null;
     const body = rows.map(({ cat, m }) => {
@@ -1684,16 +1943,16 @@ function renderSchedule() {
         head = `<tr><td colspan="${colSpan}" class="py-2 px-2 font-semibold text-gray-700 text-xs uppercase tracking-wide">${dayHeader(m.day)}</td></tr>`;
       }
       return head + brkHtml + `
-      <tr class="schedule-row border-b border-gray-100" style="${m.group ? 'background:' + hexToRgba(groupColor(m.group, cat), 0.6) : ''}">
-        <td class="py-2 px-2 font-medium text-emerald-600 text-xs whitespace-nowrap">${m.time} ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''} ${warnBadge(cat, m)}</td>
+      <tr class="schedule-row border-b border-gray-100${m.status === 'ongoing' ? ' is-live' : ''}" style="background:${rowBg(cat, m)};--rowc:${cat.color}">
+        <td class="py-2 px-2 font-medium text-emerald-600 text-xs whitespace-nowrap">${m.time} ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''} ${warnBadge(cat, m)}<div class="status-in-time">${statusBadge(m)}</div></td>
         <td class="py-2 px-2"><div class="flex items-center gap-1.5"><span class="cat-dot" style="background:${cat.color}"></span><span class="font-medium text-xs">${esc(cat.name)}</span></div></td>
         <td class="py-2 px-2">${m.group ? groupBadge(m.group, cat) : '—'}</td>
         <td class="py-2 px-2 text-gray-600 text-xs">${m.round}</td>
-        <td class="py-2 px-2">${done(m) ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Done</span>' : ''}</td>
+        <td class="py-2 px-2">${statusBadge(m)}</td>
         <td class="py-2 px-2 text-right font-semibold text-xs">${esc(displayName(cat, m, 1))}</td>
-        <td class="py-2 px-2 text-center font-medium text-xs">${m.score1 !== '' || m.score2 !== '' ? (m.score1 || '0') + ' – ' + (m.score2 || '0') : ''}</td>
+        ${scoreCell(cat, m)}
         <td class="py-2 px-2 font-semibold text-xs">${esc(displayName(cat, m, 2))}</td>
-        ${editMode ? `<td class="py-2 px-2">${moveButtons(cat, m)}</td>` : ''}
+        ${editMode ? `<td class="py-2 px-2"><div class="flex flex-wrap items-center gap-1">${statusButtons(cat, m)}${moveButtons(cat, m)}</div></td>` : ''}
       </tr>`;
     }).join('');
     return `
@@ -1715,7 +1974,7 @@ function renderSchedule() {
                 <th class="py-2 px-2 text-right">Home</th>
                 <th class="py-2 px-2 text-center">Score</th>
                 <th class="py-2 px-2">Away</th>
-                ${editMode ? '<th class="py-2 px-2">Move</th>' : ''}
+                ${editMode ? '<th class="py-2 px-2">Actions</th>' : ''}
               </tr>
             </thead>
             <tbody>${body}</tbody>
@@ -1727,23 +1986,32 @@ function renderSchedule() {
 
 function renderNextUp() {
   const el = document.getElementById('nextUp');
-  const pending = allMatches().filter(x => !done(x.m));
-  if (pending.length === 0) {
-    el.innerHTML = `<span class="text-gray-500 text-sm">${allMatches().length ? 'All matches completed 🎉' : 'No matches scheduled yet'}</span>`;
-    return;
-  }
-  const first = pending[0].m.slot;
-  const next = pending.filter(x => x.m.slot === first);
-  el.innerHTML = `
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-      <span class="text-emerald-600 text-sm font-medium">${next[0].m.time}${next[0].m.day > 0 ? ` · Day ${next[0].m.day + 1}` : ''}</span>
-      ${next.map(({ cat, m }) => `
+  const all = allMatches();
+  const live = all.filter(x => x.m.status === 'ongoing');
+  const pending = all.filter(x => x.m.status !== 'ongoing' && !finished(x.m));
+  const line = ({ cat, m }) => `
         <span class="flex items-center gap-1.5 text-sm">
           <span class="court-badge">${m.court}</span>
           <span class="cat-dot" style="background:${cat.color}"></span>
           ${esc(displayName(cat, m, 1))} <span class="text-gray-400 text-xs">vs</span> ${esc(displayName(cat, m, 2))}
-        </span>`).join('')}
+        </span>`;
+  let html = '';
+  if (live.length) {
+    html += `<div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1"><span class="status-badge live"><span class="status-dot"></span>Ongoing</span>${live.map(line).join('')}</div>`;
+  }
+  if (!pending.length) {
+    if (!live.length) html = `<span class="text-gray-500 text-sm">${all.length ? 'All matches completed 🎉' : 'No matches scheduled yet'}</span>`;
+    el.innerHTML = html;
+    return;
+  }
+  const first = pending[0].m.slot;
+  const next = pending.filter(x => x.m.slot === first);
+  html += `
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <span class="text-emerald-600 text-sm font-medium">${next[0].m.time}${next[0].m.day > 0 ? ` · Day ${next[0].m.day + 1}` : ''}</span>
+      ${next.map(line).join('')}
     </div>`;
+  el.innerHTML = html;
 }
 
 function updateCounts() {
@@ -1751,6 +2019,32 @@ function updateCounts() {
   document.getElementById('matchCount').textContent = total + ' match' + (total === 1 ? '' : 'es');
   document.getElementById('totalMatches').textContent = total;
   document.getElementById('catCount').textContent = state.categories.length;
+}
+
+// Scores typed in one tab are copied into the boxes of the other tab (the box being typed in is left alone)
+function syncScoreInputs() {
+  document.querySelectorAll('.score-box').forEach(b => {
+    if (b === document.activeElement) return;
+    const c = getCat(b.dataset.cat), mm = c && c.matches.find(x => x.id === b.dataset.match);
+    if (!mm) return;
+    const v = mm['score' + b.dataset.side] ?? '';
+    if (b.value !== v) { b.value = v; b.classList.toggle('filled', v !== ''); }
+  });
+}
+// Redraw the Full schedule after the click/Tab/Enter has finished, then put the cursor back where it is now
+let tableTimer = null;
+function scheduleTableRefresh() {
+  clearTimeout(tableTimer);
+  tableTimer = setTimeout(() => {
+    const a = document.activeElement;
+    const key = a && a.classList && a.classList.contains('score-box') && a.closest('#scheduleBody')
+      ? { cat: a.dataset.cat, match: a.dataset.match, side: a.dataset.side, s: a.selectionStart, e: a.selectionEnd } : null;
+    renderSchedule();
+    if (key) {
+      const el = Array.from(document.querySelectorAll('#scheduleBody .score-box')).find(x => x.dataset.cat === key.cat && x.dataset.match === key.match && x.dataset.side === key.side);
+      if (el) { el.focus(); try { el.setSelectionRange(key.s, key.e); } catch (err) {} }
+    }
+  }, 0);
 }
 
 function refreshDerived(catId) {
@@ -1762,7 +2056,8 @@ function refreshDerived(catId) {
     const m = cat.matches.find(x => x.id === mid);
     if (m) s.textContent = displayName(cat, m, +side);
   });
-  renderSchedule();
+  syncScoreInputs();
+  scheduleTableRefresh();
   renderNextUp();
 }
 
@@ -1787,7 +2082,7 @@ document.addEventListener('change', e => {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' || !e.target.classList.contains('score-box')) return;
   e.preventDefault();
-  const all = Array.from(document.querySelectorAll('.score-box'));
+  const all = Array.from(document.querySelectorAll('.score-box')).filter(x => x.offsetParent !== null);
   const next = all[all.indexOf(e.target) + 1];
   if (next) { next.focus(); next.select(); } else e.target.blur();
 });
@@ -1817,25 +2112,72 @@ function findAt(slot, courtNo) {
 
 function matchWarnings(cat, m) {
   const w = [];
-  const name = x => `${displayName(cat, x, 1)} vs ${displayName(cat, x, 2)}`;
-  if (m.stage !== 'ko') {
-    cat.matches.forEach(x => {
-      if (x === m || x.stage === 'ko' || x.slot !== m.slot) return;
-      const shared = [m.team1, m.team2].filter(t => t === x.team1 || t === x.team2);
-      if (shared.length) w.push(`${shared.join(' & ')} also plays at the same time (${name(x)}, ${x.court}).`);
-    });
-  }
+  if (!m) return w;
+
+  // Minimum slot gap between two matches of the same team.
+  //   2 = one slot of rest is required (adjacent slots warn).
+  //   1 = back-to-back is allowed.
+  const MIN_MATCH_GAP = 2;
+
+  // Flatten every match from every category so we see all courts.
+  const all = [];
+  state.categories.forEach(c => {
+    const full = c._full || c;
+    (full.matches || []).forEach(x => all.push({ cat: full, m: x }));
+  });
+
+  // ── Same time OR immediately before/after, any court, same team ──
+  all.forEach(({ cat: oc, m: x }) => {
+    if (x === m) return;
+    if (x.stage === 'ko') return;          // KO teams resolved later
+    if (x.day !== m.day) return;           // different day = overnight rest
+    const gap = Math.abs(x.slot - m.slot);
+    if (gap >= MIN_MATCH_GAP) return;
+
+    const shared = [m.team1, m.team2].filter(t => t === x.team1 || t === x.team2);
+    if (!shared.length) return;
+
+    // Adjacent slots: if a break falls between them, the team did get rest.
+    if (gap === 1) {
+      const perDay = (() => {
+        const mm    = Math.max(1, parseInt(state.matchMin) || 10);
+        const start = toMin(state.dayStarts);
+        const brk   = (state.breaks || []).reduce((s, b) => s + (parseInt(b.min) || 0), 0);
+        return Math.max(1, Math.floor((toMin(state.playUntil) - start - brk) / mm));
+      })();
+      const si = Math.min(m.slot, x.slot) % perDay;
+      if (getActiveBreaks().some(b => b.before === si + 1)) return;
+    }
+
+    const when  = gap === 0
+      ? 'at the same time'
+      : (x.slot < m.slot ? 'immediately before (no rest)' : 'immediately after (no rest)');
+    const who   = `${displayName(oc, x, 1)} vs ${displayName(oc, x, 2)}`;
+    const where = `${x.court}${oc.id === cat.id ? '' : ' · ' + oc.name}`;
+    w.push(`${shared.join(' & ')} also plays ${when} (${who}, ${where}).`);
+  });
+
+  // ── Court restriction for this category / KO round (unchanged) ──
   const koList = m.stage === 'ko' ? (cat.koMatchCourts || {})[m.id] : null;
-  const useKo = !!(koList && koList.length);
-  const cc = (useKo ? koList : (cat.courts || [])).map(Number);
-  if (cc.length && !cc.includes(m.courtNo)) w.push(`${cat.name}${useKo ? ' ' + m.round + ' is' : ' is'} assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
+  const useKo  = !!(koList && koList.length);
+  const cc     = (useKo ? koList : (cat.courts || [])).map(Number);
+  if (cc.length && !cc.includes(m.courtNo)) {
+    w.push(`${cat.name}${useKo ? ' ' + m.round + ' is' : ' is'} assigned to ${cc.map(n => 'C' + n).join(', ')}, not ${m.court}.`);
+  }
+
+  // ── Dependency ordering (unchanged) ──
   (m.deps || []).forEach(d => {
     const dm = cat.matches.find(x => x.id === d);
-    if (dm && dm.slot >= m.slot) w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
+    if (dm && dm.slot >= m.slot) {
+      w.push(`Played before ${dm.round === 'Group stage' ? 'the group stage is finished' : dm.round + ' is finished'}.`);
+    }
   });
   cat.matches.forEach(x => {
-    if ((x.deps || []).includes(m.id) && x.slot <= m.slot) w.push(`${x.round} is scheduled at or before this match.`);
+    if ((x.deps || []).includes(m.id) && x.slot <= m.slot) {
+      w.push(`${x.round} is scheduled at or before this match.`);
+    }
   });
+
   return [...new Set(w)];
 }
 function warnBadge(cat, m) {
@@ -1882,6 +2224,11 @@ function updateCatFormat(catId, format) {
   const cat = getCat(catId);
   cat.format = format;
   if (!cat.groups) cat.groups = 2;
+  changed(cat);
+}
+function updateCatSeed(catId, seed) {
+  const cat = getCat(catId);
+  cat.koSeed = seed;
   changed(cat);
 }
 function updateCatGroups(catId, groups) { const cat = getCat(catId); cat.groups = parseInt(groups); changed(cat); }
@@ -1995,6 +2342,7 @@ SETUP_IDS.forEach(id => {
       if (id === 'eventDate' && !v) { v = defaultDate(); e.target.value = v; }
       state[id] = v;
     }
+    if (id === 'playOrder') state.categories.forEach(buildMatches);
 
 
 
@@ -2031,6 +2379,57 @@ function showModal(html) {
   document.body.appendChild(o);
   return o;
 }
+  function showModal(html) {
+  const o = document.createElement('div');
+  o.className = 'password-modal';
+  o.style.zIndex = '200';
+  o.innerHTML = `<div class="password-box">${html}</div>`;
+  o.addEventListener('click', e => { if (e.target === o) o.remove(); });
+  document.body.appendChild(o);
+  return o;
+}
+
+// PASTE THE NEW FUNCTION HERE:
+window.openScorersModal = function(catId, matchId) {
+  const cat = getCat(catId);
+  const m = cat.matches.find(x => x.id === matchId);
+  if (!m) return;
+  const t1 = displayName(cat, m, 1);
+  const t2 = displayName(cat, m, 2);
+  const s1 = (m.scorers1 || []).join('\n');
+  const s2 = (m.scorers2 || []).join('\n');
+  
+  const o = showModal(`
+    <h3 class="font-semibold text-gray-900 mb-2">Goal Scorers</h3>
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-700 mb-1">${esc(t1)}</label>
+        <textarea id="scorers1" rows="5" class="w-full text-xs" placeholder="One name per line" ${!editMode ? 'readonly' : ''}>${esc(s1)}</textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-700 mb-1">${esc(t2)}</label>
+        <textarea id="scorers2" rows="5" class="w-full text-xs" placeholder="One name per line" ${!editMode ? 'readonly' : ''}>${esc(s2)}</textarea>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn flex-1" data-c>Close</button>
+      ${editMode ? `<button class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-s>Save</button>` : ''}
+    </div>
+  `);
+  o.firstElementChild.style.width = 'min(500px, 92vw)';
+  
+  o.querySelector('[data-c]').onclick = () => o.remove();
+  if (editMode) {
+    o.querySelector('[data-s]').onclick = () => {
+      m.scorers1 = o.querySelector('#scorers1').value.split('\n').map(x => x.trim()).filter(Boolean);
+      m.scorers2 = o.querySelector('#scorers2').value.split('\n').map(x => x.trim()).filter(Boolean);
+      save();
+      o.remove();
+      render();
+    };
+  }
+};
+
 function confirmDialog(message, onYes, yesLabel) {
   const o = showModal(`<p class="text-sm text-gray-800 mb-4">${esc(message)}</p>
     <div class="flex gap-2">
@@ -2069,19 +2468,20 @@ function compactState() {
         return r && (r.score1 !== '' || r.score2 !== '') ? r.score1 + '-' + r.score2 : '';
       }).join(',').replace(/,+$/, '');
       const pn = tmp.matches.map(m => { const r = cat.matches.find(x => x.id === m.id); return r && r.pin ? r.pin.slot + ':' + r.pin.court : ''; }).join(',').replace(/,+$/, '');
-      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || [], cat.koMatchCourts || {}];
-    })
+      const stt = tmp.matches.map(m => { const r = cat.matches.find(x => x.id === m.id); return r && r.status === 'ongoing' ? 'o' : (r && r.status === 'completed' ? 'c' : ''); }).join(',').replace(/,+$/, '');
+      return [cat.name, cat.color, cat.format, cat.groups, cat.teams, (cat.teamGroups || []).join(''), sc, pn, cat.courts || [], cat.koMatchCourts || {}, stt, cat.koSeed || 'cross'];    })
   };
 }
 function expandState(o) {
   const st = { tName: o.tn || 'Schedule 1', pwHash: '', eventDate: o.d, dayStarts: o.s, playUntil: o.u, matchMin: o.m, courts: o.c, breaks: o.brk || [], categories: [] };
   o.k.forEach((k, i) => {
-    const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), courts: k[8] || [], koMatchCourts: (k[9] && !Array.isArray(k[9])) ? k[9] : {}, matches: [] };
-    buildMatches(cat);
+    const cat = { id: 'cat' + Date.now() + i, name: k[0], color: k[1], format: k[2], groups: k[3], teams: k[4], teamGroups: k[5].split(''), courts: k[8] || [], koMatchCourts: (k[9] && !Array.isArray(k[9])) ? k[9] : {}, matches: [], koSeed: k[11] || 'cross' };    buildMatches(cat);
     const sc = k[6].split(',');
     cat.matches.forEach((m, j) => { if (sc[j]) { const [a, b] = sc[j].split('-'); m.score1 = a; m.score2 = b ?? ''; } });
     const pn = (k[7] || '').split(',');
     cat.matches.forEach((m, j) => { if (pn[j]) { const [sl, ct] = pn[j].split(':').map(Number); m.pin = { slot: sl, court: ct }; } });
+    const stt = (k[10] || '').split(',');
+    cat.matches.forEach((m, j) => { if (stt[j] === 'o') m.status = 'ongoing'; else if (stt[j] === 'c') m.status = 'completed'; });
     st.categories.push(cat);
   });
   state = st;
@@ -2192,6 +2592,7 @@ function openSnapshotFromHash() {
 }
 
 // Initial setup on page load
+if (!window.__storageOK) document.getElementById('storageWarn').classList.remove('hidden');
 openSnapshotFromHash();
 window.addEventListener('hashchange', openSnapshotFromHash);
 
@@ -2218,6 +2619,2244 @@ updateTournamentSelectDropdown();
   label.textContent = 'Local only'; label.className = 'text-xs font-medium text-gray-600';
   box.className = 'flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200';
 })();
+
+// ============================================================
+// MOBILE LAYOUT + "SHOW ONE TEAM" FILTER   (version 3, compact phone layout)
+//
+// HOW TO USE: this REPLACES the older block with the same title.
+// 1. In your page, find the block that starts with the comment
+//    "MOBILE LAYOUT + SHOW ONE TEAM FILTER" and delete it, down to its closing  })();
+// 2. Paste this whole file in the same place (at the end of your main script block).
+// Keep the penalties block (if you added it) after this one.
+// ============================================================
+(function () {
+  if (document.getElementById('filterMenu') || document.getElementById('teamFilterSelect')) {
+    console.warn('An older filter block is still in the page. Delete it and keep only this one.');
+    setTimeout(() => { try { toast('Two filter blocks are installed. Delete the older one.'); } catch (e) {} }, 600);
+    return;
+  }
+
+  // ---------- Styles (desktop stays exactly as it was) ----------
+  const css = `
+    .password-box { width: min(340px, 92vw); }
+    .m-sub { display: none; }
+    .team-hit { color: #047857 !important; font-weight: 700 !important; }
+    .team-banner { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+      background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; border-radius: 8px; padding: 8px 12px;
+      font-size: 13px; margin-bottom: 16px; }
+    .team-banner button { font-size: 12px; font-weight: 600; text-decoration: underline; cursor: pointer; }
+
+    /* Filter menu: categories, and a side menu with that category's teams */
+    #filterBtn.active { border-color: #10b981; background: #ecfdf5; color: #065f46; font-weight: 600; }
+    .fm-panel { position: absolute; right: 0; top: 100%; margin-top: 4px; min-width: 210px; max-width: 90vw; background: #fff;
+      border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.15); z-index: 60; font-size: 13px; }
+    .fm-item, .fm-row { padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 12px; white-space: nowrap; }
+    .fm-item:hover, .fm-row:hover { background: #f3f4f6; }
+    .fm-item.sel, .fm-row.sel { color: #047857; font-weight: 600; }
+    .fm-cat { position: relative; }
+    .fm-cat.open > .fm-row { background: #f3f4f6; }
+    .fm-arrow { color: #9ca3af; }
+    .fm-sub { display: none; position: absolute; right: 100%; top: 0; min-width: 180px; max-height: 60vh; overflow-y: auto; background: #fff;
+      border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
+    .fm-cat.open > .fm-sub { display: block; }
+    @media (hover: hover) and (min-width: 640px) { .fm-cat:hover > .fm-sub { display: block; } .fm-cat:hover > .fm-row { background: #f3f4f6; } }
+    .setup-toggle { display: none; }
+
+    /* Tablet and phone: stack the setup panel above the categories */
+    @media (max-width: 1023px) {
+      #categoryView > .grid { grid-template-columns: minmax(0, 1fr) !important; }
+      #categoryView > .grid > div { grid-column: 1 / -1 !important; min-width: 0; }
+      .setup-head { cursor: pointer; }
+      .setup-toggle { display: inline-flex; }
+      .setup-body.collapsed { display: none; }
+    }
+
+    /* Phone: compact, so more fits on the screen */
+    @media (max-width: 639px) {
+      header > div { flex-wrap: wrap; gap: 4px; padding: 4px 8px !important; }
+      header > div > div:first-child { flex-wrap: wrap; gap: 6px; min-width: 0; }
+      header > div > div:first-child > span.text-gray-400 { display: none; }
+      #scheduleName { max-width: 46vw; }
+      header .header-btn { padding: 6px 8px; }
+      #navHomeBtn, #exportPdfBtn, #shareBtn { font-size: 0; gap: 0; }
+      header > div > div:last-child > div:first-child > span:last-child { display: none; }
+
+      #homeView, #tournamentContainer > .max-w-7xl { padding-left: 8px !important; padding-right: 8px !important; }
+      #homeView { padding-top: 12px !important; padding-bottom: 12px !important; }
+      #homeView > div:first-child { flex-wrap: wrap; gap: 8px; margin-bottom: 12px !important; }
+      #homeView h1 { font-size: 1.25rem; }
+      #categoryView, #scheduleView, #standingsView { padding-bottom: 12px !important; }
+
+      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView):not(#standingsView) { flex-wrap: wrap; gap: 6px; padding-top: 6px !important; padding-bottom: 6px !important; }
+      #tournamentContainer > .max-w-7xl:not(#categoryView):not(#scheduleView):not(#standingsView) > div:last-child { width: 100%; justify-content: space-between; }
+      .tab-active, .tab-inactive { padding: 5px 9px !important; font-size: 12px !important; }
+      #filterMenu { flex: 1; min-width: 0; }
+      #filterBtn { width: 100%; text-align: left; }
+      .fm-panel { left: 0; right: 0; max-height: 70vh; overflow-y: auto; }
+      .fm-sub { position: static; border: none; box-shadow: none; border-radius: 0; max-height: none; background: #f9fafb; }
+      .fm-item, .fm-row { padding: 9px 12px; }
+      .fm-sub .fm-item { padding-left: 24px; }
+      .fm-arrow { display: inline-block; transform: rotate(90deg); }
+
+      html input, html select, html textarea { font-size: 16px !important; }
+      #tournamentContainer .p-4 { padding: 8px !important; }
+      #tournamentContainer .px-4.py-3 { padding: 6px 10px !important; }
+      #mainCol > * + *, #standingsBody > * + *, #scheduleBody > * + * { margin-top: 8px !important; }
+      #categoriesContainer > div { margin-bottom: 8px !important; }
+      #tournamentContainer .space-y-3 > * + * { margin-top: 6px !important; }
+      #viewInfo { padding: 6px 10px !important; font-size: 12px !important; }
+      #nextUp { font-size: 12px; }
+      #scheduleView h2 { font-size: 14px; margin-bottom: 6px !important; }
+
+      .btn { padding: 5px 9px; }
+      .move-btn { padding: 5px 9px; }
+      .status-btn { padding: 4px 6px; font-size: 10px; }
+      .court-chip { padding: 4px 9px; }
+      .color-dot { width: 24px; height: 24px; }
+      .court-badge { padding: 1px 5px; font-size: 9px; }
+      .group-badge { padding: 1px 5px; font-size: 10px; }
+      .team-chip { padding: 2px 6px !important; }
+      #breaksList > div { flex-wrap: wrap; }
+
+      .match-card { flex-wrap: wrap; gap: 4px 6px; padding: 6px 8px !important; margin-bottom: 4px !important; border-radius: 6px; }
+      .match-card > div:first-child { flex: 1 1 100%; flex-wrap: wrap; gap: 2px 8px !important; min-width: 0; }
+      .match-card span[style*="min-width"] { min-width: 0 !important; }
+      .match-card > div:last-child { margin-left: auto; gap: 4px !important; }
+      /* spectator view: the score sits beside the teams instead of on its own row */
+      .match-card:has(.score-pill) { flex-wrap: nowrap; }
+      .match-card:has(.score-pill) > div:first-child { flex: 1 1 0; }
+      .match-card:has(.score-pill) > div:last-child { flex: 0 0 auto; }
+      .match-card .text-sm { font-size: 12.5px !important; }
+      .match-card .text-xs { font-size: 10.5px !important; }
+      .match-card .font-semibold { word-break: break-word; }
+      .score-box { width: 40px; height: 32px; font-size: 13px; }
+      .score-pill { min-width: 52px; padding: 3px 8px; font-size: 13px; }
+
+      .standings-table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+      .standings-table td { padding: 4px 6px; font-size: 12px; }
+      .standings-table th { padding: 4px 6px; font-size: 9px; }
+
+      /* Full schedule: keep Time / Home / Score / Away, move the rest under the time */
+      #scheduleBody thead th:nth-child(n+2):nth-child(-n+5),
+      #scheduleBody tr.schedule-row > :nth-child(n+2):nth-child(-n+5) { display: none; }
+      .m-sub { display: block; font-size: 10px; font-weight: 500; color: #6b7280; white-space: normal; margin-top: 1px; }
+      #scheduleBody td, #scheduleBody th { padding: 4px 5px !important; }
+      #scheduleBody .text-xs { font-size: 10.5px !important; }
+    }
+  `;
+  const st = document.createElement('style');
+  st.id = 'mobileAndFilterStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  // ---------- Setup panel: collapsible on phones ----------
+  const setupBody = document.getElementById('tNameInput').closest('.space-y-3');
+  const setupHead = setupBody.parentElement.querySelector('h3');
+  setupBody.classList.add('setup-body', 'collapsed');
+  setupHead.classList.add('setup-head');
+  setupHead.insertAdjacentHTML('beforeend', '<span class="setup-toggle ml-auto text-gray-400" id="setupChev">▾</span>');
+  setupHead.addEventListener('click', () => {
+    const c = setupBody.classList.toggle('collapsed');
+    document.getElementById('setupChev').textContent = c ? '▾' : '▴';
+  });
+
+  // ---------- Team filter ----------
+  let teamFilter = '';
+  let catFilter = '';
+  let filterScope = false;
+  let editSeen = false;
+  const active = () => !!(teamFilter || catFilter);
+  const inF = (cat, m) => (!catFilter || cat.id === catFilter) &&
+    (!teamFilter || displayName(cat, m, 1) === teamFilter || displayName(cat, m, 2) === teamFilter);
+  const catsIn = () => state.categories.filter(c => (!catFilter || c.id === catFilter) && (!teamFilter || c.teams.includes(teamFilter)));
+  const filterName = () => {
+    const c = state.categories.find(x => x.id === catFilter);
+    if (teamFilter) return `<b>${esc(teamFilter)}</b>` + (c ? ` in <b>${esc(c.name)}</b>` : '');
+    return c ? `<b>${esc(c.name)}</b>` : '';
+  };
+
+  const countEl = document.getElementById('matchCount');
+  countEl.parentElement.insertAdjacentHTML('afterbegin',
+    `<div id="filterMenu" class="relative"><button id="filterBtn" type="button" class="btn text-xs" aria-haspopup="true" aria-expanded="false" title="Show only one category or team">Filter by team ▾</button><div id="filterPanel" class="fm-panel hidden"></div></div>`);
+  const fBtn = document.getElementById('filterBtn');
+  const fPanel = document.getElementById('filterPanel');
+  let panelOpen = false, openCat = '';
+
+  function renderTeamFilter() {
+    if (catFilter && !state.categories.some(c => c.id === catFilter)) { catFilter = ''; teamFilter = ''; }
+    const cat = state.categories.find(c => c.id === catFilter);
+    if (teamFilter && !(cat && cat.teams.includes(teamFilter))) teamFilter = '';
+    fBtn.innerHTML = (teamFilter ? esc(teamFilter) + (cat ? ' · ' + esc(cat.name) : '') : (cat ? esc(cat.name) : 'Filter by team')) + ' ▾';
+    fBtn.classList.toggle('active', active());
+    fBtn.setAttribute('aria-expanded', panelOpen ? 'true' : 'false');
+    fPanel.classList.toggle('hidden', !panelOpen);
+    fPanel.innerHTML = `<div class="fm-item${!catFilter ? ' sel' : ''}" data-clear="1">Show everything</div>` +
+      state.categories.map(c => {
+        const isCat = c.id === catFilter;
+        return `<div class="fm-cat${openCat === c.id ? ' open' : ''}">
+          <div class="fm-row${isCat ? ' sel' : ''}" data-toggle="${esc(c.id)}"><span>${esc(c.name)}</span><span class="fm-arrow">›</span></div>
+          <div class="fm-sub">
+            <div class="fm-item${isCat && !teamFilter ? ' sel' : ''}" data-cat="${esc(c.id)}" data-team="">All of ${esc(c.name)}</div>
+            ${c.teams.slice().sort((x, y) => x.localeCompare(y, undefined, { sensitivity: 'base' })).map(t => `<div class="fm-item${isCat && teamFilter === t ? ' sel' : ''}" data-cat="${esc(c.id)}" data-team="${esc(t)}">${esc(t)}</div>`).join('')}
+          </div>
+        </div>`;
+      }).join('');
+  }
+
+  function highlight() {
+    document.querySelectorAll('[data-ko]').forEach(s => s.classList.toggle('team-hit', !!teamFilter && s.textContent === teamFilter));
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      [5, 7].forEach(i => { const td = tr.children[i]; if (td) td.classList.toggle('team-hit', !!teamFilter && td.textContent.trim() === teamFilter); });
+    });
+    document.querySelectorAll('#standingsBody .standings-table tbody tr').forEach(tr => {
+      const td = tr.children[1];
+      if (td) td.classList.toggle('team-hit', !!teamFilter && td.textContent.trim() === teamFilter);
+    });
+  }
+  function decorateSchedule() {
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      const c = tr.children;
+      if (!c[0] || c[0].querySelector('.m-sub')) return;
+      const parts = [(c[1] && c[1].textContent.trim()) || ''];
+      const g = c[2] && c[2].textContent.trim(), r = c[3] && c[3].textContent.trim();
+      if (g && g !== '—') parts.push('Group ' + g);
+      if (r && r !== 'Group stage') parts.push(r);
+      c[0].insertAdjacentHTML('beforeend', `<div class="m-sub">${esc(parts.filter(Boolean).join(' · '))}</div>`);
+    });
+  }
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const scoped = (fn, ...a) => { filterScope = true; try { return fn(...a); } finally { filterScope = false; } };
+  const withCats = fn => { const all = state.categories; state.categories = catsIn(); try { fn(); } finally { state.categories = all; } };
+
+  wrap('allMatches', o => { const l = o(); return filterScope && active() ? l.filter(x => inF(x.cat, x.m)) : l; });
+wrap('matchWarnings', (o, cat, m) => o(cat._full || cat, m));   // keep the match argument!
+  wrap('renderMatchesByTimeSlot', (o, cat) => {
+    if (!active()) return o(cat);
+    return o({ ...cat, matches: cat.matches.filter(m => inF(cat, m)), _full: cat });
+  });
+  wrap('renderCategories', o => {
+    if (!active()) { o(); return; }
+    withCats(o);
+    document.getElementById('categoriesContainer').insertAdjacentHTML('afterbegin',
+      `<div class="team-banner"><span>Showing only ${filterName()}</span><button type="button" onclick="clearTeamFilter()">Show everything</button></div>`);
+  });
+  wrap('renderStandingsView', o => { if (active()) withCats(o); else o(); highlight(); });
+  wrap('renderSchedule', o => {
+    scoped(o);
+    if (active() && !document.querySelector('#scheduleBody tr.schedule-row')) {
+      document.getElementById('scheduleBody').innerHTML = `<p class="py-6 text-center text-gray-500 text-sm">No matches for ${filterName()}</p>`;
+    }
+    decorateSchedule(); highlight();
+  });
+  wrap('renderNextUp', o => {
+    scoped(o);
+    if (active()) document.getElementById('nextUp').insertAdjacentHTML('afterbegin', `<div class="text-xs text-gray-500 mb-1">Showing ${filterName()}</div>`);
+  });
+  wrap('updateCounts', o => {
+    o();
+    if (!active()) return;
+    const total = state.categories.reduce((s, c) => s + c.matches.length, 0);
+    const n = scoped(() => allMatches().length);
+    countEl.textContent = `${n} of ${total} matches`;
+    document.getElementById('totalMatches').textContent = n;
+  });
+  wrap('refreshDerived', (o, id) => { o(id); highlight(); });
+  wrap('selectTournament', (o, id, force) => { teamFilter = ''; catFilter = ''; return o(id, force); });
+  wrap('render', o => {
+    renderTeamFilter();
+    o();
+    highlight();
+    if (editMode && !editSeen) { editSeen = true; setupBody.classList.remove('collapsed'); document.getElementById('setupChev').textContent = '▴'; }
+    if (!editMode) editSeen = false;
+  });
+
+  function applyFilter() {
+    renderTeamFilter();
+    renderCategories(); renderSchedule(); renderStandingsView(); renderNextUp(); updateCounts(); highlight();
+  }
+  fBtn.addEventListener('click', e => { e.stopPropagation(); panelOpen = !panelOpen; renderTeamFilter(); });
+  fPanel.addEventListener('click', e => {
+    e.stopPropagation();
+    const clear = e.target.closest('[data-clear]');
+    const item = e.target.closest('.fm-item[data-cat]');
+    const tog = e.target.closest('[data-toggle]');
+    if (clear) { catFilter = ''; teamFilter = ''; panelOpen = false; openCat = ''; applyFilter(); }
+    else if (item) { catFilter = item.dataset.cat; teamFilter = item.dataset.team || ''; panelOpen = false; openCat = ''; applyFilter(); }
+    else if (tog) { openCat = (openCat === tog.dataset.toggle) ? '' : tog.dataset.toggle; renderTeamFilter(); }
+  });
+  document.addEventListener('click', () => { if (panelOpen) { panelOpen = false; renderTeamFilter(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && panelOpen) { panelOpen = false; renderTeamFilter(); } });
+  window.clearTeamFilter = () => { catFilter = ''; teamFilter = ''; applyFilter(); };
+
+  if (currentView === 'tournament') render();
+})();
+// ============================================================
+// MATCH MOVING, AUTO / RESET, AND NO TOP BAR ON THE HOME SCREEN
+//
+// Paste this whole block at the very end of your main script block,
+// just above its closing script tag (after your other add-ons is fine).
+// The functions below have the same names as your old ones, so these
+// versions are the ones that run. You can delete the old ones later.
+//
+// - Moving a match swaps it with the match in that slot. Nothing else moves.
+// - "Auto" puts one match back at its own automatic time.
+// - "Reset manual moves" brings the whole timetable back to the original.
+// - The top bar is hidden on the Home screen.
+// ============================================================
+
+function scheduleAll() {
+  const courts = Math.max(1, parseInt(state.courts) || 1);
+  const mm = Math.max(1, parseInt(state.matchMin) || 10);
+  const start = toMin(state.dayStarts);
+
+  const totalBreaksTime = (state.breaks || []).reduce((sum, b) => sum + (parseInt(b.min) || 0), 0);
+  const perDay = Math.max(1, Math.floor((toMin(state.playUntil) - start - totalBreaksTime) / mm));
+  const cats = state.categories;
+
+  // Always schedule from the original match order, so the automatic timetable never depends on earlier moves.
+  // (Freshly built matches are still in their original order, so number them before anything gets sorted.)
+  cats.forEach(c => { if (c.matches.some(m => m.ord == null)) c.matches.forEach((m, i) => { m.ord = i; }); });
+  cats.forEach(c => c.matches.sort((a, b) => a.ord - b.ord));
+
+  const allowedCourts = cats.map(c => {
+    const a = (c.courts || []).map(Number).filter(n => n >= 1 && n <= courts);
+    return a.length ? a : null;
+  });
+  const clean = a => { const l = (a || []).map(Number).filter(n => n >= 1 && n <= courts); return l.length ? l : null; };
+  const koMap = cats.map(c => {
+    const o = {};
+    Object.keys(c.koMatchCourts || {}).forEach(id => { o[id] = clean(c.koMatchCourts[id]); });
+    return o;
+  });
+  const courtOK = (ci, m, ct) => {
+    let list = allowedCourts[ci];
+    if (m.stage === 'ko' && koMap[ci][m.id]) list = koMap[ci][m.id];
+    return !list || list.includes(ct);
+  };
+
+    const pend = cats.map(c => [...c.matches]);
+  const slotOf = cats.map(() => ({}));
+  let left = cats.reduce((n, c) => n + c.matches.length, 0), slot = 0;
+  let prev = cats.map(() => new Set());
+  let prevAll = new Set();                       // NEW: teams playing in the previous slot, any category
+  const koEnd = state.koEnd === 'end';
+  let lastGroup = -1;
+  const byRound = state.playOrder === 'round';
+  let turn = 0;
+  const curRnd = ci => { let r = Infinity; pend[ci].forEach(x => { if (x.stage !== 'ko' && (x.rnd ?? 0) < r) r = x.rnd ?? 0; }); return r; };
+  const timeAt = sl => { const si = sl % perDay; const t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / perDay), timeMin: t, time: formatTime(t) }; };
+
+  // NEW: is there real rest between two adjacent slots?  (break between them, or overnight)
+  const breakBetween = (s1, s2) => {
+    if (s1 > s2) [s1, s2] = [s2, s1];
+    if (s2 - s1 !== 1) return false;
+    const d1 = Math.floor(s1 / perDay), d2 = Math.floor(s2 / perDay);
+    if (d1 !== d2) return true;                                  // overnight = rest
+    const si = s1 % perDay;
+    return getActiveBreaks().some(b => b.before === si + 1);     // break falls between the two slots
+  };
+
+  while (left > 0 && slot < 5000) {
+    const used = cats.map(() => new Set());
+    const usedAll = new Set();                   // NEW: teams placed in this slot, across every category
+    if (byRound) for (let i = 0; i < cats.length && !pend[turn].length; i++) turn = (turn + 1) % cats.length;
+    const place = (ci, m, court) => {
+      left--;
+      slotOf[ci][m.id] = slot;
+      if (m.stage !== 'ko') lastGroup = slot;
+      used[ci].add(m.team1); used[ci].add(m.team2);
+      usedAll.add(m.team1); usedAll.add(m.team2);                // NEW
+      Object.assign(m, timeAt(slot), { courtNo: court, court: 'C' + court });
+    };
+    const pick = (ci, strict, court) => {
+      const idx = pend[ci].findIndex(m => {
+        if (!courtOK(ci, m, court)) return false;
+        if (!(m.deps || []).every(d => slotOf[ci][d] !== undefined && slotOf[ci][d] < slot)) return false;
+        if (m.stage === 'ko') return !koEnd || (lastGroup < slot && pend.every(l => !l.some(x => x.stage !== 'ko')));
+        if (byRound && (m.rnd ?? 0) !== curRnd(ci)) return false;
+
+        // ── HARD: same team already scheduled this slot (same or any category) ──
+        if (used[ci].has(m.team1) || used[ci].has(m.team2)) return false;
+        if (usedAll.has(m.team1) || usedAll.has(m.team2)) return false;
+
+        // ── SOFT (strict only): no back-to-back with previous slot ──
+        if (strict) {
+          const prevClash =
+            prev[ci].has(m.team1) || prev[ci].has(m.team2) ||
+            prevAll.has(m.team1)   || prevAll.has(m.team2);
+          if (prevClash && !breakBetween(slot - 1, slot)) return false;
+        }
+        return true;
+      });
+      return idx < 0 ? null : pend[ci].splice(idx, 1)[0];
+    };
+
+    for (let court = 1; court <= courts; court++) {
+      for (let k = 0; k < cats.length; k++) {
+        const ci = byRound ? (turn + k) % cats.length : (k + slot + court - 1) % cats.length;
+        const m = pick(ci, true, court);
+        if (!m) continue;
+        place(ci, m, court);
+        if (byRound && ci === turn && m.stage !== 'ko' && !pend[ci].some(x => x.stage !== 'ko' && (x.rnd ?? 0) === (m.rnd ?? 0))) turn = (turn + 1) % cats.length;
+        break;
+      }
+    }
+    prev = used;
+    prevAll = usedAll;                           // NEW: roll this slot into "previous" for next iteration
+    slot++;
+  }
+  // Remember the automatic timetable, so "Auto" and "Reset" can always return to it
+  cats.forEach(c => c.matches.forEach(m => { m.aSlot = m.slot; m.aCourt = m.courtNo; }));
+
+  // Manual moves are laid on top of it and only touch the matches that were moved
+  const cell = (s, c) => s + ':' + c;
+  const autoHolder = {};
+  cats.forEach(c => c.matches.forEach(m => { autoHolder[cell(m.slot, m.courtNo)] = m; }));
+  const pinned = new Set();
+  cats.forEach(c => c.matches.forEach(m => {
+    if (!m.pin) return;
+    if (Number(m.pin.slot) === m.aSlot && Number(m.pin.court) === m.aCourt) delete m.pin;   // moved back to its own time
+    else pinned.add(m);
+  }));
+  let again = true;
+  while (again) {
+    again = false;
+    const taken = {};
+    [...pinned].forEach(m => {
+      const sl = Number(m.pin.slot), ct = Number(m.pin.court), key = cell(sl, ct), h = autoHolder[key];
+      const ok = Number.isInteger(sl) && sl >= 0 && Number.isInteger(ct) && ct >= 1 && ct <= courts &&
+        !taken[key] && (!h || h === m || pinned.has(h));
+      if (ok) taken[key] = m; else { delete m.pin; pinned.delete(m); again = true; }
+    });
+  }
+  pinned.forEach(m => {
+    const ct = Number(m.pin.court);
+    Object.assign(m, timeAt(Number(m.pin.slot)), { courtNo: ct, court: 'C' + ct });
+  });
+  cats.forEach(c => c.matches.sort(matchOrder));
+}
+
+function moveMatch(catId, matchId, delta) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m) return;
+  const from = { slot: m.slot, court: m.courtNo }, target = from.slot + delta;
+  if (target < 0) { toast('This is already the first time slot.'); return; }
+  const other = findAt(target, m.courtNo);      // whoever is in that slot on the same court
+  const setPin = (x, slot, court) => { if (slot === x.aSlot && court === x.aCourt) delete x.pin; else x.pin = { slot, court }; };
+  setPin(m, target, m.courtNo);
+  if (other) setPin(other.m, from.slot, from.court);   // the two simply swap places
+  changed();
+  const w = matchWarnings(cat, m).concat(other ? matchWarnings(other.cat, other.m) : []);
+  if (w.length) toast('Moved, but: ' + w[0]);
+}
+function unpinMatch(catId, matchId) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m || !m.pin) return;
+  const here = { slot: m.slot, court: m.courtNo };
+  const occ = findAt(m.aSlot, m.aCourt);        // who is sitting in my automatic time right now
+  delete m.pin;
+  if (occ && occ.m !== m) {                     // they take the time I am leaving
+    if (occ.m.aSlot === here.slot && occ.m.aCourt === here.court) delete occ.m.pin;
+    else occ.m.pin = { slot: here.slot, court: here.court };
+  }
+  changed();
+}
+
+function switchMainView(view) {
+  currentView = view;
+  document.querySelector('header').classList.toggle('hidden', view === 'home');   // no top bar on the home screen
+  if (view === 'home') {
+    document.getElementById('homeView').classList.remove('hidden');
+    document.getElementById('tournamentContainer').classList.add('hidden');
+    renderHome();
+  } else {
+    document.getElementById('homeView').classList.add('hidden');
+    document.getElementById('tournamentContainer').classList.remove('hidden');
+    render();
+  }
+}
+  // ============================================================
+// PENALTIES FOR KNOCKOUT MATCHES
+// Paste this whole block at the very end of your main script block,
+// after your other add-ons and just above its closing script tag.
+// It does not change any of your existing code.
+//
+// Semi-finals, the 3rd/4th place match and the final get a "Pens" box
+// whenever their score is tied. The penalty score decides who goes through.
+// ============================================================
+(function () {
+  const css = `
+    .pen-wrap { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px;
+      background: #fff7ed; border: 1px solid #fdba74; font-size: 11px; font-weight: 700; color: #9a3412; white-space: nowrap; }
+    .pen-box { width: 38px; height: 32px; text-align: center; font-weight: 700; font-size: 14px; border: 2px solid #fdba74;
+      border-radius: 6px; background: #fff; }
+    .pen-box:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,.2); }
+    .pen-box.tie { border-color: #ef4444; }
+    .pen-note { font-size: 11px; font-weight: 700; color: #9a3412; margin-left: 6px; white-space: nowrap; }
+    @media (max-width: 639px) { .pen-box { width: 44px; height: 38px; } }
+  `;
+  const st = document.createElement('style');
+  st.id = 'penaltyStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const num = v => (v === '' || v == null || isNaN(v)) ? null : parseInt(v, 10);
+  const isTied = m => done(m) && +m.score1 === +m.score2;
+  const hasPens = m => num(m.pen1) !== null || num(m.pen2) !== null;
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  // ---- Who wins a tied knockout match: the penalty score decides ----
+  wrap('resolveRef', (o, cat, ref) => {
+    if (ref && (ref.t === 'win' || ref.t === 'lose')) {
+      const m = cat.matches.find(x => x.id === ref.m);
+      if (m && isTied(m)) {
+        const p1 = num(m.pen1), p2 = num(m.pen2);
+        if (p1 === null || p2 === null || p1 === p2) return null;     // not decided yet
+        const firstWon = p1 > p2;
+        const src = ref.t === 'lose' ? (firstWon ? m.ref2 : m.ref1) : (firstWon ? m.ref1 : m.ref2);
+        return resolveRef(cat, src);
+      }
+    }
+    return o(cat, ref);
+  });
+
+  // ---- Keep penalties when matches are rebuilt (adding teams, remote updates ...) ----
+  wrap('buildMatches', (o, cat) => {
+    const keep = {};
+    cat.matches.forEach(m => { if (m.stage === 'ko' && hasPens(m)) keep[m.id] = [m.pen1, m.pen2]; });
+    o(cat);
+    cat.matches.forEach(m => { if (m.stage === 'ko' && keep[m.id]) { m.pen1 = keep[m.id][0]; m.pen2 = keep[m.id][1]; } });
+  });
+
+  // ---- Share snapshot links carry the penalties too ----
+  wrap('compactState', o => {
+    const r = o();
+    r.pn = state.categories.map(cat => cat.matches.filter(m => m.stage === 'ko' && hasPens(m)).map(m => [m.id, m.pen1 ?? '', m.pen2 ?? '']));
+    return r;
+  });
+  wrap('expandState', (o, obj) => {
+    o(obj);
+    (obj.pn || []).forEach((list, i) => {
+      const cat = state.categories[i];
+      if (!cat) return;
+      list.forEach(([id, a, b]) => { const m = cat.matches.find(x => x.id === id); if (m) { m.pen1 = a; m.pen2 = b; } });
+    });
+  });
+
+  // ---- The boxes themselves (added to the match cards / schedule table after they are drawn) ----
+  function penGroup(cat, m) {
+    const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+    const p1 = m.pen1 ?? '', p2 = m.pen2 ?? '';
+    const bad = num(p1) !== null && num(p1) === num(p2);
+    return `<div class="pen-wrap" title="The match is tied. Enter the penalty shoot-out score.">Pens
+      <input type="text" maxlength="2" inputmode="numeric" class="pen-box${bad ? ' tie' : ''}" ${d} data-pen="1" value="${esc(p1)}">
+      <span>–</span>
+      <input type="text" maxlength="2" inputmode="numeric" class="pen-box${bad ? ' tie' : ''}" ${d} data-pen="2" value="${esc(p2)}"></div>`;
+  }
+  function decoratePens() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      const hit = matchFromCard(card);
+      const existing = card.querySelector('.pen-wrap');
+      const note = card.querySelector('.pen-note');
+      if (!hit || hit.m.stage !== 'ko' || !isTied(hit.m)) { if (existing) existing.remove(); if (note) note.remove(); return; }
+      const { cat, m } = hit;
+      if (editMode) {
+        if (note) note.remove();
+        if (!existing) card.lastElementChild.insertAdjacentHTML('beforeend', penGroup(cat, m));
+      } else {
+        if (existing) existing.remove();
+        const text = hasPens(m) ? `pens ${num(m.pen1) ?? 0}–${num(m.pen2) ?? 0}` : 'tied';
+        if (note) note.textContent = text;
+        else { const pill = card.querySelector('.score-pill'); if (pill) pill.insertAdjacentHTML('afterend', `<span class="pen-note">${text}</span>`); }
+      }
+    });
+    // the Full schedule table: add the penalty score next to a tied result
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      const c = tr.children;
+      if (!c[6]) return;
+      const old = c[6].querySelector('.pen-note');
+      if (old) old.remove();
+      const cat = state.categories.find(x => x.name === c[1].textContent.trim());
+      const m = cat && cat.matches.find(x => x.stage === 'ko' && x.round === c[3].textContent.trim());
+      if (m && isTied(m) && hasPens(m)) c[6].insertAdjacentHTML('beforeend', `<span class="pen-note">(pens ${num(m.pen1) ?? 0}–${num(m.pen2) ?? 0})</span>`);
+    });
+  }
+  ['renderCategories', 'renderSchedule'].forEach(n => wrap(n, o => { o(); decoratePens(); }));
+  wrap('refreshDerived', (o, id) => { o(id); decoratePens(); });
+  wrap('render', o => { o(); decoratePens(); });
+
+  // ---- Typing penalties ----
+  document.addEventListener('input', e => {
+    if (!e.target.classList.contains('pen-box')) return;
+    e.target.value = e.target.value.replace(/[^0-9]/g, '');
+  });
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (!t.classList.contains('pen-box') || !editMode) return;
+    const cat = getCat(t.dataset.cat);
+    const m = cat && cat.matches.find(x => x.id === t.dataset.match);
+    if (!m) return;
+    m['pen' + t.dataset.pen] = t.value;
+    const bad = num(m.pen1) !== null && num(m.pen1) === num(m.pen2);
+    t.closest('.pen-wrap').querySelectorAll('.pen-box').forEach(b => b.classList.toggle('tie', bad));
+    if (bad) toast('Penalties cannot end level. Enter the final shoot-out score.');
+    save();
+    refreshDerived(cat.id);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || !e.target.classList.contains('pen-box')) return;
+    e.preventDefault();
+    const all = Array.from(document.querySelectorAll('.score-box, .pen-box')).filter(x => x.offsetParent !== null);
+    const next = all[all.indexOf(e.target) + 1];
+    if (next) { next.focus(); next.select(); } else e.target.blur();
+  });
+
+  if (currentView === 'tournament') render();
+})();
+  // ============================================================
+// MATCH BAR TOOLS
+//
+// Paste this whole block at the very end of your main script block,
+// just above its closing script tag (after your other add-ons).
+// It does not change any of your existing code.
+//
+// 1. The time bars keep their layout: the time, court, status and team names
+//    stay in fixed columns, so "Ongoing" / "Completed" no longer push things around.
+// 2. Edit mode: a  -  and  +  button on each side of the two score boxes.
+// 3. Edit mode: a W/O (walkover) button on each match.
+// 4. Phones no longer zoom in when you tap a score box.
+// ============================================================
+(function () {
+  const WALKOVER_WIN = 3;       // a walkover is recorded as 3 - 0 (change this number if your rules differ)
+
+  const css = `
+    /* ---- 1. stable columns in the match bar ---- */
+    .match-card { padding-top: 8px !important; padding-bottom: 8px !important; flex-wrap: wrap; gap: 6px 12px; }
+    .match-card > div:first-child { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 4px; column-gap: 10px; }
+    .match-card > div:last-child { flex: 0 1 auto; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    .match-card .mc-time { order: 1; flex: 0 0 138px; width: 138px; min-width: 138px !important; font-size: 11.5px; }
+    .match-card .mc-court { order: 2; flex: 0 0 30px; width: 30px; box-sizing: border-box; text-align: center; }
+    .match-card .mc-status { order: 3; flex: 0 0 78px; width: 78px; display: flex; align-items: center; }
+    .match-card .mc-status .status-badge { font-size: 9px; padding: 1px 6px; }
+    .match-card .mc-n1 { order: 4; }
+    .match-card .mc-vs { order: 5; }
+    .match-card .mc-n2 { order: 6; }
+    .match-card .mc-tag { order: 7; }
+    .match-card .mc-flag { order: 8; }
+    .match-card .mc-day { order: 9; }
+    .status-badge.wo { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
+
+    /* ---- 2. score +/- buttons ---- */
+    .sc-btn { width: 26px; height: 32px; line-height: 1; font-size: 16px; font-weight: 700; color: #4b5563; background: #fff;
+      border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; padding: 0; touch-action: manipulation; }
+    .sc-btn:hover { background: #f3f4f6; }
+    .sc-btn:active { background: #e5e7eb; }
+
+    /* ---- 3. walkover ---- */
+    .wo-btn.on { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+
+    /* ---- 4. no zoom when typing on touch screens ---- */
+    @media (pointer: coarse) {
+      html input, html select, html textarea { font-size: 16px !important; }
+      input, button, select, textarea { touch-action: manipulation; }
+      .sc-btn { width: 30px; height: 36px; }
+    }
+
+    /* phones: no fixed columns (the bar wraps there), and no space kept for an empty status */
+    @media (max-width: 639px) {
+      .match-card .mc-time { flex: 0 0 auto; width: auto; min-width: 0 !important; }
+      .match-card .mc-court { flex: 0 0 auto; width: auto; }
+      .match-card .mc-status { flex: 0 0 auto; width: auto; }
+      .match-card .mc-status:empty { display: none; }
+      .sc-btn { width: 28px; height: 32px; }
+    }
+  `;
+  const st = document.createElement('style');
+  st.id = 'matchBarToolsStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  // ---- Walkovers survive rebuilds (adding teams, remote updates ...) and share links ----
+  wrap('buildMatches', (o, cat) => {
+    const keep = {};
+    cat.matches.forEach(m => {
+      if (!m.wo) return;
+      if (m.stage === 'ko') keep['ko:' + m.id] = { side: m.wo };
+      else keep[pairKey(m.group, m.team1, m.team2)] = { name: m.wo === 1 || m.wo === '1' ? m.team1 : m.team2 };
+    });
+    o(cat);
+    cat.matches.forEach(m => {
+      const k = m.stage === 'ko' ? keep['ko:' + m.id] : keep[pairKey(m.group, m.team1, m.team2)];
+      if (!k) return;
+      m.wo = k.side || (k.name === m.team1 ? 1 : 2);
+    });
+  });
+  wrap('compactState', o => {
+    const r = o();
+    r.wo = state.categories.map(cat => cat.matches.filter(m => m.wo).map(m => [m.id, m.wo]));
+    return r;
+  });
+  wrap('expandState', (o, obj) => {
+    o(obj);
+    (obj.wo || []).forEach((list, i) => {
+      const cat = state.categories[i];
+      if (!cat) return;
+      list.forEach(([id, side]) => { const m = cat.matches.find(x => x.id === id); if (m) m.wo = side; });
+    });
+  });
+
+  // ---- Decorate the match bars after they are drawn ----
+  function decorate() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      const hit = matchFromCard(card);
+      if (!hit) return;
+      const { cat, m } = hit;
+      const left = card.firstElementChild, right = card.lastElementChild;
+
+      if (!card.dataset.mc) {
+        card.dataset.mc = '1';
+        const kids = Array.from(left.children);
+        kids[0].classList.add('mc-time');
+        kids.forEach(k => {
+          const txt = k.textContent.trim();
+          if (k.classList.contains('court-badge')) k.classList.add('mc-court');
+          else if (k.classList.contains('group-badge')) k.classList.add('mc-tag');
+          else if (k.classList.contains('manual-badge') || k.classList.contains('warn-badge')) k.classList.add('mc-flag');
+          else if (k.dataset && k.dataset.ko) k.classList.add(k.dataset.ko.endsWith('|1') ? 'mc-n1' : 'mc-n2');
+          else if (k.tagName === 'SPAN' && txt === 'vs') k.classList.add('mc-vs');
+          else if (/^Day \d+$/.test(txt)) k.classList.add('mc-day');
+        });
+        // a status slot that always takes the same room, empty or not
+        const slot = document.createElement('span');
+        slot.className = 'mc-status';
+        const badge = left.querySelector('.status-badge');
+        if (badge) slot.appendChild(badge);
+        const court = left.querySelector('.mc-court');
+        (court || kids[0]).after(slot);
+      }
+      const slot = left.querySelector('.mc-status');
+      if (m.wo && slot && !slot.querySelector('.wo')) slot.innerHTML = '<span class="status-badge wo" title="Walkover">W/O</span>';
+
+      if (editMode) {
+        right.querySelectorAll('.score-box').forEach(box => {
+          if (box.previousElementSibling && box.previousElementSibling.classList.contains('sc-btn')) return;
+          const d = `data-cat="${esc(box.dataset.cat)}" data-match="${esc(box.dataset.match)}" data-side="${box.dataset.side}"`;
+          box.insertAdjacentHTML('beforebegin', `<button type="button" class="sc-btn" ${d} data-step="-1" aria-label="Down one">−</button>`);
+          box.insertAdjacentHTML('afterend', `<button type="button" class="sc-btn" ${d} data-step="1" aria-label="Up one">+</button>`);
+        });
+        if (!right.querySelector('.wo-btn')) {
+          right.insertAdjacentHTML('beforeend',
+            `<button type="button" class="btn wo-btn${m.wo ? ' on' : ''}" data-cat="${esc(cat.id)}" data-match="${esc(m.id)}" title="${m.wo ? 'Remove the walkover' : 'Record a walkover'}">W/O</button>`);
+        }
+      }
+    });
+
+    // Full schedule table: show W/O in the Status column
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      const c = tr.children;
+      if (!c[4] || !c[7]) return;
+      const cat = state.categories.find(x => x.name === c[1].textContent.trim());
+      const home = c[5].textContent.trim(), away = c[7].textContent.trim();
+      const m = cat && cat.matches.find(x => displayName(cat, x, 1) === home && displayName(cat, x, 2) === away);
+      if (m && m.wo && !c[4].querySelector('.wo')) c[4].innerHTML = '<span class="status-badge wo">W/O</span>';
+    });
+  }
+  ['renderCategories', 'renderSchedule'].forEach(n => wrap(n, o => { o(); decorate(); }));
+  wrap('refreshDerived', (o, id) => { o(id); decorate(); });
+  wrap('render', o => { o(); decorate(); });
+
+  // ---- Score + / - buttons ----
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.sc-btn');
+    if (!b || !editMode) return;
+    const box = Array.from(b.parentElement.querySelectorAll('.score-box'))
+      .find(x => x.dataset.match === b.dataset.match && x.dataset.side === b.dataset.side && x.dataset.cat === b.dataset.cat);
+    if (!box) return;
+    const step = parseInt(b.dataset.step, 10);
+    const cur = box.value === '' ? null : parseInt(box.value, 10);
+    let next;
+    if (cur === null) next = step > 0 ? 1 : null;          // down from empty does nothing
+    else next = cur + step;
+    if (next !== null && next < 0) next = null;            // down from 0 clears the box
+    if (next !== null && next > 99) next = 99;
+    box.value = next === null ? '' : String(next);
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    box.dispatchEvent(new Event('change', { bubbles: true }));   // your normal save + standings refresh runs from here
+  });
+
+  // Typing a different score afterwards cancels a walkover mark
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (!t.classList || !t.classList.contains('score-box')) return;
+    const cat = getCat(t.dataset.cat), m = cat && cat.matches.find(x => x.id === t.dataset.match);
+    if (!m || !m.wo) return;
+    m.wo = '';
+    const card = t.closest('.match-card');
+    if (card) { const w = card.querySelector('.mc-status .wo'); if (w) w.remove(); const wb = card.querySelector('.wo-btn'); if (wb) wb.classList.remove('on'); }
+    setTimeout(save, 0);
+  }, true);
+
+  // ---- Walkover button ----
+  function setWalkover(m, side) {
+    m.wo = side;
+    m.score1 = String(side === 1 ? WALKOVER_WIN : 0);
+    m.score2 = String(side === 2 ? WALKOVER_WIN : 0);
+    m.status = '';
+    save();
+    render();
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.wo-btn');
+    if (!b || !editMode) return;
+    const cat = getCat(b.dataset.cat), m = cat && cat.matches.find(x => x.id === b.dataset.match);
+    if (!m) return;
+    if (m.wo) {
+      confirmDialog('Remove the walkover and clear this match\'s score?', () => { m.wo = ''; m.score1 = ''; m.score2 = ''; save(); render(); }, 'Remove');
+      return;
+    }
+    const n1 = displayName(cat, m, 1), n2 = displayName(cat, m, 2);
+    const o = showModal(`<h3 class="font-semibold text-gray-900 mb-1">Walkover</h3>
+      <p class="text-xs text-gray-500 mb-3">Who wins by walkover? It is recorded as ${WALKOVER_WIN} – 0 and marked W/O.</p>
+      <div class="flex flex-col gap-2">
+        <button class="btn" data-w="1">${esc(n1)} wins</button>
+        <button class="btn" data-w="2">${esc(n2)} wins</button>
+        <button class="btn" data-c>Cancel</button>
+      </div>`);
+    o.querySelector('[data-c]').onclick = () => o.remove();
+    o.querySelectorAll('[data-w]').forEach(btn => { btn.onclick = () => { o.remove(); setWalkover(m, parseInt(btn.dataset.w, 10)); }; });
+  });
+
+  if (currentView === 'tournament') render();
+})();
+// ============================================================
+// TEAM PLAYER LISTS (with shirt numbers) + "LOG NEW GOAL" SCORERS  (v3)
+// Goals: m.goals = [{side:1|2, p:'Name', min:'4', sec:'12'}]
+// ============================================================
+(function () {
+  const css = `
+    .roster-btn { margin-left: 4px; padding: 1px 6px; border-radius: 999px; border: 1px solid #d1d5db; background: #fff;
+      font-size: 11px; font-weight: 600; color: #374151; cursor: pointer; white-space: nowrap; }
+    .roster-btn:hover { background: #f3f4f6; }
+    .match-card [onclick*="openScorersModal"] { display: none !important; }
+    body.no-scorers .goals-panel { display: none !important; }
+
+    .goals-panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; margin: -2px 0 10px; }
+    .goals-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .goals-title { font-size: 11px; font-weight: 700; letter-spacing: .05em; color: #6b7280; text-transform: uppercase; }
+    .goal-add { padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; color: #fff; background: #10b981;
+      border: 1px solid #10b981; cursor: pointer; }
+    .goal-add:hover { background: #059669; }
+    .goal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+    .goal-row1 { margin-top: 6px; }
+    .gh { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-align: center; }
+    .gh.s1 { background: #d1fae5; color: #065f46; }
+    .gh.s2 { background: #dbeafe; color: #1e40af; }
+    .goal-cell { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 10px; border-radius: 6px;
+      background: #f9fafb; border: 1px solid #e5e7eb; border-left: 4px solid var(--gc, #e5e7eb); font-size: 13px; min-width: 0; }
+    .goal-cell.s1 { --gc: #10b981; }
+    .goal-cell.s2 { --gc: #3b82f6; }
+    .goal-cell .gname { font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .goal-cell .gmin { margin-left: auto; font-weight: 700; color: #047857; font-size: 12px; white-space: nowrap; }
+    .goal-cell.empty { color: #9ca3af; background: transparent; border: 1px dashed #e5e7eb; }
+    .gteam { display: none; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; white-space: nowrap;
+      max-width: 38%; overflow: hidden; text-overflow: ellipsis; }
+    .goal-cell.s1 .gteam { background: #d1fae5; color: #065f46; }
+    .goal-cell.s2 .gteam { background: #dbeafe; color: #1e40af; }
+    .goal-x { color: #9ca3af; font-size: 15px; line-height: 1; padding: 0 2px; cursor: pointer; background: none; border: 0; }
+    .goal-x:hover { color: #dc2626; }
+    .goals-narrow { display: none; }
+    @media (max-width: 899px) {
+      .goals-wide { display: none; }
+      .goals-narrow { display: block; }
+      .gteam { display: inline-block; }
+    }
+    .gl-team { flex: 1; padding: 10px 8px; border-radius: 10px; border: 2px solid #e5e7eb; background: #fff; font-weight: 700;
+      font-size: 13px; cursor: pointer; color: #374151; }
+    .gl-team.on { border-color: #10b981; background: #ecfdf5; color: #065f46; }
+    .gl-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; color: #374151; text-transform: uppercase; margin: 12px 0 6px; }
+    .gl-sub { display: block; font-size: 10px; color: #6b7280; margin-bottom: 3px; }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const sortNames = l => l.slice().sort((a, b) => a.n.localeCompare(b.n, undefined, { sensitivity: 'base' }));
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  // ---------- Rosters: [{t:'Team', n:'Name', no:'7'}] ----------
+  const roster = (cat, team) => {
+    const seen = new Set();
+    return toA(cat.roster).filter(r => r && r.t === team && !seen.has(r.n) && seen.add(r.n));
+  };
+  const rosterLabel = r => r.n + (r.no ? ' (#' + r.no + ')' : '');
+  function setRoster(cat, team, players) {
+    cat.roster = toA(cat.roster).filter(r => r.t !== team).concat(players.map(p => ({ t: team, n: p.n, no: p.no || '' })));
+  }
+  function parseLine(s) {
+    s = s.trim();
+    const mt = s.match(/^(.*?)\s*(?:#|,|\()\s*(\d{1,3})\)?\s*$/);
+    return mt && mt[1] ? { n: mt[1].trim(), no: mt[2] } : { n: s, no: '' };
+  }
+
+  function openRosterModal(catId, index) {
+    const cat = getCat(catId);
+    const team = cat && cat.teams[index];
+    if (!team) return;
+    const o = showModal(`
+      <h3 class="font-semibold text-gray-900 mb-1">Players — ${esc(team)}</h3>
+      <p class="text-xs text-gray-500 mb-2">One player per line. Add a shirt number with <b>#</b>, for example <b>Adam Hakimi #7</b>.</p>
+      <textarea id="rosterText" rows="10" class="w-full text-xs">${esc(roster(cat, team).map(r => r.n + (r.no ? ' #' + r.no : '')).join('\n'))}</textarea>
+      <div class="flex gap-2 mt-3">
+        <button class="btn flex-1" data-c>Cancel</button>
+        <button class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-s>Save</button>
+      </div>`);
+    o.firstElementChild.style.width = 'min(420px, 92vw)';
+    o.querySelector('[data-c]').onclick = () => o.remove();
+    o.querySelector('[data-s]').onclick = () => {
+      const seen = new Set();
+      const players = o.querySelector('#rosterText').value.split('\n').map(parseLine).filter(p => p.n && !seen.has(p.n) && seen.add(p.n));
+      setRoster(cat, team, players);
+      save(); o.remove(); render();
+      toast(`${players.length} player${players.length === 1 ? '' : 's'} saved for ${team}.`);
+    };
+    o.querySelector('#rosterText').focus();
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.roster-btn');
+    if (b && editMode) openRosterModal(b.dataset.cat, +b.dataset.i);
+  });
+  function decorateTeams() {
+    if (!editMode) return;
+    state.categories.forEach(cat => {
+      const box = document.getElementById('teamList-' + cat.id);
+      if (!box) return;
+      Array.from(box.children).forEach((chip, i) => {
+        if (chip.querySelector('.roster-btn') || cat.teams[i] === undefined) return;
+        const n = roster(cat, cat.teams[i]).length;
+        chip.insertAdjacentHTML('beforeend',
+          `<button type="button" class="roster-btn" data-cat="${esc(cat.id)}" data-i="${i}" title="Edit players of this team">👥${n ? ' ' + n : ''}</button>`);
+      });
+    });
+  }
+  wrap('updateTeamName', (o, catId, index, newName) => {
+    const cat = getCat(catId), old = cat && cat.teams[index];
+    o(catId, index, newName);
+    const now = cat && cat.teams[index];
+    if (old && now && old !== now) {
+      cat.roster = toA(cat.roster).map(r => r.t === old ? { ...r, t: now } : r);
+      save();
+    }
+  });
+
+  // ---------- Goals ----------
+  function goalsOf(m) {
+    const g = toA(m.goals).map(x => ({ side: +x.side, p: x.p || '', min: x.min ?? '', sec: x.sec ?? '' }));
+    if (g.length) return g;
+    return [1, 2].flatMap(s => toA(m['scorers' + s]).map(p => ({ side: s, p, min: '', sec: '' })));
+  }
+  const tkey = g => (g.min === '' && g.sec === '') ? 999999 : (parseInt(g.min) || 0) * 60 + (parseInt(g.sec) || 0);
+  const byTime = (a, b) => (tkey(a) - tkey(b)) || a.i - b.i;
+  function tfmt(g) {
+    if (g.min === '' && g.sec === '') return '';
+    const mi = parseInt(g.min) || 0;
+    return esc(mi + "'" + (g.sec !== '' ? String(parseInt(g.sec) || 0).padStart(2, '0') + '"' : ''));
+  }
+  const syncScorers = m => {
+    const g = toA(m.goals);
+    m.scorers1 = g.filter(x => +x.side === 1).map(x => x.p).filter(Boolean);
+    m.scorers2 = g.filter(x => +x.side === 2).map(x => x.p).filter(Boolean);
+  };
+  function bumpScore(m, side, delta) {
+    const k = 'score' + side, o = 'score' + (side === 1 ? 2 : 1);
+    const cur = m[k] === '' || m[k] == null ? 0 : parseInt(m[k]) || 0;
+    m[k] = String(Math.max(0, cur + delta));
+    if (m[o] === '' || m[o] == null) m[o] = '0';
+  }
+
+  wrap('buildMatches', (o, cat) => {
+    const keep = {};
+    cat.matches.forEach(m => { if (toA(m.goals).length) keep[m.id] = m.goals; });
+    o(cat);
+    cat.matches.forEach(m => { if (keep[m.id]) m.goals = keep[m.id]; });
+  });
+
+  function panelHtml(cat, m) {
+    const goals = goalsOf(m).map((g, i) => ({ ...g, i }));
+    const names = [displayName(cat, m, 1), displayName(cat, m, 2)];
+    const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+    const cell = g => !g
+      ? '<div class="goal-cell empty">—</div>'
+      : `<div class="goal-cell s${g.side === 2 ? 2 : 1}">⚽ <span class="gname">${esc(g.p || 'Unknown')}</span>
+          <span class="gteam">${esc(names[g.side === 2 ? 1 : 0])}</span>
+          <span class="gmin">${tfmt(g)}</span>
+          ${editMode ? `<button type="button" class="goal-x" data-gdel ${d} data-i="${g.i}" title="Remove this goal">×</button>` : ''}</div>`;
+    const left = goals.filter(g => g.side !== 2).sort(byTime);
+    const right = goals.filter(g => g.side === 2).sort(byTime);
+    let wide = goals.length ? `<div class="goal-row"><div class="gh s1">${esc(names[0])}</div><div class="gh s2">${esc(names[1])}</div></div>` : '';
+    for (let r = 0; r < Math.max(left.length, right.length); r++) wide += `<div class="goal-row">${cell(left[r])}${cell(right[r])}</div>`;
+    const narrow = goals.slice().sort(byTime).map(g => `<div class="goal-row1">${cell(g)}</div>`).join('');
+    return `<div class="goals-panel" ${d}>
+      <div class="goals-head"><span class="goals-title">⚽ Goalscorers</span>
+        ${editMode ? `<button type="button" class="goal-add" data-gadd ${d}>+ Add Goal</button>` : ''}</div>
+      <div class="goals-wide">${wide}</div>
+      <div class="goals-narrow">${narrow}</div>
+    </div>`;
+  }
+  function decoratePanels() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      const nx = card.nextElementSibling;
+      if (nx && nx.classList.contains('goals-panel')) nx.remove();
+      const hit = matchFromCard(card);
+      if (!hit) return;
+      const { cat, m } = hit;
+      if (!editMode && !goalsOf(m).length) return;
+      card.insertAdjacentHTML('afterend', panelHtml(cat, m));
+    });
+  }
+  wrap('renderCategories', o => { o(); decorateTeams(); decoratePanels(); });
+  wrap('render', o => { o(); decorateTeams(); decoratePanels(); });
+
+  // ---------- "Log New Goal" window ----------
+  function openGoalModal(catId, matchId) {
+    const cat = getCat(catId);
+    const m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m || !editMode) return;
+    const names = [displayName(cat, m, 1), displayName(cat, m, 2)];
+    let side = 1, player = '', other = false;
+    const o = showModal('<div id="glWrap"></div>');
+    o.firstElementChild.style.width = 'min(440px, 94vw)';
+    const w = o.querySelector('#glWrap');
+
+    const playersFor = s => cat.teams.includes(names[s - 1]) ? sortNames(roster(cat, names[s - 1])) : [];
+    function playerField() {
+      const list = playersFor(side);
+      if (!list.length || other) {
+        return `<input type="text" id="glPlayer" class="w-full" placeholder="Player name" value="${esc(player)}">
+          ${list.length ? '<button type="button" class="text-xs text-gray-500 underline mt-1" data-back>Back to list</button>' : '<p class="text-xs text-gray-400 mt-1">No players listed for this team. Use 👥 on the team to add them.</p>'}`;
+      }
+      return `<select id="glPlayer" class="w-full">
+        <option value="">Select player…</option>
+        ${list.map(r => `<option value="${esc(r.n)}"${r.n === player ? ' selected' : ''}>${esc(rosterLabel(r))}</option>`).join('')}
+        <option value="__other">✏ Other…</option></select>`;
+    }
+    function draw() {
+      w.innerHTML = `
+        <h3 class="font-semibold text-gray-900">⚽ Log New Goal</h3>
+        <p class="text-xs text-gray-500">${esc(names[0])} vs ${esc(names[1])} (${esc(m.court || '')})</p>
+        <span class="gl-label">1. Scoring team</span>
+        <div class="flex gap-2">
+          <button type="button" class="gl-team${side === 1 ? ' on' : ''}" data-side="1">${esc(names[0])}</button>
+          <button type="button" class="gl-team${side === 2 ? ' on' : ''}" data-side="2">${esc(names[1])}</button>
+        </div>
+        <span class="gl-label">2. Select player</span>
+        <div id="glPlayerBox">${playerField()}</div>
+        <span class="gl-label">3. Time of goal</span>
+        <div class="grid grid-cols-2 gap-3">
+          <div><span class="gl-sub">Minute</span><input type="text" id="glMin" inputmode="numeric" maxlength="3" class="w-full" placeholder="min (')"></div>
+          <div><span class="gl-sub">Second</span><input type="text" id="glSec" inputmode="numeric" maxlength="2" class="w-full" placeholder='sec (")'></div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button type="button" class="btn flex-1" data-cancel>Cancel</button>
+          <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-save>Save Goal ⚽</button>
+        </div>`;
+    }
+    draw();
+    w.addEventListener('input', e => {
+      if (e.target.id === 'glMin' || e.target.id === 'glSec') e.target.value = e.target.value.replace(/[^0-9]/g, '');
+    });
+    w.addEventListener('change', e => {
+      if (e.target.id !== 'glPlayer') return;
+      if (e.target.value === '__other') { other = true; player = ''; w.querySelector('#glPlayerBox').innerHTML = playerField(); w.querySelector('#glPlayer').focus(); }
+      else player = e.target.value;
+    });
+    w.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.side) {
+        const mi = w.querySelector('#glMin').value, se = w.querySelector('#glSec').value;
+        side = +b.dataset.side; player = ''; other = false; draw();
+        w.querySelector('#glMin').value = mi; w.querySelector('#glSec').value = se;
+      } else if (b.hasAttribute('data-back')) { other = false; player = ''; w.querySelector('#glPlayerBox').innerHTML = playerField(); }
+      else if (b.hasAttribute('data-cancel')) o.remove();
+      else if (b.hasAttribute('data-save')) {
+        const p = (w.querySelector('#glPlayer').value || '').trim();
+        if (!p || p === '__other') { toast('Choose the player who scored.'); return; }
+        const min = w.querySelector('#glMin').value.trim();
+        let sec = w.querySelector('#glSec').value.trim();
+        if (sec !== '') sec = String(Math.min(59, parseInt(sec) || 0));
+        m.goals = goalsOf(m).concat([{ side, p, min, sec }]);
+        bumpScore(m, side, 1);
+        syncScorers(m);
+        save(); o.remove(); render();
+      }
+    });
+  }
+
+  document.addEventListener('click', e => {
+    const add = e.target.closest && e.target.closest('[data-gadd]');
+    const del = e.target.closest && e.target.closest('[data-gdel]');
+    if (add) { openGoalModal(add.dataset.cat, add.dataset.match); return; }
+    if (del && editMode) {
+      const cat = getCat(del.dataset.cat), m = cat && cat.matches.find(x => x.id === del.dataset.match);
+      if (!m) return;
+      confirmDialog('Remove this goal? The score goes down by 1.', () => {
+        const list = goalsOf(m), i = +del.dataset.i, g = list[i];
+        if (!g) return;
+        list.splice(i, 1);
+        m.goals = list;
+        bumpScore(m, g.side, -1);
+        syncScorers(m);
+        save(); render();
+      }, 'Remove');
+    }
+  });
+
+  window.openScorersModal = function (catId, matchId) {
+    const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m) return;
+    if (editMode) { openGoalModal(catId, matchId); return; }
+    const g = goalsOf(m).map((x, i) => ({ ...x, i })).sort(byTime);
+    const line = x => `<li style="font-size:13px;padding:2px 0">⚽ ${esc(x.p)}${tfmt(x) ? ` <b style="color:#047857">${tfmt(x)}</b>` : ''} <span class="text-xs text-gray-400">· ${esc(displayName(cat, m, x.side))}</span></li>`;
+    const o = showModal(`<h3 class="font-semibold text-gray-900 mb-2">Goal Scorers</h3>
+      ${g.length ? `<ul>${g.map(line).join('')}</ul>` : '<p class="text-sm text-gray-500">No scorers recorded.</p>'}
+      <button class="btn w-full mt-3" data-c>Close</button>`);
+    o.querySelector('[data-c]').onclick = () => o.remove();
+  };
+
+  if (currentView === 'tournament') render();
+})();
+  // ============================================================
+// OPTION: TRACK GOAL SCORERS (on / off per tournament)
+// Paste at the very end of the main script block (after your other add-ons).
+// state.trackScorers: undefined or true = on, false = off.
+// ============================================================
+(function () {
+  const css = `
+    body.no-scorers .roster-btn,
+    body.no-scorers [onclick*="openScorersModal"] { display: none !important; }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const scorersOn = () => state.trackScorers !== false;
+
+  // The checkbox in the Setup panel, right after "Knockouts"
+  document.getElementById('koEnd').parentElement.insertAdjacentHTML('afterend', `
+    <div>
+      <label class="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+        <input type="checkbox" id="trackScorers" style="width:16px;height:16px">
+        Track who scored (goal scorers)
+      </label>
+      <p class="text-xs text-gray-500 mt-1">Turn off if you only record the score.</p>
+    </div>`);
+  const box = document.getElementById('trackScorers');
+  box.addEventListener('change', () => {
+    if (!editMode) { box.checked = scorersOn(); return; }
+    state.trackScorers = box.checked;
+    save();
+    render();
+  });
+
+  function applyScorersMode() {
+    document.body.classList.toggle('no-scorers', !scorersOn());
+    box.checked = scorersOn();
+    box.disabled = !editMode;
+  }
+
+  // Keep the setting when data arrives from Firebase / storage (normalize() drops unknown fields)
+  wrap('normalize', (o, d) => {
+    const s = o(d);
+    if (d && d.trackScorers === false) s.trackScorers = false;
+    return s;
+  });
+
+  // Snapshot share links carry it too
+  wrap('compactState', o => { const r = o(); r.ts = scorersOn() ? 1 : 0; return r; });
+  wrap('expandState', (o, obj) => { o(obj); if (obj.ts === 0) state.trackScorers = false; });
+
+  // Do not open the scorers window when the option is off
+  wrap('openScorersModal', (o, ...a) => { if (!scorersOn()) return; return o(...a); });
+
+  wrap('render', o => { o(); applyScorersMode(); });
+  applyScorersMode();
+  if (currentView === 'tournament') render();
+})();
+  // ============================================================
+// CONTACT BUTTON AT THE TOP + BIGGER, CENTERED FOOTER
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const css = `
+    /* ---- Contact button (top) ---- */
+    .contact-btn.sm { padding: 6px 12px; font-size: 13px; }
+    .home-contact { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+
+    /* ---- Footer: everything centered, bigger logo ---- */
+    .site-footer .site-footer-inner { flex-direction: column; justify-content: center; align-items: center;
+      text-align: center; gap: 14px; padding: 28px 16px; }
+    .site-footer .footer-brand { flex-direction: column; justify-content: center; align-items: center; gap: 10px; text-align: center; }
+    .site-footer .logo-badge { padding: 10px; border-radius: 16px; }
+    .site-footer .logo-badge svg { width: 56px; height: 56px; }
+
+    @media (max-width: 639px) {
+      /* header: icon only, so it fits next to the other buttons */
+      header .contact-btn .contact-label { display: none; }
+      header .contact-btn.sm { padding: 6px 8px; box-shadow: none; }
+      header .contact-btn.sm svg { width: 18px; height: 18px; }
+
+      .home-contact { justify-content: center; }
+
+      .site-footer .site-footer-inner { padding: 24px 12px; }
+      .site-footer .logo-badge svg { width: 64px; height: 64px; }
+      .site-footer .contact-btn { width: auto; }
+    }
+  `;
+  const st = document.createElement('style');
+  st.id = 'contactFooterStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const link = 'https://www.instagram.com/3_little_cubs/';
+  const btn = `<a class="contact-btn sm" href="${link}" target="_blank" rel="noopener noreferrer" title="Contact Us">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+      <span class="contact-label">Contact Us</span></a>`;
+
+  // 1. In the header (shown inside a tournament)
+  const pdf = document.getElementById('exportPdfBtn');
+  if (pdf && !document.querySelector('header .contact-btn')) pdf.insertAdjacentHTML('beforebegin', btn);
+
+  // 2. At the top of the Home screen (the header is hidden there)
+  const home = document.getElementById('homeView');
+  if (home && !home.querySelector('.home-contact')) home.insertAdjacentHTML('afterbegin', `<div class="home-contact">${btn}</div>`);
+})();
+  // ============================================================
+// BIGGER LIVE BORDER + MATCH TIMER + EDIT SCORERS + SCHEDULE BUILDER
+// Paste at the very end of the main script block (after the goals block).
+// ============================================================
+(function () {
+  const css = `
+    .match-card.is-live { box-shadow: 0 0 0 4px #f59e0b !important; }              /* ring thickness: change 4px */
+    .schedule-row.is-live td:first-child { box-shadow: inset 6px 0 0 #f59e0b !important; }
+    .mclock { order: 3; display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px;
+      background: #f3f4f6; border: 1px solid #d1d5db; font-size: 12px; font-weight: 700; color: #374151; white-space: nowrap;
+      font-variant-numeric: tabular-nums; }
+    .mclock.run { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+    .mclk-btn { border: 0; background: none; cursor: pointer; font-size: 12px; padding: 0 2px; }
+    body.is-editing .goal-cell:not(.empty) { cursor: pointer; }
+    body.is-editing .goal-cell:not(.empty):hover { border-color: #10b981; }
+    .sb-btn { padding: 2px 7px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; }
+    .sb-btn:hover { background: #f3f4f6; }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  // ============ MATCH TIMER ============
+  let off = 0;   // use the Firebase server clock so every device shows the same time
+  if (db) { try { db.ref('.info/serverTimeOffset').on('value', s => { off = s.val() || 0; }); } catch (e) {} }
+  const now = () => Date.now() + off;
+  const elapsed = m => m.clk ? m.clk.a + (m.clk.s ? Math.max(0, now() - m.clk.s) : 0) : 0;
+  const running = m => !!(m.clk && m.clk.s);
+  const startClk = m => { if (!m.clk) m.clk = { a: 0, s: now() }; else if (!m.clk.s) m.clk.s = now(); };
+  const pauseClk = m => { if (m.clk && m.clk.s) { m.clk.a += Math.max(0, now() - m.clk.s); m.clk.s = 0; } };
+  const fmt = ms => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+
+  wrap('setMatchStatus', (o, catId, matchId, status) => {
+    o(catId, matchId, status);
+    const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m || !editMode) return;
+    if (m.status === 'ongoing') startClk(m); else pauseClk(m);
+    save(); render();
+  });
+
+  function decorateClocks() {
+    document.body.classList.toggle('is-editing', !!editMode);
+    document.querySelectorAll('.match-card').forEach(card => {
+      card.querySelectorAll('.mclock').forEach(x => x.remove());
+      const hit = matchFromCard(card);
+      if (!hit || !hit.m.clk) return;
+      const { cat, m } = hit;
+      const left = card.firstElementChild;
+      const anchor = left.querySelector('.mc-status') || left.querySelector('.mc-court') || left.firstElementChild;
+      const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+      anchor.insertAdjacentHTML('afterend',
+        `<span class="mclock${running(m) ? ' run' : ''}" ${d}>⏱ <b class="mct">${fmt(elapsed(m))}</b>` +
+        `${editMode ? ` <button type="button" class="mclk-btn" data-clk ${d} title="${running(m) ? 'Pause' : 'Resume'}">${running(m) ? '⏸' : '▶'}</button>` : ''}</span>`);
+    });
+  }
+  wrap('renderCategories', o => { o(); decorateClocks(); });
+  wrap('render', o => { o(); decorateClocks(); });
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-clk]');
+    if (!b || !editMode) return;
+    const cat = getCat(b.dataset.cat), m = cat && cat.matches.find(x => x.id === b.dataset.match);
+    if (!m) return;
+    if (running(m)) pauseClk(m); else startClk(m);
+    save(); render();
+  });
+  setInterval(() => {
+    document.querySelectorAll('.mclock').forEach(el => {
+      const c = getCat(el.dataset.cat), m = c && c.matches.find(x => x.id === el.dataset.match);
+      const t = el.querySelector('.mct');
+      if (m && t) t.textContent = fmt(elapsed(m));
+    });
+  }, 500);
+
+  // keep the timer when matches are rebuilt; keep manual mode when data is loaded
+  wrap('normalize', (o, d) => { const s = o(d); if (d && d.manualMode) s.manualMode = true; return s; });
+
+  // ---- Fill the goal time from the timer when the "Log New Goal" window opens ----
+  let lastGoal = null, lastWrap = null, autoOn = false;
+  const clkMatch = () => { const c = lastGoal && getCat(lastGoal.cat); const m = c && c.matches.find(x => x.id === lastGoal.match); return m && m.clk ? m : null; };
+  function fillTime() {
+    const m = clkMatch(), mi = document.getElementById('glMin'), se = document.getElementById('glSec');
+    if (!m || !mi || !se) return;
+    const s = Math.floor(elapsed(m) / 1000);
+    mi.value = String(Math.floor(s / 60)); se.value = String(s % 60);
+  }
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('[data-gadd]');
+    if (a) lastGoal = { cat: a.dataset.cat, match: a.dataset.match };
+    const sv = e.target.closest && e.target.closest('#glWrap [data-save]');
+    if (sv && autoOn) fillTime();           // refresh to the exact moment of saving
+  }, true);
+  document.addEventListener('input', e => { if (e.target.id === 'glMin' || e.target.id === 'glSec') autoOn = false; });
+  new MutationObserver(() => {
+    const wEl = document.getElementById('glWrap');
+    if (!wEl) { lastWrap = null; return; }
+    const mi = document.getElementById('glMin');
+    if (!mi || !document.getElementById('glSec')) return;
+    if (wEl !== lastWrap) { lastWrap = wEl; autoOn = !!clkMatch(); if (autoOn) fillTime(); }
+    if (autoOn && !wEl.querySelector('.glauto') && mi.closest('.grid'))
+      mi.closest('.grid').insertAdjacentHTML('afterend', '<p class="glauto text-xs text-gray-400 mt-1">⏱ Time filled from the match timer. Type to change it.</p>');
+  }).observe(document.body, { childList: true, subtree: true });
+
+  // ============ CLICK A SCORER TO EDIT IT ============
+  const rosterOf = (cat, team) => {
+    const seen = new Set();
+    return toA(cat.roster).filter(r => r && r.t === team && !seen.has(r.n) && seen.add(r.n))
+      .sort((a, b) => a.n.localeCompare(b.n, undefined, { sensitivity: 'base' }));
+  };
+  const goalsOf = m => {
+    const g = toA(m.goals).map(x => ({ side: +x.side, p: x.p || '', min: x.min ?? '', sec: x.sec ?? '' }));
+    if (g.length) return g;
+    return [1, 2].flatMap(s => toA(m['scorers' + s]).map(p => ({ side: s, p, min: '', sec: '' })));
+  };
+  const syncScorers = m => {
+    const g = toA(m.goals);
+    m.scorers1 = g.filter(x => +x.side === 1).map(x => x.p).filter(Boolean);
+    m.scorers2 = g.filter(x => +x.side === 2).map(x => x.p).filter(Boolean);
+  };
+  const bump = (m, side, delta) => {
+    const k = 'score' + side, o2 = 'score' + (side === 1 ? 2 : 1);
+    const cur = m[k] === '' || m[k] == null ? 0 : parseInt(m[k]) || 0;
+    m[k] = String(Math.max(0, cur + delta));
+    if (m[o2] === '' || m[o2] == null) m[o2] = '0';
+  };
+
+  function openGoalEdit(catId, matchId, idx) {
+    const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m || !editMode) return;
+    const list = goalsOf(m), g0 = list[idx];
+    if (!g0) return;
+    const names = [displayName(cat, m, 1), displayName(cat, m, 2)];
+    let side = g0.side === 2 ? 2 : 1, player = g0.p, other = false;
+    const o = showModal('<div id="geWrap"></div>');
+    o.firstElementChild.style.width = 'min(440px, 94vw)';
+    const w = o.querySelector('#geWrap');
+    const playersFor = s => cat.teams.includes(names[s - 1]) ? rosterOf(cat, names[s - 1]) : [];
+    const playerField = () => {
+      const pl = playersFor(side);
+      if (!pl.length || other) return `<input type="text" id="gePlayer" class="w-full" placeholder="Player name" value="${esc(player)}">`;
+      const known = pl.some(r => r.n === player);
+      return `<select id="gePlayer" class="w-full"><option value="">Select player…</option>
+        ${player && !known ? `<option value="${esc(player)}" selected>${esc(player)}</option>` : ''}
+        ${pl.map(r => `<option value="${esc(r.n)}"${r.n === player ? ' selected' : ''}>${esc(r.n + (r.no ? ' (#' + r.no + ')' : ''))}</option>`).join('')}
+        <option value="__other">✏ Other…</option></select>`;
+    };
+    function draw(mi, se) {
+      w.innerHTML = `
+        <h3 class="font-semibold text-gray-900">✏ Edit Goal</h3>
+        <p class="text-xs text-gray-500">${esc(names[0])} vs ${esc(names[1])}</p>
+        <span class="gl-label">1. Scoring team</span>
+        <div class="flex gap-2">
+          <button type="button" class="gl-team${side === 1 ? ' on' : ''}" data-side="1">${esc(names[0])}</button>
+          <button type="button" class="gl-team${side === 2 ? ' on' : ''}" data-side="2">${esc(names[1])}</button>
+        </div>
+        <span class="gl-label">2. Player</span>
+        <div id="geBox">${playerField()}</div>
+        <span class="gl-label">3. Time of goal</span>
+        <div class="grid grid-cols-2 gap-3">
+          <div><span class="gl-sub">Minute</span><input type="text" id="geMin" inputmode="numeric" maxlength="3" class="w-full" value="${esc(mi)}"></div>
+          <div><span class="gl-sub">Second</span><input type="text" id="geSec" inputmode="numeric" maxlength="2" class="w-full" value="${esc(se)}"></div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button type="button" class="btn flex-1" data-cancel>Cancel</button>
+          <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-save>Save</button>
+        </div>`;
+    }
+    draw(String(g0.min), String(g0.sec));
+    w.addEventListener('input', e => { if (e.target.id === 'geMin' || e.target.id === 'geSec') e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
+    w.addEventListener('change', e => {
+      if (e.target.id !== 'gePlayer') return;
+      if (e.target.value === '__other') { other = true; player = ''; w.querySelector('#geBox').innerHTML = playerField(); w.querySelector('#gePlayer').focus(); }
+      else player = e.target.value;
+    });
+    w.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.side) {
+        const mi = w.querySelector('#geMin').value, se = w.querySelector('#geSec').value;
+        side = +b.dataset.side; player = ''; other = false; draw(mi, se);
+      } else if (b.hasAttribute('data-cancel')) o.remove();
+      else if (b.hasAttribute('data-save')) {
+        const p = (w.querySelector('#gePlayer').value || '').trim();
+        if (!p || p === '__other') { toast('Choose the player who scored.'); return; }
+        const min = w.querySelector('#geMin').value.trim();
+        let sec = w.querySelector('#geSec').value.trim();
+        if (sec !== '') sec = String(Math.min(59, parseInt(sec) || 0));
+        const all = goalsOf(m), old = all[idx];
+        all[idx] = { side, p, min, sec };
+        m.goals = all;
+        if (old.side !== side) { bump(m, old.side, -1); bump(m, side, 1); }
+        syncScorers(m);
+        save(); o.remove(); render();
+      }
+    });
+  }
+  document.addEventListener('click', e => {
+    if (!editMode || e.target.closest('.goal-x')) return;
+    const cell = e.target.closest('.goal-cell');
+    if (!cell || cell.classList.contains('empty')) return;
+    const x = cell.querySelector('[data-gdel]');
+    if (x) openGoalEdit(x.dataset.cat, x.dataset.match, +x.dataset.i);
+  });
+
+  // ============ SCHEDULE BUILDER (manual matches chosen from dropdowns) ============
+  const newFid = () => 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+  function manualBuild(cat, prev) {
+    alignGroups(cat);
+    const grouped = isGrouped(cat);
+    const gOf = t => { const i = cat.teams.indexOf(t); return i < 0 ? null : teamGroup(cat, i); };
+    cat.fixtures = toA(cat.fixtures).filter(f => f && f.a !== f.b && cat.teams.includes(f.a) && cat.teams.includes(f.b) &&
+      (!grouped || (gOf(f.a) === f.g && gOf(f.b) === f.g)));
+    const ko = cat.matches.filter(m => m.stage === 'ko');
+    const kid = new Set(ko.map(k => k.id));
+    const groupMatches = cat.fixtures.map(f => {
+      const p = prev[f.id];
+      const m = p && p.stage !== 'ko' ? p : { id: f.id, stage: 'group', round: 'Group stage', score1: '', score2: '', status: '', deps: [], scorers1: [], scorers2: [] };
+      return Object.assign(m, { team1: f.a, team2: f.b, group: grouped ? f.g : null, rnd: 0 });
+    });
+    const gids = groupMatches.map(m => m.id);
+    ko.forEach(k => {
+      const had = (k.deps || []).some(d => !kid.has(d));
+      k.deps = (k.deps || []).filter(d => kid.has(d)).concat(had ? gids : []);
+    });
+    cat.matches = groupMatches.concat(ko);
+    cat.matches.forEach((m, i) => { m.ord = i; });
+  }
+  wrap('buildMatches', (o, cat) => {
+    const prev = {}, keep = {};
+    cat.matches.forEach(m => { prev[m.id] = m; if (m.clk) keep[m.id] = m.clk; });
+    o(cat);
+    if (state.manualMode) manualBuild(cat, prev);
+    cat.matches.forEach(m => { if (keep[m.id]) m.clk = keep[m.id]; });
+  });
+  wrap('updateTeamName', (o, catId, index, newName) => {
+    const cat = getCat(catId), old = cat && cat.teams[index];
+    o(catId, index, newName);
+    const nw = cat && cat.teams[index];
+    if (old && nw && old !== nw) {
+      toA(cat.fixtures).forEach(f => { if (f.a === old) f.a = nw; if (f.b === old) f.b = nw; });
+      save();
+    }
+  });
+
+  function openBuilder() {
+    if (!editMode) return;
+    let catId = state.categories[0] ? state.categories[0].id : '', g = 'A', a = '', b = '';
+    const o = showModal('<div id="sbWrap"></div>');
+    const box = o.firstElementChild;
+    box.style.width = 'min(660px, 96vw)'; box.style.maxHeight = '90vh'; box.style.overflowY = 'auto';
+    const w = o.querySelector('#sbWrap');
+    const multi = c => isGrouped(c) && c.groups > 1;
+    const teamsIn = (c, gr) => c.teams.filter((t, i) => !multi(c) || teamGroup(c, i) === gr);
+    const effG = c => isGrouped(c) ? (multi(c) ? g : 'A') : null;
+
+    function draw() {
+      if (!state.manualMode) {
+        w.innerHTML = `<h3 class="font-semibold text-gray-900 mb-1">🗓 Schedule builder</h3>
+          <p class="text-sm text-gray-600 mb-3">Right now the app creates the matches for you from your teams. Turn on manual mode to choose each match yourself from dropdowns (category, group, teams). Your current matches are kept as the starting list.</p>
+          <div class="flex gap-2"><button class="btn flex-1" data-act="close">Close</button>
+          <button class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="on">Turn on manual mode</button></div>`;
+        return;
+      }
+      const cat = getCat(catId);
+      if (!cat) { w.innerHTML = '<p class="text-sm text-gray-500">Add a category first.</p><button class="btn w-full mt-3" data-act="close">Close</button>'; return; }
+      if (isGrouped(cat) && g.charCodeAt(0) - 65 >= cat.groups) g = 'A';
+      const list = teamsIn(cat, effG(cat));
+      if (!list.includes(a)) a = '';
+      if (!list.includes(b) || b === a) b = '';
+      const opts = (arr, sel, ph) => `<option value="">${ph}</option>` + arr.map(t => `<option value="${esc(t)}"${t === sel ? ' selected' : ''}>${esc(t)}</option>`).join('');
+      w.innerHTML = `<h3 class="font-semibold text-gray-900 mb-1">🗓 Schedule builder</h3>
+        <p class="text-xs text-gray-500 mb-3">Pick the category, group and teams, then add the match. Matches are placed in this order; you can still nudge times with ◀ ▶ on the schedule.</p>
+        <div class="grid grid-cols-2 gap-2">
+          <div><span class="gl-sub">Category</span><select id="sbCat" class="w-full">${state.categories.map(c => `<option value="${esc(c.id)}"${c.id === catId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+          ${multi(cat) ? `<div><span class="gl-sub">Group</span><select id="sbGrp" class="w-full">${groupLetters(cat.groups).map(l => `<option value="${l}"${l === g ? ' selected' : ''}>Group ${l}</option>`).join('')}</select></div>` : '<div></div>'}
+          <div><span class="gl-sub">Team 1</span><select id="sbA" class="w-full">${opts(list, a, 'Select team…')}</select></div>
+          <div><span class="gl-sub">Team 2</span><select id="sbB" class="w-full">${opts(list.filter(t => t !== a), b, 'Select team…')}</select></div>
+        </div>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <button class="btn bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="add">+ Add match</button>
+          <button class="btn" data-act="all">Add all missing matches${isGrouped(cat) ? ' (all groups)' : ''}</button>
+        </div>
+        ${state.categories.map(c => {
+          const fx = toA(c.fixtures);
+          if (!fx.length) return '';
+          return `<div class="mt-4"><div class="font-semibold text-sm flex items-center gap-2"><span class="cat-dot" style="background:${c.color}"></span>${esc(c.name)} <span class="text-xs text-gray-500 font-normal">${fx.length} match${fx.length === 1 ? '' : 'es'}</span></div>
+            ${fx.map((f, i) => `<div class="flex items-center gap-2 py-1 border-b border-gray-100 text-sm">
+              <span class="text-xs text-gray-400" style="width:20px">${i + 1}</span>
+              ${multi(c) ? groupBadge(f.g, c) : ''}
+              <span class="flex-1 font-medium" style="min-width:0">${esc(f.a)} <span class="text-gray-400 text-xs">vs</span> ${esc(f.b)}</span>
+              <button class="sb-btn" data-act="up" data-c="${esc(c.id)}" data-i="${i}" ${i === 0 ? 'disabled' : ''}>▲</button>
+              <button class="sb-btn" data-act="down" data-c="${esc(c.id)}" data-i="${i}" ${i === fx.length - 1 ? 'disabled' : ''}>▼</button>
+              <button class="sb-btn" data-act="del" data-c="${esc(c.id)}" data-i="${i}" title="Remove">×</button>
+            </div>`).join('')}</div>`;
+        }).join('')}
+        <div class="flex gap-2 mt-4"><button class="btn flex-1" data-act="off">Turn off manual mode</button><button class="btn flex-1" data-act="close">Close</button></div>`;
+    }
+    draw();
+
+    w.addEventListener('change', e => {
+      const id = e.target.id;
+      if (id === 'sbCat') { catId = e.target.value; g = 'A'; a = b = ''; draw(); }
+      else if (id === 'sbGrp') { g = e.target.value; a = b = ''; draw(); }
+      else if (id === 'sbA') { a = e.target.value; if (b === a) b = ''; draw(); }
+      else if (id === 'sbB') b = e.target.value;
+    });
+    w.addEventListener('click', e => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn || btn.disabled) return;
+      const act = btn.dataset.act;
+      if (act === 'close') { o.remove(); return; }
+      if (act === 'on') {
+        state.manualMode = true;
+        state.categories.forEach(c => {
+          if (!toA(c.fixtures).length) c.fixtures = c.matches.filter(m => m.stage !== 'ko').map(m => ({ id: m.id, g: m.group || null, a: m.team1, b: m.team2 }));
+        });
+        state.categories.forEach(c => buildMatches(c));
+        changed(); draw(); return;
+      }
+      if (act === 'off') {
+        confirmDialog('Go back to automatic matches? Scores are kept, but the goal lists of matches may be lost.', () => {
+          state.manualMode = false;
+          state.categories.forEach(c => buildMatches(c));
+          changed(); draw();
+        }, 'Turn off');
+        return;
+      }
+      const cat = getCat(btn.dataset.c || catId);
+      if (!cat) return;
+      if (act === 'add') {
+        if (!a || !b) { toast('Choose both teams.'); return; }
+        cat.fixtures = toA(cat.fixtures).concat([{ id: newFid(), g: effG(cat), a, b }]);
+        a = b = '';
+        changed(cat); draw();
+      } else if (act === 'all') {
+        const have = new Set(toA(cat.fixtures).map(f => pairKey(isGrouped(cat) ? f.g : null, f.a, f.b)));
+        const add = [];
+        (isGrouped(cat) ? groupLetters(cat.groups) : [null]).forEach(gr => {
+          const ts = cat.teams.filter((t, i) => !isGrouped(cat) || teamGroup(cat, i) === gr);
+          rrRounds(ts).forEach(r => r.forEach(([x, y]) => {
+            if (!have.has(pairKey(gr, x, y))) add.push({ id: newFid(), g: gr, a: x, b: y });
+          }));
+        });
+        if (!add.length) { toast('No missing matches.'); return; }
+        cat.fixtures = toA(cat.fixtures).concat(add);
+        changed(cat); draw();
+      } else {
+        const fx = toA(cat.fixtures), i = +btn.dataset.i;
+        if (act === 'up' && i > 0) [fx[i - 1], fx[i]] = [fx[i], fx[i - 1]];
+        else if (act === 'down' && i < fx.length - 1) [fx[i + 1], fx[i]] = [fx[i], fx[i + 1]];
+        else if (act === 'del') {
+          const f = fx[i], mm = f && cat.matches.find(x => x.id === f.id);
+          const rm = () => { fx.splice(i, 1); cat.fixtures = fx; changed(cat); draw(); };
+          if (mm && (mm.score1 !== '' || mm.score2 !== '')) { confirmDialog('This match already has a score. Remove it?', rm, 'Remove'); return; }
+          rm(); return;
+        }
+        cat.fixtures = fx;
+        changed(cat); draw();
+      }
+    });
+  }
+
+  // Button in the Setup panel (above Break Times)
+  const brk = document.getElementById('breaksList').parentElement;
+  brk.insertAdjacentHTML('beforebegin', `<div class="border-t border-gray-100 pt-3">
+    <button id="sbOpen" type="button" class="btn w-full">🗓 Schedule builder</button>
+    <p class="text-xs text-gray-500 mt-1">Choose each match from dropdowns: category, group, teams.</p></div>`);
+  document.getElementById('sbOpen').onclick = openBuilder;
+
+  if (currentView === 'tournament') render();
+})();
+
+
+// ============================================================
+// SCHEDULE BUILDER v2: create categories/teams + empty slots with dropdowns
+// Paste at the very end of the main script block (after the other add-ons).
+// state.slotMode = true: matches are placed by the slot they were chosen in.
+// Group matches: cat.fixtures[] = {id,g,a,b,ps(slot),pc(court)}
+// Knockouts:     cat.koPos = { sf1:{ps,pc}, final:{ps,pc}, ... }
+// ============================================================
+(function () {
+  const css = `
+    body.slot-mode .move-btn, body.slot-mode .unpin-btn { display: none !important; }
+    .sl-time { font-size: 12px; font-weight: 700; color: #374151; background: #f3f4f6; border-radius: 6px; padding: 3px 10px; margin: 8px 0 3px; }
+    .sl-brk { font-size: 11px; font-weight: 700; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 2px 10px; margin-top: 8px; text-align: center; }
+    .sl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 3px 4px 3px 8px; border-left: 4px solid transparent; border-radius: 4px; }
+    .sl-row.on { border-left-color: var(--c, #10b981); background: #f9fafb; }
+    .sl-row select { flex: 1 1 105px; min-width: 0; font-size: 12px; padding: 4px 6px; }
+    .sl-ko { flex: 2 1 160px; font-size: 12px; font-weight: 600; color: #374151; }
+    .sl-tab { flex: 1; padding: 7px 10px; font-size: 13px; font-weight: 600; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }
+    .sl-tab.on { background: #10b981; border-color: #10b981; color: #fff; }
+    .sb-btn { padding: 2px 7px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; }
+    .sb-btn:hover { background: #f3f4f6; }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const newFid = () => 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const FORMATS = [['round-robin', 'Round robin'], ['round-robin-final', 'Round robin + final & 3rd place'],
+    ['round-robin-knockouts', 'Round robin + knockouts'], ['groups-playoffs', 'Groups + playoffs']];
+
+  // ---------- time helpers ----------
+  const mmN = () => Math.max(1, parseInt(state.matchMin) || 10);
+  const courtsN = () => Math.max(1, parseInt(state.courts) || 1);
+  const perDayN = () => {
+    const br = (state.breaks || []).reduce((s, b) => s + (parseInt(b.min) || 0), 0);
+    return Math.max(1, Math.floor((toMin(state.playUntil) - toMin(state.dayStarts) - br) / mmN()));
+  };
+  const timeOfSlot = sl => { const pd = perDayN(), si = sl % pd; return toMin(state.dayStarts) + si * mmN() + getTotalBreakTimeAtSlot(si); };
+
+  // ---------- positions ----------
+  const fxAt = (c, ps, pc) => toA(c.fixtures).find(f => +f.ps === ps && +f.pc === pc);
+  const koAt = (c, ps, pc) => { const kp = c.koPos || {}; return Object.keys(kp).find(id => kp[id] && +kp[id].ps === ps && +kp[id].pc === pc) || null; };
+  function cellOf(ps, pc) {
+    for (const c of state.categories) {
+      const f = fxAt(c, ps, pc); if (f) return { c, f };
+      const k = koAt(c, ps, pc); if (k) return { c, ko: k };
+    }
+    return null;
+  }
+  const posOf = (c, m) => {
+    if (m.stage === 'ko') return (c.koPos || {})[m.id] || null;
+    const f = toA(c.fixtures).find(x => x.id === m.id);
+    return f && f.ps != null ? { ps: +f.ps, pc: +f.pc } : null;
+  };
+  function daysN() {
+    let mx = -1;
+    state.categories.forEach(c => {
+      toA(c.fixtures).forEach(f => { if (f.ps != null) mx = Math.max(mx, +f.ps); });
+      Object.values(c.koPos || {}).forEach(p => { if (p) mx = Math.max(mx, +p.ps); });
+    });
+    return Math.max(state.slotDays || 1, Math.ceil((mx + 1) / perDayN()));
+  }
+
+  // ---------- keep the new fields when data is loaded ----------
+  wrap('normalize', (o, d) => {
+    const s = o(d);
+    if (d && d.manualMode) s.manualMode = true;
+    if (d && d.slotMode) s.slotMode = true;
+    if (d && d.slotDays) s.slotDays = +d.slotDays;
+    return s;
+  });
+
+  // ---------- the scheduler: slot mode places every match where it was chosen ----------
+  wrap('scheduleAll', o => {
+    o();
+    if (!state.slotMode) return;
+    const courts = courtsN(), mm = mmN(), pd = perDayN(), start = toMin(state.dayStarts);
+    const tm = sl => { const si = sl % pd, t = start + si * mm + getTotalBreakTimeAtSlot(si); return { slot: sl, day: Math.floor(sl / pd), timeMin: t, time: formatTime(t) }; };
+    let maxS = -1; const loose = [];
+    state.categories.forEach(c => c.matches.forEach(m => {
+      const p = posOf(c, m);
+      if (p && Number.isInteger(p.ps) && p.ps >= 0 && p.pc >= 1 && p.pc <= courts) {
+        Object.assign(m, tm(p.ps), { courtNo: p.pc, court: 'C' + p.pc });
+        maxS = Math.max(maxS, p.ps);
+      } else loose.push(m);
+    }));
+    loose.forEach((m, i) => Object.assign(m, tm(maxS + 1 + Math.floor(i / courts)), { courtNo: (i % courts) + 1, court: 'C' + ((i % courts) + 1) }));
+    state.categories.forEach(c => c.matches.sort(matchOrder));
+  });
+  wrap('render', o => { document.body.classList.toggle('slot-mode', !!state.slotMode); o(); decorateFull(); });
+
+  // ---------- builder window ----------
+  function openBuilder() {
+    if (!editMode) return;
+    let tab = (!state.categories.length || !state.categories.some(c => c.teams.length) || !state.slotMode) && !state.slotMode ? 't' : 's';
+    const drafts = {};
+    const o = showModal('<div id="sbWrap"></div>');
+    const box = o.firstElementChild;
+    box.style.width = 'min(720px, 96vw)'; box.style.maxHeight = '90vh'; box.style.overflowY = 'auto';
+    const w = o.querySelector('#sbWrap');
+    const multi = c => isGrouped(c) && c.groups > 1;
+
+    function stageOpts(cat, ps, pc) {
+      const out = [];
+      if (isGrouped(cat)) groupLetters(cat.groups).forEach(l => out.push(['g:' + l, cat.groups > 1 ? 'Group ' + l : 'Group stage']));
+      else out.push(['g:_', 'Round robin']);
+      const kp = cat.koPos || {};
+      cat.matches.filter(m => m.stage === 'ko').forEach(m => {
+        const p = kp[m.id];
+        if (!p || (+p.ps === ps && +p.pc === pc)) out.push(['k:' + m.id, m.round]);
+      });
+      return out;
+    }
+    const teamsFor = (cat, stg) => {
+      const L = stg.slice(2);
+      return cat.teams.filter((t, i) => L === '_' || !isGrouped(cat) || teamGroup(cat, i) === L);
+    };
+    function rowState(ps, pc) {
+      const hit = cellOf(ps, pc);
+      if (hit && hit.f) return { c: hit.c.id, st: 'g:' + (isGrouped(hit.c) ? (hit.f.g || 'A') : '_'), a: hit.f.a, b: hit.f.b, fid: hit.f.id, cat: hit.c };
+      if (hit && hit.ko) return { c: hit.c.id, st: 'k:' + hit.ko, a: '', b: '', ko: hit.ko, cat: hit.c };
+      return Object.assign({ c: '', st: '', a: '', b: '' }, drafts[ps + ':' + pc] || {});
+    }
+
+    // ----- Teams tab -----
+    function teamsHtml() {
+      const cats = state.categories.map(cat => {
+        alignGroups(cat);
+        return `<div class="border border-gray-200 rounded-lg p-3 mb-3">
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <span class="cat-dot" style="background:${cat.color}"></span>
+            <input type="text" value="${esc(cat.name)}" data-k="cname" data-c="${esc(cat.id)}" style="flex:1;min-width:120px">
+            <select data-k="cfmt" data-c="${esc(cat.id)}">${FORMATS.map(([v, l]) => `<option value="${v}"${cat.format === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+            ${isGrouped(cat) ? `<select data-k="cgrp" data-c="${esc(cat.id)}">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}"${cat.groups === n ? ' selected' : ''}>${n} group${n > 1 ? 's' : ''}</option>`).join('')}</select>` : ''}
+            <button type="button" class="sb-btn" data-act="delcat" data-c="${esc(cat.id)}" title="Delete category">×</button>
+          </div>
+          <div class="flex gap-2 mb-2">
+            <input type="text" id="ti-${esc(cat.id)}" placeholder="Team names, separated by commas" class="flex-1" style="min-width:0">
+            ${multi(cat) ? `<select id="tg-${esc(cat.id)}">${groupLetters(cat.groups).map(l => `<option value="${l}">Group ${l}</option>`).join('')}</select>` : ''}
+            <button type="button" class="btn" data-act="addt" data-c="${esc(cat.id)}">+ Add</button>
+          </div>
+          <div class="flex flex-wrap gap-1.5">${cat.teams.length ? cat.teams.map((t, i) => `
+            <span class="flex items-center gap-1 border rounded-md px-2 py-1" style="border-color:#e5e7eb;background:${multi(cat) ? groupColor(teamGroup(cat, i), cat) : '#f9fafb'}">
+              <span class="text-xs font-medium">${esc(t)}</span>
+              ${multi(cat) ? `<select class="group-select" data-k="tgrp" data-c="${esc(cat.id)}" data-i="${i}">${groupLetters(cat.groups).map(l => `<option value="${l}"${teamGroup(cat, i) === l ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}
+              <button type="button" class="text-gray-400" data-act="delt" data-c="${esc(cat.id)}" data-i="${i}">×</button></span>`).join('') : '<span class="text-xs text-gray-400">No teams yet</span>'}</div>
+        </div>`;
+      }).join('');
+      return cats + (state.categories.length >= 12 ? '' : `<div class="flex gap-2 mt-1">
+          <input type="text" id="newCat" placeholder="New category name (e.g. Under 10)" class="flex-1" style="min-width:0">
+          <button type="button" class="btn bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="addcat">+ Add category</button></div>`) +
+        `<div class="flex gap-2 mt-4"><button type="button" class="btn flex-1" data-act="close">Close</button>
+          <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-tab="s">Next: Schedule →</button></div>`;
+    }
+
+    // ----- Schedule tab -----
+    function schedHtml() {
+      if (!state.slotMode) {
+        const have = state.categories.some(c => c.matches.length);
+        return `<p class="text-sm text-gray-600 mb-3">This makes empty time slots for the day from your Setup (start time, play until, match length, courts, breaks). Every slot gets dropdowns for category, group and teams.</p>
+          ${state.categories.length ? '' : '<p class="text-xs text-red-500 mb-2">Add a category and some teams on the Teams tab first.</p>'}
+          <div class="flex flex-col gap-2">
+            <button type="button" class="btn bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="blank">Start with empty slots</button>
+            ${have ? '<button type="button" class="btn" data-act="keep">Keep my current matches in their slots</button>' : ''}
+            <button type="button" class="btn" data-tab="t">← Back to Teams</button></div>`;
+      }
+      const pd = perDayN(), mm = mmN(), courts = courtsN(), nd = daysN(), brks = getActiveBreaks();
+      const busy = {};
+      state.categories.forEach(c => toA(c.fixtures).forEach(f => { if (f.ps != null) (busy[+f.ps] = busy[+f.ps] || []).push({ pc: +f.pc, t: [f.a, f.b] }); }));
+      let h = '<p class="text-xs text-gray-500 mb-1">Pick a category, a group (or a knockout round) and the two teams. The match appears in the schedule as soon as both teams are chosen.</p>';
+      for (let d = 0; d < nd; d++) {
+        h += `<div class="font-semibold text-xs text-gray-700 mt-4 uppercase">${dayHeader(d)}</div>`;
+        for (let si = 0; si < pd; si++) {
+          const sl = d * pd + si, t = timeOfSlot(sl), bk = brks.find(b => b.before === si);
+          if (bk) h += `<div class="sl-brk">☕ ${esc(bk.label.toUpperCase())} (${formatTime(bk.startMin)} - ${formatTime(bk.endMin)})</div>`;
+          h += `<div class="sl-time">${formatTime(t)} – ${formatTime(t + mm)}</div>`;
+          for (let pc = 1; pc <= courts; pc++) h += rowHtml(sl, pc, busy);
+        }
+      }
+      h += `<div class="flex flex-wrap gap-2 mt-4">
+        <button type="button" class="btn" data-act="addday">+ Add another day</button>
+        ${nd > 1 ? '<button type="button" class="btn" data-act="rmday">− Remove last day</button>' : ''}
+        <button type="button" class="btn" data-tab="t">Teams</button>
+        <button type="button" class="btn" data-act="auto">Back to automatic</button>
+        <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-act="close">Done</button></div>`;
+      return h;
+    }
+    function rowHtml(ps, pc, busy) {
+      const r = rowState(ps, pc), cat = r.c ? getCat(r.c) : null;
+      const d = `data-ps="${ps}" data-pc="${pc}"`;
+      let stage = '', teams = '';
+      if (cat) {
+        stage = `<select ${d} data-k="st"><option value="">Group…</option>${stageOpts(cat, ps, pc).map(([v, l]) => `<option value="${esc(v)}"${v === r.st ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+        if (r.st.startsWith('k:')) {
+          const m = cat.matches.find(x => x.id === r.st.slice(2));
+          teams = `<span class="sl-ko">${m ? esc(displayName(cat, m, 1)) + ' <span class="text-gray-400">vs</span> ' + esc(displayName(cat, m, 2)) : ''}</span>`;
+        } else if (r.st) {
+          const ts = teamsFor(cat, r.st);
+          const sel = (k, other, cur, ph) => `<select ${d} data-k="${k}"><option value="">${ph}</option>${ts.filter(t => t !== other).map(t => `<option value="${esc(t)}"${t === cur ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+          teams = sel('a', r.b, r.a, 'Team 1…') + '<span class="text-xs text-gray-400">vs</span>' + sel('b', r.a, r.b, 'Team 2…');
+        }
+      }
+      const warn = r.fid && (busy[ps] || []).some(x => x.pc !== pc && x.t.some(n => n === r.a || n === r.b));
+      return `<div class="sl-row${(r.fid || r.ko) ? ' on' : ''}" style="--c:${cat ? cat.color : '#10b981'}">
+        <span class="court-badge">C${pc}</span>
+        <select ${d} data-k="c"><option value="">Category…</option>${state.categories.map(c => `<option value="${esc(c.id)}"${c.id === r.c ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+        ${stage}${teams}
+        ${warn ? '<span class="warn-badge" title="A team in this match also plays at the same time on another court.">⚠ Clash</span>' : ''}
+        ${r.c ? `<button type="button" class="sb-btn" data-act="clr" ${d} title="Clear this slot">×</button>` : ''}
+      </div>`;
+    }
+
+    function draw() {
+      const top = box.scrollTop;
+      w.innerHTML = `<h3 class="font-semibold text-gray-900 mb-2">🗓 Schedule builder</h3>
+        <div class="flex gap-2 mb-3"><button type="button" class="sl-tab${tab === 't' ? ' on' : ''}" data-tab="t">1. Categories & teams</button>
+        <button type="button" class="sl-tab${tab === 's' ? ' on' : ''}" data-tab="s">2. Schedule</button></div>` + (tab === 't' ? teamsHtml() : schedHtml());
+      box.scrollTop = top;
+    }
+
+    // ----- changing a slot -----
+    function applyCell(ps, pc, cur, d) {
+      const key = ps + ':' + pc, ko = (d.st || '').startsWith('k:');
+      const reuse = !!(cur.fid && !ko && d.c === cur.c && d.st === cur.st && d.a && d.b);
+      const run = () => {
+        if (reuse) { const f = fxAt(cur.cat, ps, pc); if (f) { f.a = d.a; f.b = d.b; } }
+        else {
+          if (cur.fid) cur.cat.fixtures = toA(cur.cat.fixtures).filter(f => f.id !== cur.fid);
+          if (cur.ko && cur.cat.koPos) delete cur.cat.koPos[cur.ko];
+          const cat = d.c ? getCat(d.c) : null;
+          if (cat && ko) { cat.koPos = cat.koPos || {}; cat.koPos[d.st.slice(2)] = { ps, pc }; }
+          else if (cat && d.st && d.a && d.b)
+            cat.fixtures = toA(cat.fixtures).concat([{ id: newFid(), g: d.st === 'g:_' ? null : d.st.slice(2), a: d.a, b: d.b, ps, pc }]);
+        }
+        if (cellOf(ps, pc) || !d.c) delete drafts[key]; else drafts[key] = d;
+        state.categories.forEach(c => buildMatches(c));
+        changed(); draw();
+      };
+      const m = cur.fid && cur.cat.matches.find(x => x.id === cur.fid);
+      if (!reuse && m && (m.score1 !== '' || m.score2 !== '')) { draw(); confirmDialog('This match already has a score. Remove it from this slot?', run, 'Remove'); }
+      else run();
+    }
+    function slotChange(ps, pc, k, v) {
+      const cur = rowState(ps, pc);
+      let d = { c: cur.c, st: cur.st, a: cur.a, b: cur.b };
+      if (k === 'c') { d = { c: v, st: '', a: '', b: '' }; const cat = getCat(v); if (cat) { const so = stageOpts(cat, ps, pc); d.st = so.length ? so[0][0] : ''; } }
+      else if (k === 'st') { d.st = v; d.a = d.b = ''; }
+      else if (k === 'a') { d.a = v; if (d.b === v) d.b = ''; }
+      else if (k === 'b') { d.b = v; if (d.a === v) d.a = ''; }
+      applyCell(ps, pc, cur, d);
+    }
+
+    function startSlots(keep) {
+      state.manualMode = true; state.slotMode = true;
+      state.categories.forEach(c => {
+        if (keep) {
+          if (!toA(c.fixtures).length) c.fixtures = c.matches.filter(m => m.stage !== 'ko').map(m => ({ id: m.id, g: m.group || null, a: m.team1, b: m.team2 }));
+          toA(c.fixtures).forEach(f => { const m = c.matches.find(x => x.id === f.id); if (m && f.ps == null) { f.ps = m.slot; f.pc = m.courtNo; } });
+          c.koPos = {};
+          c.matches.filter(m => m.stage === 'ko').forEach(m => { c.koPos[m.id] = { ps: m.slot, pc: m.courtNo }; });
+        } else { c.fixtures = []; c.koPos = {}; }
+      });
+      state.slotDays = 1;
+      state.slotDays = keep ? daysN() : 1;
+      state.categories.forEach(c => buildMatches(c));
+      changed(); tab = 's'; draw();
+    }
+
+    // ----- events -----
+    w.addEventListener('change', e => {
+      const s = e.target, k = s.dataset.k;
+      if (!k) return;
+      if (s.dataset.ps !== undefined) { slotChange(+s.dataset.ps, +s.dataset.pc, k, s.value); return; }
+      const cat = getCat(s.dataset.c);
+      if (!cat) return;
+      if (k === 'cname') { cat.name = s.value.trim() || 'Untitled'; render(); save(); }
+      else if (k === 'cfmt') { cat.format = s.value; if (!cat.groups) cat.groups = 2; changed(cat); draw(); }
+      else if (k === 'cgrp') { cat.groups = parseInt(s.value); changed(cat); draw(); }
+      else if (k === 'tgrp') { alignGroups(cat); cat.teamGroups[+s.dataset.i] = s.value; changed(cat); draw(); }
+    });
+    w.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      if (e.target.id === 'newCat') w.querySelector('[data-act="addcat"]').click();
+      else if (e.target.id && e.target.id.startsWith('ti-')) { const b = w.querySelector(`[data-act="addt"][data-c="${e.target.id.slice(3)}"]`); if (b) b.click(); }
+    });
+    w.addEventListener('click', e => {
+      const tb = e.target.closest('[data-tab]');
+      if (tb) { tab = tb.dataset.tab; draw(); return; }
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      const act = b.dataset.act, cat = b.dataset.c ? getCat(b.dataset.c) : null;
+      if (act === 'close') { o.remove(); return; }
+      if (act === 'addcat') {
+        const inp = w.querySelector('#newCat'), name = (inp.value || '').trim();
+        if (!name) { toast('Type a category name.'); return; }
+        state.categories.push({ id: 'cat' + Date.now(), name, color: COLORS[state.categories.length % COLORS.length], format: 'round-robin', groups: 2, teams: [], teamGroups: [], matches: [] });
+        changed(); draw(); return;
+      }
+      if (act === 'delcat' && cat) {
+        confirmDialog(`Delete "${cat.name}" and all its matches?`, () => { state.categories = state.categories.filter(c => c !== cat); changed(); draw(); }, 'Delete');
+        return;
+      }
+      if (act === 'addt' && cat) {
+        const inp = w.querySelector('#ti-' + cat.id), gs = w.querySelector('#tg-' + cat.id);
+        const names = [...new Set((inp.value || '').split(',').map(s => s.trim()).filter(Boolean))];
+        if (!names.length) return;
+        const dup = names.filter(n => cat.teams.some(t => t.toLowerCase() === n.toLowerCase()));
+        if (dup.length) { toast('Already in this category: ' + dup.join(', ')); return; }
+        if (cat.teams.length + names.length > 16) { toast('Maximum 16 teams per category!'); return; }
+        alignGroups(cat);
+        names.forEach(n => { cat.teams.push(n); cat.teamGroups.push(gs ? gs.value : 'A'); });
+        changed(cat); draw();
+        const again = w.querySelector('#ti-' + cat.id); if (again) again.focus();
+        return;
+      }
+      if (act === 'delt' && cat) {
+        const i = +b.dataset.i, t = cat.teams[i];
+        confirmDialog(`Remove "${t}"? Its matches are removed too.`, () => {
+          alignGroups(cat); cat.teams.splice(i, 1); cat.teamGroups.splice(i, 1); changed(cat); draw();
+        }, 'Remove');
+        return;
+      }
+      if (act === 'blank') {
+        if (!state.categories.length) { toast('Add a category first.'); return; }
+        const scored = state.categories.some(c => c.matches.some(m => m.score1 !== '' || m.score2 !== ''));
+        if (scored) confirmDialog('Starting with empty slots removes the current matches and their scores. Continue?', () => startSlots(false), 'Start empty');
+        else startSlots(false);
+        return;
+      }
+      if (act === 'keep') { startSlots(true); return; }
+      if (act === 'clr') {
+        const ps = +b.dataset.ps, pc = +b.dataset.pc;
+        applyCell(ps, pc, rowState(ps, pc), { c: '', st: '', a: '', b: '' });
+        return;
+      }
+      if (act === 'addday') { state.slotDays = daysN() + 1; save(); draw(); return; }
+      if (act === 'rmday') {
+        const nd = daysN(), pd = perDayN(), lo = (nd - 1) * pd;
+        const used = state.categories.some(c => toA(c.fixtures).some(f => +f.ps >= lo) || Object.values(c.koPos || {}).some(p => p && +p.ps >= lo));
+        if (used) { toast('The last day still has matches. Clear them first.'); return; }
+        state.slotDays = Math.max(1, nd - 1); save(); draw(); return;
+      }
+      if (act === 'auto') {
+        confirmDialog('Go back to automatic matches? The app will generate matches from the teams again. Scores are kept where the same teams meet.', () => {
+          state.slotMode = false; state.manualMode = false;
+          state.categories.forEach(c => buildMatches(c));
+          changed(); tab = 't'; draw();
+        }, 'Go back');
+      }
+    });
+    draw();
+  }
+
+  // ---------- buttons that open it ----------
+  document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.sb2-open')) openBuilder(); });
+  const old = document.getElementById('sbOpen');
+  if (old) old.parentElement.style.display = 'none';
+  document.getElementById('breaksList').parentElement.insertAdjacentHTML('beforebegin',
+    `<div class="border-t border-gray-100 pt-3"><button type="button" class="btn w-full sb2-open">🗓 Schedule builder</button>
+      <p class="text-xs text-gray-500 mt-1">Add categories and teams, then choose every match from dropdowns.</p></div>`);
+  function decorateFull() {
+    const h = document.querySelector('#scheduleView h2');
+    if (!h) return;
+    const ex = document.getElementById('sbOpen2');
+    if (editMode && !ex) h.insertAdjacentHTML('afterend', '<button type="button" id="sbOpen2" class="btn sb2-open mb-3">🗓 Open schedule builder</button>');
+    if (!editMode && ex) ex.remove();
+  }
+
+  // data loaded before this block ran lost the new fields: restore them and rebuild once
+  try {
+    const raw = currentScheduleId && getStoredScheduleData(currentScheduleId);
+    if (raw) { if (raw.manualMode) state.manualMode = true; if (raw.slotMode) state.slotMode = true; if (raw.slotDays) state.slotDays = +raw.slotDays; }
+  } catch (e) {}
+  if (state.slotMode) { state.categories.forEach(c => buildMatches(c)); scheduleAll(); }
+  if (currentView === 'tournament') render();
+})();
+
+// ============================================================
+// LIGHT KNOCKOUT ROW COLOUR + SCORES ALWAYS STAY IN ONE ROW
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const css = `
+    /* scores stay together: the group is one unit that wraps as a whole */
+    .score-group { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 4px; white-space: nowrap; flex: 0 0 auto; }
+    .score-group .score-box, .score-group .sc-btn { flex: 0 0 auto; }
+    .score-pill { white-space: nowrap; }
+
+    /* Full schedule: the score column never breaks onto two lines */
+    #scheduleBody tr.schedule-row > td:nth-child(7) { white-space: nowrap; }
+    #scheduleBody tr.schedule-row > td:nth-child(7) > div { flex-wrap: nowrap; }
+    #scheduleBody .score-box { flex: 0 0 auto; }
+  `;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+
+  // ---------- light colour for knockout rows (change 0.12 to make it paler or stronger) ----------
+  wrap('rowBg', (o, cat, m) => m.stage === 'ko' ? hexToRgba('#facc15', 0.06) : o(cat, m));
+  wrap('legendHtml', (o, all) => o(all).replace('#fde68a', '#fef9c3'));
+
+  // ---------- keep the two score boxes (with their - / + buttons) in one group ----------
+  function groupScores() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      const right = card.lastElementChild;
+      if (!right || right.querySelector('.score-group')) return;
+      const boxes = Array.from(right.children).filter(x => x.classList.contains('score-box'));
+      if (boxes.length < 2) return;
+      const isBtn = x => x && x.classList.contains('sc-btn');
+      const first = isBtn(boxes[0].previousElementSibling) ? boxes[0].previousElementSibling : boxes[0];
+      const last = isBtn(boxes[1].nextElementSibling) ? boxes[1].nextElementSibling : boxes[1];
+      const nodes = [];
+      for (let n = first; n; n = n.nextElementSibling) { nodes.push(n); if (n === last) break; }
+      if (nodes[nodes.length - 1] !== last) return;
+      const g = document.createElement('span');
+      g.className = 'score-group';
+      right.insertBefore(g, first);
+      nodes.forEach(n => g.appendChild(n));
+    });
+  }
+  ['renderCategories', 'render'].forEach(n => wrap(n, o => { o(); groupScores(); }));
+
+  if (currentView === 'tournament') render();
+})();
+  // ============================================================
+// ONE FONT EVERYWHERE + COMPACT DROPDOWNS
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const css = `
+    /* one font for everything, including form controls and the PDF-free UI text */
+    html body, html body input, html body select, html body textarea, html body button, html body option {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    }
+
+    /* all dropdowns the same, modest size (change 13px to make them bigger or smaller) */
+    html body select,
+    html body select.btn,
+    html body select.group-select,
+    html body .sl-row select,
+    html body .fm-item,
+    html body option {
+      font-size: 13px !important;
+      line-height: 1.3;
+    }
+    html body select { padding: 4px 8px !important; height: auto; }
+    html body select.group-select { padding: 2px 6px !important; }
+
+    /* phones: text boxes stay at 16px (stops the page zooming when you type),
+       dropdowns are only slightly larger than on desktop */
+    @media (max-width: 639px), (pointer: coarse) {
+      html body select,
+      html body select.btn,
+      html body select.group-select,
+      html body .sl-row select {
+        font-size: 14px !important;
+        padding: 4px 8px !important;
+      }
+    }
+  `;
+  const st = document.createElement('style');
+  st.id = 'uniformFontStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+})();
+// ============================================================
+// CHOOSE WHICH TEAM IS ON THE LEFT (edit mode): "⇄ Swap" button
+// Paste at the very end of the main script block.
+// Group matches: cat.flips = [{l:'Team on left', r:'Team on right'}]
+// Knockouts:     cat.koFlip = ['sf1', ...]
+// ============================================================
+(function () {
+  const css = `.flip-btn { padding: 4px 8px; font-size: 11px; white-space: nowrap; }`;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const key = (a, b) => [a, b].sort().join('|');
+  const pk = m => pairKey(m.group, m.team1, m.team2);
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  let flipCat = null;      // the category being built right now
+  let expanding = null;    // set while a snapshot share link is being opened
+
+  // ---- Matches are generated with the chosen team on the left ----
+  wrap('rrRounds', (o, teams) => {
+    const rounds = o(teams);
+    if (!flipCat) return rounds;
+    const left = new Map();
+    toA(flipCat.flips).forEach(f => left.set(key(f.l, f.r), f.l));
+    return rounds.map(r => r.map(([a, b]) => left.get(key(a, b)) === b ? [b, a] : [a, b]));
+  });
+
+  wrap('buildMatches', (o, cat) => {
+    if (expanding && !expanding.seen.has(cat)) {
+      expanding.seen.add(cat);
+      const e = expanding.fl[expanding.n++];
+      if (e) { cat.flips = (e[0] || []).map(([l, r]) => ({ l, r })); cat.koFlip = e[1] || []; }
+    }
+    const prev = {};
+    cat.matches.forEach(m => { if (m.stage !== 'ko') prev[pk(m)] = m; });
+    const had = flipCat; flipCat = cat;
+    try { o(cat); } finally { flipCat = had; }
+
+    cat.matches.forEach(m => {
+      if (m.stage === 'ko') return;
+      const p = prev[pk(m)];
+      if (!p || p === m || p.team1 === m.team1) return;   // same side as before: nothing to fix
+      // the match id changed with the order of the teams, so carry goals and timer over (goal sides swap)
+      if (toA(p.goals).length && !toA(m.goals).length) m.goals = toA(p.goals).map(g => ({ ...g, side: +g.side === 1 ? 2 : 1 }));
+      if (p.clk && !m.clk) m.clk = p.clk;
+    });
+    const kf = toA(cat.koFlip);
+    if (kf.length) cat.matches.forEach(m => { if (m.stage === 'ko' && kf.includes(m.id)) [m.ref1, m.ref2] = [m.ref2, m.ref1]; });
+  });
+
+  // ---- Swapping everything that belongs to a side ----
+  const swapSides = m => {
+    [m.score1, m.score2] = [m.score2, m.score1];
+    [m.scorers1, m.scorers2] = [m.scorers2, m.scorers1];
+    if (m.pen1 != null || m.pen2 != null) [m.pen1, m.pen2] = [m.pen2, m.pen1];
+    if (m.wo) m.wo = (+m.wo === 1 ? 2 : 1);
+    if (toA(m.goals).length) m.goals = toA(m.goals).map(g => ({ ...g, side: +g.side === 1 ? 2 : 1 }));
+  };
+
+  function flipMatch(catId, matchId) {
+    if (!editMode) return;
+    const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m) return;
+    if (m.stage === 'ko') {
+      const list = toA(cat.koFlip);
+      cat.koFlip = list.includes(m.id) ? list.filter(x => x !== m.id) : list.concat([m.id]);
+      [m.ref1, m.ref2] = [m.ref2, m.ref1];
+      swapSides(m);
+      changed();
+      return;
+    }
+    const left = m.team1, right = m.team2;
+    cat.flips = toA(cat.flips).filter(f => key(f.l, f.r) !== key(left, right)).concat([{ l: right, r: left }]);
+    if (state.manualMode) {                       // Schedule builder matches: swap the fixture itself
+      const f = toA(cat.fixtures).find(x => x.id === m.id);
+      if (f) { [f.a, f.b] = [f.b, f.a]; swapSides(m); }
+    }
+    changed(cat);                                 // rebuilds; scores and scorers follow the team
+  }
+
+  // ---- Keep the choice when a team is renamed ----
+  wrap('updateTeamName', (o, catId, index, newName) => {
+    const cat = getCat(catId), old = cat && cat.teams[index];
+    o(catId, index, newName);
+    const nw = cat && cat.teams[index];
+    if (old && nw && old !== nw) {
+      toA(cat.flips).forEach(f => { if (f.l === old) f.l = nw; if (f.r === old) f.r = nw; });
+      save();
+    }
+  });
+
+  // ---- Snapshot share links carry it too ----
+  wrap('compactState', o => {
+    const r = o();
+    const fl = state.categories.map(c => [toA(c.flips).map(f => [f.l, f.r]), toA(c.koFlip)]);
+    if (fl.some(x => x[0].length || x[1].length)) r.fl = fl;
+    return r;
+  });
+  wrap('expandState', (o, obj) => {
+    expanding = { fl: obj.fl || [], n: 0, seen: new WeakSet() };
+    try { o(obj); } finally { expanding = null; }
+  });
+
+  // ---- The buttons ----
+  const BTN = (cat, m) => `<button type="button" class="btn flip-btn" data-cat="${esc(cat.id)}" data-match="${esc(m.id)}" title="Swap which team is on the left">⇄ Swap</button>`;
+  function decorate() {
+    if (!editMode) return;
+    document.querySelectorAll('.match-card').forEach(card => {
+      if (card.querySelector('.flip-btn')) return;
+      const hit = matchFromCard(card);
+      if (hit) card.lastElementChild.insertAdjacentHTML('afterbegin', BTN(hit.cat, hit.m));
+    });
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      const c = tr.children, last = c[c.length - 1];
+      if (c.length < 9 || last.querySelector('.flip-btn')) return;
+      const cat = state.categories.find(x => x.name === c[1].textContent.trim());
+      const home = c[5].textContent.trim(), away = c[7].textContent.trim();
+      const tm = c[0].firstChild ? c[0].firstChild.textContent.trim() : '';
+      const m = cat && cat.matches.find(x => displayName(cat, x, 1) === home && displayName(cat, x, 2) === away && (!tm || x.time === tm));
+      if (!m) return;
+      (last.firstElementChild || last).insertAdjacentHTML('beforeend', BTN(cat, m));
+    });
+  }
+  ['renderCategories', 'renderSchedule', 'render'].forEach(n => wrap(n, o => { o(); decorate(); }));
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.flip-btn');
+    if (b) flipMatch(b.dataset.cat, b.dataset.match);
+  });
+
+  if (currentView === 'tournament') render();
+})();
+  
 </script>
+
 </body>
 </html>
