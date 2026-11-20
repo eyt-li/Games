@@ -3435,10 +3435,8 @@ function switchMainView(view) {
   if (currentView === 'tournament') render();
 })();
 // ============================================================
-// TEAM PLAYER LISTS (with shirt numbers) + "LOG NEW GOAL" SCORERS
-// Replaces the older "TEAM PLAYER LISTS + DROPDOWN GOAL SCORERS" block.
-// Goals are stored per match in m.goals = [{side:1|2, p:'Name', min:'4'}]
-// m.scorers1 / m.scorers2 are kept in sync for the old views.
+// TEAM PLAYER LISTS (with shirt numbers) + "LOG NEW GOAL" SCORERS  (v3)
+// Goals: m.goals = [{side:1|2, p:'Name', min:'4', sec:'12'}]
 // ============================================================
 (function () {
   const css = `
@@ -3455,18 +3453,34 @@ function switchMainView(view) {
       border: 1px solid #10b981; cursor: pointer; }
     .goal-add:hover { background: #059669; }
     .goal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+    .goal-row1 { margin-top: 6px; }
+    .gh { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-align: center; }
+    .gh.s1 { background: #d1fae5; color: #065f46; }
+    .gh.s2 { background: #dbeafe; color: #1e40af; }
     .goal-cell { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 10px; border-radius: 6px;
-      background: #f9fafb; border: 1px solid #e5e7eb; font-size: 13px; min-width: 0; }
+      background: #f9fafb; border: 1px solid #e5e7eb; border-left: 4px solid var(--gc, #e5e7eb); font-size: 13px; min-width: 0; }
+    .goal-cell.s1 { --gc: #10b981; }
+    .goal-cell.s2 { --gc: #3b82f6; }
     .goal-cell .gname { font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .goal-cell .gmin { margin-left: auto; font-weight: 700; color: #047857; font-size: 12px; white-space: nowrap; }
-    .goal-cell.empty { color: #9ca3af; background: transparent; border-style: dashed; }
+    .goal-cell.empty { color: #9ca3af; background: transparent; border: 1px dashed #e5e7eb; }
+    .gteam { display: none; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; white-space: nowrap;
+      max-width: 38%; overflow: hidden; text-overflow: ellipsis; }
+    .goal-cell.s1 .gteam { background: #d1fae5; color: #065f46; }
+    .goal-cell.s2 .gteam { background: #dbeafe; color: #1e40af; }
     .goal-x { color: #9ca3af; font-size: 15px; line-height: 1; padding: 0 2px; cursor: pointer; background: none; border: 0; }
     .goal-x:hover { color: #dc2626; }
+    .goals-narrow { display: none; }
+    @media (max-width: 899px) {
+      .goals-wide { display: none; }
+      .goals-narrow { display: block; }
+      .gteam { display: inline-block; }
+    }
     .gl-team { flex: 1; padding: 10px 8px; border-radius: 10px; border: 2px solid #e5e7eb; background: #fff; font-weight: 700;
       font-size: 13px; cursor: pointer; color: #374151; }
     .gl-team.on { border-color: #10b981; background: #ecfdf5; color: #065f46; }
     .gl-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; color: #374151; text-transform: uppercase; margin: 12px 0 6px; }
-    @media (max-width: 639px) { .goal-row { grid-template-columns: 1fr; } }
+    .gl-sub { display: block; font-size: 10px; color: #6b7280; margin-bottom: 3px; }
   `;
   const st = document.createElement('style');
   st.textContent = css;
@@ -3550,11 +3564,17 @@ function switchMainView(view) {
   });
 
   // ---------- Goals ----------
-  // Goals of a match. Old scorer names (no minute) are shown as goals too.
   function goalsOf(m) {
-    const g = toA(m.goals).map(x => ({ side: +x.side, p: x.p || '', min: x.min ?? '' }));
+    const g = toA(m.goals).map(x => ({ side: +x.side, p: x.p || '', min: x.min ?? '', sec: x.sec ?? '' }));
     if (g.length) return g;
-    return [1, 2].flatMap(s => toA(m['scorers' + s]).map(p => ({ side: s, p, min: '' })));
+    return [1, 2].flatMap(s => toA(m['scorers' + s]).map(p => ({ side: s, p, min: '', sec: '' })));
+  }
+  const tkey = g => (g.min === '' && g.sec === '') ? 999999 : (parseInt(g.min) || 0) * 60 + (parseInt(g.sec) || 0);
+  const byTime = (a, b) => (tkey(a) - tkey(b)) || a.i - b.i;
+  function tfmt(g) {
+    if (g.min === '' && g.sec === '') return '';
+    const mi = parseInt(g.min) || 0;
+    return esc(mi + "'" + (g.sec !== '' ? String(parseInt(g.sec) || 0).padStart(2, '0') + '"' : ''));
   }
   const syncScorers = m => {
     const g = toA(m.goals);
@@ -3568,7 +3588,6 @@ function switchMainView(view) {
     if (m[o] === '' || m[o] == null) m[o] = '0';
   }
 
-  // Keep goals when matches are rebuilt (adding teams, remote updates ...)
   wrap('buildMatches', (o, cat) => {
     const keep = {};
     cat.matches.forEach(m => { if (toA(m.goals).length) keep[m.id] = m.goals; });
@@ -3576,27 +3595,28 @@ function switchMainView(view) {
     cat.matches.forEach(m => { if (keep[m.id]) m.goals = keep[m.id]; });
   });
 
-  // The strip under each match card
-function panelHtml(cat, m) {
-  const goals = goalsOf(m).map((g, i) => ({ ...g, i }));
-  const byMin = (a, b) => ((parseInt(a.min) || 999) - (parseInt(b.min) || 999)) || a.i - b.i;
-  const left = goals.filter(g => g.side === 1).sort(byMin);
-  const right = goals.filter(g => g.side === 2).sort(byMin);
-  const rows = Math.max(left.length, right.length);
-  const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
-  const cell = g => !g
-    ? '<div class="goal-cell empty">—</div>'
-    : `<div class="goal-cell">⚽ <span class="gname">${esc(g.p || 'Unknown')}</span>
-        ${g.min !== '' ? `<span class="gmin">${esc(g.min)}'</span>` : '<span class="gmin"></span>'}
-        ${editMode ? `<button type="button" class="goal-x" data-gdel ${d} data-i="${g.i}" title="Remove this goal">×</button>` : ''}</div>`;
-  let body = '';
-  for (let r = 0; r < rows; r++) body += `<div class="goal-row">${cell(left[r])}${cell(right[r])}</div>`;
-  return `<div class="goals-panel" ${d}>
-    <div class="goals-head"><span class="goals-title">⚽ Goalscorers</span>
-      ${editMode ? `<button type="button" class="goal-add" data-gadd ${d}>+ Add Goal</button>` : ''}</div>
-    ${body}
-  </div>`;
-}
+  function panelHtml(cat, m) {
+    const goals = goalsOf(m).map((g, i) => ({ ...g, i }));
+    const names = [displayName(cat, m, 1), displayName(cat, m, 2)];
+    const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+    const cell = g => !g
+      ? '<div class="goal-cell empty">—</div>'
+      : `<div class="goal-cell s${g.side === 2 ? 2 : 1}">⚽ <span class="gname">${esc(g.p || 'Unknown')}</span>
+          <span class="gteam">${esc(names[g.side === 2 ? 1 : 0])}</span>
+          <span class="gmin">${tfmt(g)}</span>
+          ${editMode ? `<button type="button" class="goal-x" data-gdel ${d} data-i="${g.i}" title="Remove this goal">×</button>` : ''}</div>`;
+    const left = goals.filter(g => g.side !== 2).sort(byTime);
+    const right = goals.filter(g => g.side === 2).sort(byTime);
+    let wide = goals.length ? `<div class="goal-row"><div class="gh s1">${esc(names[0])}</div><div class="gh s2">${esc(names[1])}</div></div>` : '';
+    for (let r = 0; r < Math.max(left.length, right.length); r++) wide += `<div class="goal-row">${cell(left[r])}${cell(right[r])}</div>`;
+    const narrow = goals.slice().sort(byTime).map(g => `<div class="goal-row1">${cell(g)}</div>`).join('');
+    return `<div class="goals-panel" ${d}>
+      <div class="goals-head"><span class="goals-title">⚽ Goalscorers</span>
+        ${editMode ? `<button type="button" class="goal-add" data-gadd ${d}>+ Add Goal</button>` : ''}</div>
+      <div class="goals-wide">${wide}</div>
+      <div class="goals-narrow">${narrow}</div>
+    </div>`;
+  }
   function decoratePanels() {
     document.querySelectorAll('.match-card').forEach(card => {
       const nx = card.nextElementSibling;
@@ -3645,15 +3665,20 @@ function panelHtml(cat, m) {
         </div>
         <span class="gl-label">2. Select player</span>
         <div id="glPlayerBox">${playerField()}</div>
-        <span class="gl-label">3. Match minute</span>
-        <input type="text" id="glMin" inputmode="numeric" maxlength="3" class="w-full" placeholder="min (')">
+        <span class="gl-label">3. Time of goal</span>
+        <div class="grid grid-cols-2 gap-3">
+          <div><span class="gl-sub">Minute</span><input type="text" id="glMin" inputmode="numeric" maxlength="3" class="w-full" placeholder="min (')"></div>
+          <div><span class="gl-sub">Second</span><input type="text" id="glSec" inputmode="numeric" maxlength="2" class="w-full" placeholder='sec (")'></div>
+        </div>
         <div class="flex gap-2 mt-4">
           <button type="button" class="btn flex-1" data-cancel>Cancel</button>
           <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-save>Save Goal ⚽</button>
         </div>`;
     }
     draw();
-    w.addEventListener('input', e => { if (e.target.id === 'glMin') e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
+    w.addEventListener('input', e => {
+      if (e.target.id === 'glMin' || e.target.id === 'glSec') e.target.value = e.target.value.replace(/[^0-9]/g, '');
+    });
     w.addEventListener('change', e => {
       if (e.target.id !== 'glPlayer') return;
       if (e.target.value === '__other') { other = true; player = ''; w.querySelector('#glPlayerBox').innerHTML = playerField(); w.querySelector('#glPlayer').focus(); }
@@ -3663,16 +3688,18 @@ function panelHtml(cat, m) {
       const b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.side) {
-        const keep = w.querySelector('#glMin').value;
-        side = +b.dataset.side; player = ''; other = false; draw(); w.querySelector('#glMin').value = keep;
+        const mi = w.querySelector('#glMin').value, se = w.querySelector('#glSec').value;
+        side = +b.dataset.side; player = ''; other = false; draw();
+        w.querySelector('#glMin').value = mi; w.querySelector('#glSec').value = se;
       } else if (b.hasAttribute('data-back')) { other = false; player = ''; w.querySelector('#glPlayerBox').innerHTML = playerField(); }
       else if (b.hasAttribute('data-cancel')) o.remove();
       else if (b.hasAttribute('data-save')) {
         const p = (w.querySelector('#glPlayer').value || '').trim();
         if (!p || p === '__other') { toast('Choose the player who scored.'); return; }
         const min = w.querySelector('#glMin').value.trim();
-        m.goals = goalsOf(m).concat([{ side, p, min }]);
-        const had = toA(m.goals).length - 1;
+        let sec = w.querySelector('#glSec').value.trim();
+        if (sec !== '') sec = String(Math.min(59, parseInt(sec) || 0));
+        m.goals = goalsOf(m).concat([{ side, p, min, sec }]);
         bumpScore(m, side, 1);
         syncScorers(m);
         save(); o.remove(); render();
@@ -3699,13 +3726,12 @@ function panelHtml(cat, m) {
     }
   });
 
-  // The ⚽ button in the Full schedule opens a read-only list (or the Add Goal window in Edit mode)
   window.openScorersModal = function (catId, matchId) {
     const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
     if (!m) return;
     if (editMode) { openGoalModal(catId, matchId); return; }
-    const g = goalsOf(m);
-    const line = x => `<li style="font-size:13px;padding:2px 0">⚽ ${esc(x.p)}${x.min !== '' ? ` <b style="color:#047857">${esc(x.min)}'</b>` : ''} <span class="text-xs text-gray-400">· ${esc(displayName(cat, m, x.side))}</span></li>`;
+    const g = goalsOf(m).map((x, i) => ({ ...x, i })).sort(byTime);
+    const line = x => `<li style="font-size:13px;padding:2px 0">⚽ ${esc(x.p)}${tfmt(x) ? ` <b style="color:#047857">${tfmt(x)}</b>` : ''} <span class="text-xs text-gray-400">· ${esc(displayName(cat, m, x.side))}</span></li>`;
     const o = showModal(`<h3 class="font-semibold text-gray-900 mb-2">Goal Scorers</h3>
       ${g.length ? `<ul>${g.map(line).join('')}</ul>` : '<p class="text-sm text-gray-500">No scorers recorded.</p>'}
       <button class="btn w-full mt-3" data-c>Close</button>`);
