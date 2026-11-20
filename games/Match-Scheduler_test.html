@@ -4698,6 +4698,139 @@ function switchMainView(view) {
   st.textContent = css;
   document.head.appendChild(st);
 })();
+  // ============================================================
+// CHOOSE WHICH TEAM IS ON THE LEFT (edit mode): "⇄ Swap" button
+// Paste at the very end of the main script block.
+// Group matches: cat.flips = [{l:'Team on left', r:'Team on right'}]
+// Knockouts:     cat.koFlip = ['sf1', ...]
+// ============================================================
+(function () {
+  const css = `.flip-btn { padding: 4px 8px; font-size: 11px; white-space: nowrap; }`;
+  const st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const key = (a, b) => [a, b].sort().join('|');
+  const pk = m => pairKey(m.group, m.team1, m.team2);
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid);
+    const m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  let flipCat = null;      // the category being built right now
+  let expanding = null;    // set while a snapshot share link is being opened
+
+  // ---- Matches are generated with the chosen team on the left ----
+  wrap('rrRounds', (o, teams) => {
+    const rounds = o(teams);
+    if (!flipCat) return rounds;
+    const left = new Map();
+    toA(flipCat.flips).forEach(f => left.set(key(f.l, f.r), f.l));
+    return rounds.map(r => r.map(([a, b]) => left.get(key(a, b)) === b ? [b, a] : [a, b]));
+  });
+
+  wrap('buildMatches', (o, cat) => {
+    if (expanding && !expanding.seen.has(cat)) {
+      expanding.seen.add(cat);
+      const e = expanding.fl[expanding.n++];
+      if (e) { cat.flips = (e[0] || []).map(([l, r]) => ({ l, r })); cat.koFlip = e[1] || []; }
+    }
+    const prev = {};
+    cat.matches.forEach(m => { if (m.stage !== 'ko') prev[pk(m)] = m; });
+    const had = flipCat; flipCat = cat;
+    try { o(cat); } finally { flipCat = had; }
+
+    cat.matches.forEach(m => {
+      if (m.stage === 'ko') return;
+      const p = prev[pk(m)];
+      if (!p || p === m || p.team1 === m.team1) return;   // same side as before: nothing to fix
+      // the match id changed with the order of the teams, so carry goals and timer over (goal sides swap)
+      if (toA(p.goals).length && !toA(m.goals).length) m.goals = toA(p.goals).map(g => ({ ...g, side: +g.side === 1 ? 2 : 1 }));
+      if (p.clk && !m.clk) m.clk = p.clk;
+    });
+    const kf = toA(cat.koFlip);
+    if (kf.length) cat.matches.forEach(m => { if (m.stage === 'ko' && kf.includes(m.id)) [m.ref1, m.ref2] = [m.ref2, m.ref1]; });
+  });
+
+  // ---- Swapping everything that belongs to a side ----
+  const swapSides = m => {
+    [m.score1, m.score2] = [m.score2, m.score1];
+    [m.scorers1, m.scorers2] = [m.scorers2, m.scorers1];
+    if (m.pen1 != null || m.pen2 != null) [m.pen1, m.pen2] = [m.pen2, m.pen1];
+    if (m.wo) m.wo = (+m.wo === 1 ? 2 : 1);
+    if (toA(m.goals).length) m.goals = toA(m.goals).map(g => ({ ...g, side: +g.side === 1 ? 2 : 1 }));
+  };
+
+  function flipMatch(catId, matchId) {
+    if (!editMode) return;
+    const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m) return;
+    if (m.stage === 'ko') {
+      const list = toA(cat.koFlip);
+      cat.koFlip = list.includes(m.id) ? list.filter(x => x !== m.id) : list.concat([m.id]);
+      [m.ref1, m.ref2] = [m.ref2, m.ref1];
+      swapSides(m);
+      changed();
+      return;
+    }
+    const left = m.team1, right = m.team2;
+    cat.flips = toA(cat.flips).filter(f => key(f.l, f.r) !== key(left, right)).concat([{ l: right, r: left }]);
+    if (state.manualMode) {                       // Schedule builder matches: swap the fixture itself
+      const f = toA(cat.fixtures).find(x => x.id === m.id);
+      if (f) { [f.a, f.b] = [f.b, f.a]; swapSides(m); }
+    }
+    changed(cat);                                 // rebuilds; scores and scorers follow the team
+  }
+
+  // ---- Keep the choice when a team is renamed ----
+  wrap('updateTeamName', (o, catId, index, newName) => {
+    const cat = getCat(catId), old = cat && cat.teams[index];
+    o(catId, index, newName);
+    const nw = cat && cat.teams[index];
+    if (old && nw && old !== nw) {
+      toA(cat.flips).forEach(f => { if (f.l === old) f.l = nw; if (f.r === old) f.r = nw; });
+      save();
+    }
+  });
+
+  // ---- Snapshot share links carry it too ----
+  wrap('compactState', o => {
+    const r = o();
+    const fl = state.categories.map(c => [toA(c.flips).map(f => [f.l, f.r]), toA(c.koFlip)]);
+    if (fl.some(x => x[0].length || x[1].length)) r.fl = fl;
+    return r;
+  });
+  wrap('expandState', (o, obj) => {
+    expanding = { fl: obj.fl || [], n: 0, seen: new WeakSet() };
+    try { o(obj); } finally { expanding = null; }
+  });
+
+  // ---- The buttons ----
+  const BTN = (cat, m) => `<button type="button" class="btn flip-btn" data-cat="${esc(cat.id)}" data-match="${esc(m.id)}" title="Swap which team is on the left">⇄ Swap</button>`;
+  function decorate() {
+    if (!editMode) return;
+    document.querySelectorAll('.match-card').forEach(card => {
+      if (card.querySelector('.flip-btn')) return;
+      const hit = matchFromCard(card);
+      if (hit) card.lastElementChild.insertAdjacentHTML('afterbegin', BTN(hit.cat, hit.m));
+    });
+    document.querySelectorAll('#scheduleBody tr.schedule-row').forEach(tr => {
+      const c = tr.children, last = c[c.length - 1];
+      if (c.length < 9 || last.querySelector('.flip-btn')) return;
+      const cat = state.categories.find(x => x.name === c[1].textContent.trim());
+      const home = c[5].textContent.trim(), away = c[7].textContent.trim();
+      const tm = c[0].firstChild ? c[0].firstChild.textContent.trim() : '';
+      const m = cat && cat.matches.find(x => displayName(cat, x, 1) === home && displayName(cat, x, 2) === away && (!tm || x.time === tm));
+      if (!m) return;
+      (last.firstElementChild || last).insertAdjacentHTML('beforeend', BTN(cat, m));
+    });
+  }
 </script>
 
 </body>
