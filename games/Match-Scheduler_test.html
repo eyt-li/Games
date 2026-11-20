@@ -2226,7 +2226,7 @@ function updateCatFormat(catId, format) {
   if (!cat.groups) cat.groups = 2;
   changed(cat);
 }
-  function updateCatSeed(catId, seed) {
+function updateCatSeed(catId, seed) {
   const cat = getCat(catId);
   cat.koSeed = seed;
   changed(cat);
