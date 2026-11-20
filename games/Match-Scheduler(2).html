@@ -281,8 +281,8 @@
               <div id="breaksList" class="space-y-2"></div>
             </div>
 
-            <div id="resetMovesSection" class="hidden border-t border-gray-100 pt-3">
-              <button id="resetMovesBtn" class="btn w-full">Reset manual moves</button>
+              <div id="resetMovesSection" class="hidden border-t border-gray-100 pt-3">
+              <button id="resetMovesBtn" class="btn w-full font-semibold" style="color:#dc2626;border-color:#fca5a5" onclick="resetAllTimes()">Reset entire schedule</button>
               <p class="text-xs text-gray-500 mt-1">Puts every moved match back to its automatic time.</p>
             </div>
             <div class="border-t border-gray-100 pt-3">
@@ -1185,7 +1185,7 @@ function applyModeUI() {
   document.getElementById('addCategoryBtn').classList.toggle('hidden', !editMode);
   document.getElementById('passwordSection').classList.toggle('hidden', !editMode);
   const anyPin = state.categories.some(c => c.matches.some(m => m.pin));
-  document.getElementById('resetMovesSection').classList.toggle('hidden', !(editMode && anyPin));
+    document.getElementById('resetMovesSection').classList.toggle('hidden', !editMode);
   document.getElementById('moveHint').classList.toggle('hidden', !editMode);
   // viewing mode: hide the whole setup panel and show a read-only summary instead
   document.getElementById('setupCol').classList.toggle('hidden', !editMode);
@@ -1888,10 +1888,9 @@ function moveButtons(cat, m) {
   return `<div class="flex items-center gap-1">
     <button class="btn move-btn" ${d} data-dir="-1" title="Move one time slot earlier" ${m.slot <= 0 ? 'disabled' : ''}>◀</button>
     <button class="btn move-btn" ${d} data-dir="1" title="Move one time slot later">▶</button>
-    ${m.pin ? `<button class="btn unpin-btn" ${d} title="Back to the automatic time">Auto</button>` : ''}
+    ${m.pin ? `<button class="btn unpin-btn text-red-600 border-red-200 hover:bg-red-50" ${d} title="Reset this match to its automatic time">Reset Time</button>` : ''}
   </div>`;
 }
-
 // Row colours in the Full schedule: knockouts stand out, each group has its own shade, everything else uses the category colour
 function rowBg(cat, m) {
   if (m.stage === 'ko') return hexToRgba('#facc15', 0.32);
@@ -2094,6 +2093,16 @@ document.addEventListener('focusout', () => {
 // ============================================
 // ACTIONS
 // ============================================
+window.resetAllTimes = function() {
+  if (!editMode) return;
+  confirmDialog('Reset the entire schedule? All manually moved matches will return to their automatic times.', () => {
+    state.categories.forEach(c => c.matches.forEach(m => { delete m.pin; }));
+    scheduleAll(); // Recalculates everything automatically
+    render();
+    save();
+    toast("All match times reset successfully.");
+  }, 'Reset');
+};
 function changed(cat) {
   if (cat) buildMatches(cat);
   scheduleAll();
