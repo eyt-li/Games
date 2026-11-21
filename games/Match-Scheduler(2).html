@@ -1858,10 +1858,7 @@ document.addEventListener('click', e => {
 });
 
 function statusBadge(m) {
-  if (m.status === 'ongoing') {
-    const start = m.startedAt || Date.now();
-    return `<span class="status-badge live flex items-center gap-1"><span class="status-dot"></span>Ongoing <span class="live-timer font-mono text-[11px]" data-start="${start}">00:00</span></span>`;
-  }
+  if (m.status === 'ongoing') return '<span class="status-badge live"><span class="status-dot"></span>Ongoing</span>';
   if (finished(m)) return '<span class="status-badge done">✓ Completed</span>';
   return '';
 }
@@ -3983,7 +3980,10 @@ function switchMainView(view) {
       const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
       anchor.insertAdjacentHTML('afterend',
         `<span class="mclock${running(m) ? ' run' : ''}" ${d}>⏱ <b class="mct">${fmt(elapsed(m))}</b>` +
-        `${editMode ? ` <button type="button" class="mclk-btn" data-clk ${d} title="${running(m) ? 'Pause' : 'Resume'}">${running(m) ? '⏸' : '▶'}</button>` : ''}</span>`);
+            `${editMode ? ` 
+          <button type="button" class="mclk-btn" data-clk ${d} title="${running(m) ? 'Pause' : 'Resume'}">${running(m) ? '⏸' : '▶'}</button>
+          <button type="button" class="mclk-btn text-red-500 hover:text-red-700 ml-1" data-reset-clk ${d} title="Reset timer to 00:00">🔄</button>
+        ` : ''}</span>`);
     });
   }
   wrap('renderCategories', o => { o(); decorateClocks(); });
@@ -3995,6 +3995,21 @@ function switchMainView(view) {
     if (!m) return;
     if (running(m)) pauseClk(m); else startClk(m);
     save(); render();
+  });
+    document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-reset-clk]');
+    if (!b || !editMode) return;
+    const cat = getCat(b.dataset.cat), m = cat && cat.matches.find(x => x.id === b.dataset.match);
+    if (!m) return;
+    
+    // Reset the clock data to zero
+    m.clk = { a: 0, s: now() }; 
+    
+    // Update the UI instantly
+    const card = b.closest('.match-card');
+    if (card) { const t = card.querySelector('.mct'); if (t) t.textContent = '00:00'; }
+    
+    save();
   });
   setInterval(() => {
     document.querySelectorAll('.mclock').forEach(el => {
@@ -5020,20 +5035,7 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
-// ============================================================
-// LIVE STOPWATCH TICKER
-// ============================================================
-setInterval(() => {
-  document.querySelectorAll('.live-timer').forEach(el => {
-    const start = parseInt(el.dataset.start);
-    if (!start) return;
-    const diff = Math.floor((Date.now() - start) / 1000);
-    const h = Math.floor(diff / 3600);
-    const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
-    const s = (diff % 60).toString().padStart(2, '0');
-    el.textContent = h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
-  });
-}, 1000);
+
 </script>
 
 </body>
