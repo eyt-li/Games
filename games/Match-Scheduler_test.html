@@ -281,8 +281,8 @@
               <div id="breaksList" class="space-y-2"></div>
             </div>
 
-            <div id="resetMovesSection" class="hidden border-t border-gray-100 pt-3">
-              <button id="resetMovesBtn" class="btn w-full">Reset manual moves</button>
+              <div id="resetMovesSection" class="hidden border-t border-gray-100 pt-3">
+              <button id="resetMovesBtn" class="btn w-full font-semibold" style="color:#dc2626;border-color:#fca5a5" onclick="resetAllTimes()">Reset entire schedule</button>
               <p class="text-xs text-gray-500 mt-1">Puts every moved match back to its automatic time.</p>
             </div>
             <div class="border-t border-gray-100 pt-3">
@@ -1185,7 +1185,7 @@ function applyModeUI() {
   document.getElementById('addCategoryBtn').classList.toggle('hidden', !editMode);
   document.getElementById('passwordSection').classList.toggle('hidden', !editMode);
   const anyPin = state.categories.some(c => c.matches.some(m => m.pin));
-  document.getElementById('resetMovesSection').classList.toggle('hidden', !(editMode && anyPin));
+    document.getElementById('resetMovesSection').classList.toggle('hidden', !editMode);
   document.getElementById('moveHint').classList.toggle('hidden', !editMode);
   // viewing mode: hide the whole setup panel and show a read-only summary instead
   document.getElementById('setupCol').classList.toggle('hidden', !editMode);
@@ -1259,6 +1259,7 @@ function normalize(d) {
       m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? ''; m.status = m.status || '';
       m.team1 = m.team1 ?? null; m.team2 = m.team2 ?? null; m.group = m.group ?? null; m.deps = arr(m.deps);
       m.scorers1 = arr(m.scorers1); m.scorers2 = arr(m.scorers2);
+      if (m.startedAt) m.startedAt = Number(m.startedAt);
     });
   });
   return s;
@@ -1867,20 +1868,66 @@ function statusButtons(cat, m) {
   return `<div class="flex items-center gap-1">
     <button class="btn status-btn ${m.status === 'ongoing' ? 'on-live' : ''}" ${d} data-status="ongoing" title="Mark this match as being played now">Ongoing</button>
     <button class="btn status-btn ${m.status === 'completed' ? 'on-done' : ''}" ${d} data-status="completed" title="Mark this match as finished">Completed</button>
+    ${m.status === 'ongoing' ? `<button class="btn status-btn bg-gray-50 border-gray-300 hover:bg-gray-100" ${d} data-reset-timer="1" title="Reset this match's timer to 00:00">🔄</button>` : ''}
   </div>`;
 }
 function setMatchStatus(catId, matchId, status) {
   if (!editMode) return;
   const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
   if (!m) return;
-  m.status = (m.status === status) ? '' : status; // pressing the active one again clears it
+  const newStatus = (m.status === status) ? '' : status; // pressing the active one again clears it
+  m.status = newStatus;
+  
+  if (newStatus === 'ongoing') {
+    m.startedAt = Date.now(); // Starts the stopwatch
+  } else if (newStatus === '') {
+    delete m.startedAt; // Clears the timer if match is cancelled
+  }
+  
   render();
   saveStatus(cat, m);
 }
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('.status-btn');
-  if (b) setMatchStatus(b.dataset.cat, b.dataset.match, b.dataset.status);
+  if (!b) return;
+  if (b.dataset.resetTimer) {
+    resetMatchTimer(b.dataset.cat, b.dataset.match);
+  } else {
+    setMatchStatus(b.dataset.cat, b.dataset.match, b.dataset.status);
+  }
 });
+
+window.resetMatchTimer = function(catId, matchId) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m || m.status !== 'ongoing') return;
+  
+  m.startedAt = Date.now(); // Resets the timer to right now
+  save();
+  render();
+  
+  // Instantly update the text to 00:00 without waiting for the 1-second tick
+  document.querySelectorAll(`.live-timer`).forEach(el => {
+    const start = parseInt(el.dataset.start);
+    if (start === m.startedAt) el.textContent = '00:00';
+  });
+  
+  toast("Match timer reset.");
+};
+
+window.resetAllTimes = function() {
+  if (!editMode) return;
+  confirmDialog('Reset the entire schedule? All manually moved matches will return to their automatic times.', () => {
+    state.categories.forEach(c => c.matches.forEach(m => { 
+      delete m.pin; 
+      if (m.status === 'ongoing') m.startedAt = Date.now(); // Reset active timers
+    }));
+    scheduleAll(); // Recalculates everything automatically
+    render();
+    save();
+    toast("All match times reset successfully.");
+  }, 'Reset');
+};
 
 function moveButtons(cat, m) {
   if (!editMode) return '';
@@ -1888,10 +1935,9 @@ function moveButtons(cat, m) {
   return `<div class="flex items-center gap-1">
     <button class="btn move-btn" ${d} data-dir="-1" title="Move one time slot earlier" ${m.slot <= 0 ? 'disabled' : ''}>◀</button>
     <button class="btn move-btn" ${d} data-dir="1" title="Move one time slot later">▶</button>
-    ${m.pin ? `<button class="btn unpin-btn" ${d} title="Back to the automatic time">Auto</button>` : ''}
+    ${m.pin ? `<button class="btn unpin-btn text-red-600 border-red-200 hover:bg-red-50" ${d} title="Reset this match to its automatic time">Reset Time</button>` : ''}
   </div>`;
 }
-
 // Row colours in the Full schedule: knockouts stand out, each group has its own shade, everything else uses the category colour
 function rowBg(cat, m) {
   if (m.stage === 'ko') return hexToRgba('#facc15', 0.32);
@@ -2094,6 +2140,16 @@ document.addEventListener('focusout', () => {
 // ============================================
 // ACTIONS
 // ============================================
+window.resetAllTimes = function() {
+  if (!editMode) return;
+  confirmDialog('Reset the entire schedule? All manually moved matches will return to their automatic times.', () => {
+    state.categories.forEach(c => c.matches.forEach(m => { delete m.pin; }));
+    scheduleAll(); // Recalculates everything automatically
+    render();
+    save();
+    toast("All match times reset successfully.");
+  }, 'Reset');
+};
 function changed(cat) {
   if (cat) buildMatches(cat);
   scheduleAll();
@@ -3924,7 +3980,10 @@ function switchMainView(view) {
       const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
       anchor.insertAdjacentHTML('afterend',
         `<span class="mclock${running(m) ? ' run' : ''}" ${d}>⏱ <b class="mct">${fmt(elapsed(m))}</b>` +
-        `${editMode ? ` <button type="button" class="mclk-btn" data-clk ${d} title="${running(m) ? 'Pause' : 'Resume'}">${running(m) ? '⏸' : '▶'}</button>` : ''}</span>`);
+            `${editMode ? ` 
+          <button type="button" class="mclk-btn" data-clk ${d} title="${running(m) ? 'Pause' : 'Resume'}">${running(m) ? '⏸' : '▶'}</button>
+          <button type="button" class="mclk-btn text-red-500 hover:text-red-700 ml-1" data-reset-clk ${d} title="Reset timer to 00:00">🔄</button>
+        ` : ''}</span>`);
     });
   }
   wrap('renderCategories', o => { o(); decorateClocks(); });
@@ -3936,6 +3995,21 @@ function switchMainView(view) {
     if (!m) return;
     if (running(m)) pauseClk(m); else startClk(m);
     save(); render();
+  });
+    document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-reset-clk]');
+    if (!b || !editMode) return;
+    const cat = getCat(b.dataset.cat), m = cat && cat.matches.find(x => x.id === b.dataset.match);
+    if (!m) return;
+    
+    // Reset the clock data to zero
+    m.clk = { a: 0, s: now() }; 
+    
+    // Update the UI instantly
+    const card = b.closest('.match-card');
+    if (card) { const t = card.querySelector('.mct'); if (t) t.textContent = '00:00'; }
+    
+    save();
   });
   setInterval(() => {
     document.querySelectorAll('.mclock').forEach(el => {
@@ -4855,7 +4929,113 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
-  
+  // ============================================================
+// PLACING MATCHES FOR EVERYONE OUTSIDE THE TOP 4
+// Paste at the very end of the main script block (after your other add-ons).
+//
+// In Edit mode, each category with knockouts gets a "Placing matches" choice.
+// When it is on, after the group stage the teams outside the top 4 also play:
+//   - one group:      the bottom 2 play each other, then the next 2, and so on
+//                     (8 teams: 7th/8th, then 5th/6th; the top 4 play the semi-finals)
+//   - several groups: the bottom team of a group plays the bottom team of the other group,
+//                     second from bottom plays second from bottom, and so on, until the
+//                     teams that go to the semi-finals (2 groups: the top 2 of each group)
+// The teams are filled in automatically when the group stage is finished.
+// cat.placement = true / false
+// ============================================================
+(function () {
+  const CAPABLE = ['round-robin-final', 'round-robin-knockouts', 'groups-playoffs'];
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const ordn = n => {
+    const v = n % 100;
+    return n + ((v >= 11 && v <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'));
+  };
+  const isPl = m => m.stage === 'ko' && /^pl/.test(m.id);
+
+  // ---------- the extra matches ----------
+  function placementDefs(cat, groups, groupIds) {
+    if (!cat.placement || !CAPABLE.includes(cat.format)) return [];
+    const mk = (id, round, r1, r2) => ({ id, stage: 'ko', round, group: null, team1: null, team2: null, ref1: r1, ref2: r2, deps: groupIds, score1: '', score2: '' });
+    const seed = (g, p) => ({ t: 'seed', g: g || undefined, p });
+    const keys = Object.keys(groups).sort();
+    const out = [];
+    if (keys.length <= 1) {
+      // one group: bottom two, then the next two ... the top 4 are not included
+      const g = (keys[0] && keys[0] !== '_') ? keys[0] : undefined;
+      const n = cat.teams.length;
+      for (let r = n, i = 1; r - 1 >= 5; r -= 2, i++) out.push(mk('pl' + i, `${ordn(r - 1)}/${ordn(r)} place`, seed(g, r - 1), seed(g, r)));
+    } else {
+      // several groups: bottom v bottom, second bottom v second bottom ... neighbouring groups meet (A-B, C-D)
+      const q = Math.ceil(4 / keys.length);            // teams per group that go to the semi-finals
+      for (let gi = 0; gi + 1 < keys.length; gi += 2) {
+        const ga = keys[gi], gb = keys[gi + 1], na = groups[ga].length, nb = groups[gb].length;
+        for (let k = 0; na - k > q && nb - k > q; k++) {
+          const ra = na - k, rb = nb - k;
+          const label = keys.length === 2
+            ? `${ordn(na + nb - 2 * k - 1)}/${ordn(na + nb - 2 * k)} place`
+            : `${ordn(ra)} place · ${ga} v ${gb}`;
+          out.push(mk(`pl_${gi / 2 + 1}_${k + 1}`, label, seed(ga, ra), seed(gb, rb)));
+        }
+      }
+    }
+    return out;
+  }
+  wrap('koDefs', (o, cat, groups, groupIds) => o(cat, groups, groupIds).concat(placementDefs(cat, groups, groupIds)));
+
+  // ---------- snapshot share links carry the setting ----------
+  let exp = null;
+  wrap('buildMatches', (o, cat) => {
+    if (exp && !exp.seen.has(cat)) { exp.seen.add(cat); cat.placement = !!exp.pl[exp.n++]; }
+    return o(cat);
+  });
+  wrap('compactState', o => {
+    const r = o();
+    if (state.categories.some(c => c.placement)) r.pl = state.categories.map(c => c.placement ? 1 : 0);
+    return r;
+  });
+  wrap('expandState', (o, obj) => {
+    exp = { pl: obj.pl || [], n: 0, seen: new WeakSet() };
+    try { o(obj); } finally { exp = null; }
+  });
+
+  // ---------- the choice in the category card (Edit mode) ----------
+  function decorate() {
+    if (!editMode) return;
+    state.categories.forEach(cat => {
+      if (!CAPABLE.includes(cat.format)) return;
+      const list = document.getElementById('teamList-' + cat.id);
+      if (!list) return;
+      const block = list.parentElement;
+      if (block.previousElementSibling && block.previousElementSibling.classList.contains('pl-row')) return;
+      block.insertAdjacentHTML('beforebegin',
+        `<div class="pl-row flex items-center gap-2 flex-wrap">
+           <span class="text-xs text-gray-600">Placing matches</span>
+           <select class="btn text-xs pl-sel" data-cat="${esc(cat.id)}">
+             <option value="">None</option>
+             <option value="1"${cat.placement ? ' selected' : ''}>Everyone outside the top 4 (7th/8th, 5th/6th ...)</option>
+           </select>
+         </div>`);
+    });
+  }
+  ['renderCategories', 'render'].forEach(n => wrap(n, o => { o(); decorate(); }));
+
+  document.addEventListener('change', e => {
+    const s = e.target;
+    if (!s.classList || !s.classList.contains('pl-sel') || !editMode) return;
+    const cat = getCat(s.dataset.cat);
+    if (!cat) return;
+    const on = s.value === '1';
+    const apply = () => { cat.placement = on; changed(cat); };
+    const scored = cat.matches.some(m => isPl(m) && (m.score1 !== '' || m.score2 !== ''));
+    if (!on && scored) {
+      s.value = '1';
+      confirmDialog('Turn off placing matches? Their scores will be removed.', apply, 'Turn off');
+    } else apply();
+  });
+
+  if (currentView === 'tournament') render();
+})();
+
 </script>
 
 </body>
