@@ -1860,10 +1860,7 @@ document.addEventListener('click', e => {
 function statusBadge(m) {
   if (m.status === 'ongoing') {
     const start = m.startedAt || Date.now();
-    return `<span class="flex items-center gap-1.5">
-      <span class="status-badge live"><span class="status-dot"></span>Ongoing</span>
-      <span class="live-timer text-xs font-mono font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" data-start="${start}">00:00</span>
-    </span>`;
+    return `<span class="status-badge live flex items-center gap-1"><span class="status-dot"></span>Ongoing <span class="live-timer font-mono text-[11px]" data-start="${start}">00:00</span></span>`;
   }
   if (finished(m)) return '<span class="status-badge done">✓ Completed</span>';
   return '';
@@ -1913,7 +1910,7 @@ window.resetMatchTimer = function(catId, matchId) {
   render();
   
   // Instantly update the text to 00:00 without waiting for the 1-second tick
-  document.querySelectorAll(`.live-timer[data-start]`).forEach(el => {
+  document.querySelectorAll(`.live-timer`).forEach(el => {
     const start = parseInt(el.dataset.start);
     if (start === m.startedAt) el.textContent = '00:00';
   });
@@ -5023,7 +5020,7 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
-  // ============================================================
+// ============================================================
 // LIVE STOPWATCH TICKER
 // ============================================================
 setInterval(() => {
