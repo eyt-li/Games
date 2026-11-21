@@ -1857,7 +1857,13 @@ document.addEventListener('click', e => {
 });
 
 function statusBadge(m) {
-  if (m.status === 'ongoing') return '<span class="status-badge live"><span class="status-dot"></span>Ongoing</span>';
+  if (m.status === 'ongoing') {
+    const start = m.startedAt || Date.now();
+    return `<span class="flex items-center gap-1.5">
+      <span class="status-badge live"><span class="status-dot"></span>Ongoing</span>
+      <span class="live-timer text-xs font-mono font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" data-start="${start}">00:00</span>
+    </span>`;
+  }
   if (finished(m)) return '<span class="status-badge done">✓ Completed</span>';
   return '';
 }
@@ -1867,20 +1873,44 @@ function statusButtons(cat, m) {
   return `<div class="flex items-center gap-1">
     <button class="btn status-btn ${m.status === 'ongoing' ? 'on-live' : ''}" ${d} data-status="ongoing" title="Mark this match as being played now">Ongoing</button>
     <button class="btn status-btn ${m.status === 'completed' ? 'on-done' : ''}" ${d} data-status="completed" title="Mark this match as finished">Completed</button>
+    ${m.status === 'ongoing' ? `<button class="btn status-btn bg-gray-50 border-gray-300 hover:bg-gray-100" ${d} data-reset-timer="1" title="Reset this match's timer to 00:00">🔄</button>` : ''}
   </div>`;
 }
 function setMatchStatus(catId, matchId, status) {
   if (!editMode) return;
   const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
   if (!m) return;
-  m.status = (m.status === status) ? '' : status; // pressing the active one again clears it
+  const newStatus = (m.status === status) ? '' : status; // pressing the active one again clears it
+  m.status = newStatus;
+  
+  if (newStatus === 'ongoing') {
+    m.startedAt = Date.now(); // Starts the stopwatch
+  } else if (newStatus === '') {
+    delete m.startedAt; // Clears the timer if match is cancelled
+  }
+  
   render();
   saveStatus(cat, m);
 }
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('.status-btn');
-  if (b) setMatchStatus(b.dataset.cat, b.dataset.match, b.dataset.status);
+  if (!b) return;
+  if (b.dataset.resetTimer) {
+    resetMatchTimer(b.dataset.cat, b.dataset.match);
+  } else {
+    setMatchStatus(b.dataset.cat, b.dataset.match, b.dataset.status);
+  }
 });
+
+window.resetMatchTimer = function(catId, matchId) {
+  if (!editMode) return;
+  const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+  if (!m || m.status !== 'ongoing') return;
+  m.startedAt = Date.now(); // Resets the timer to right now
+  save();
+  render();
+  toast("Match timer reset.");
+};
 
 function moveButtons(cat, m) {
   if (!editMode) return '';
@@ -4970,6 +5000,20 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
+  // ============================================================
+// LIVE STOPWATCH TICKER
+// ============================================================
+setInterval(() => {
+  document.querySelectorAll('.live-timer').forEach(el => {
+    const start = parseInt(el.dataset.start);
+    if (!start) return;
+    const diff = Math.floor((Date.now() - start) / 1000);
+    const h = Math.floor(diff / 3600);
+    const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+    const s = (diff % 60).toString().padStart(2, '0');
+    el.textContent = h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
+  });
+}, 1000);
 </script>
 
 </body>
