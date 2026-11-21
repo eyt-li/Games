@@ -5304,6 +5304,20 @@ function switchMainView(view) {
 
   if (currentView === 'home') renderHome(); else render();
 })();
+
+// ============================================================
+// HIDE THE SCORE - / + BUTTONS WHEN "TRACK WHO SCORED" IS ON
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const st = document.createElement('style');
+  st.id = 'hideScoreButtonsStyles';
+  st.textContent = `
+    /* tracking scorers ON (page has no "no-scorers" class): no - / + buttons */
+    body:not(.no-scorers) .sc-btn { display: none !important; }
+  `;
+  document.head.appendChild(st);
+})();
   
 </script>
 
