@@ -5036,6 +5036,66 @@ function switchMainView(view) {
   if (currentView === 'tournament') render();
 })();
 
+// ============================================================
+// COLOURED TABS + BIGGER "COURT" AND "DAY" HEADINGS
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const css = `
+    /* ---- Tabs: selected = solid green, others = light grey ---- */
+    html body #tabCategory, html body #tabSchedule, html body #tabStandings {
+      padding: 8px 16px !important;
+      font-size: 14px !important;
+      font-weight: 600;
+      border-radius: 10px;
+      transition: background .15s, color .15s, box-shadow .15s;
+    }
+    html body .tab-active {
+      background: #10b981 !important;
+      border: 1px solid #059669 !important;
+      color: #fff !important;
+      font-weight: 700 !important;
+      box-shadow: 0 3px 10px rgba(16, 185, 129, .35) !important;
+    }
+    html body .tab-active svg { color: #fff !important; stroke: #fff !important; }
+    html body .tab-inactive {
+      background: #e5e7eb !important;
+      border: 1px solid #d1d5db !important;
+      color: #4b5563 !important;
+    }
+    html body .tab-inactive:hover { background: #d1fae5 !important; color: #065f46 !important; border-color: #a7f3d0 !important; }
+
+    /* ---- Court heading ---- */
+    #scheduleBody h3.font-semibold { font-size: 22px !important; font-weight: 800; line-height: 1.2; }
+    #scheduleBody .court-badge { font-size: 14px !important; padding: 4px 10px !important; border-radius: 6px; }
+    #scheduleBody h3.font-semibold + span { font-size: 15px !important; font-weight: 600; }
+
+    /* ---- Day heading (DAY 1 · SAT, NOV 14) ---- */
+    #scheduleBody tr > td[colspan].uppercase,
+    #scheduleBody tr > td[colspan].tracking-wide {
+      font-size: 17px !important;
+      font-weight: 800 !important;
+      color: #111827 !important;
+      padding-top: 14px !important;
+      padding-bottom: 10px !important;
+      border-left: 5px solid #10b981;
+      padding-left: 12px !important;
+      letter-spacing: .03em;
+    }
+
+    @media (max-width: 639px) {
+      html body #tabCategory, html body #tabSchedule, html body #tabStandings { padding: 6px 10px !important; font-size: 13px !important; }
+      #scheduleBody h3.font-semibold { font-size: 19px !important; }
+      #scheduleBody .court-badge { font-size: 12px !important; }
+      #scheduleBody tr > td[colspan].tracking-wide { font-size: 15px !important; }
+    }
+  `;
+  const st = document.createElement('style');
+  st.id = 'tabsAndHeadingsStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+})();
+  
 </script>
 
 </body>
