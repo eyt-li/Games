@@ -1259,6 +1259,7 @@ function normalize(d) {
       m.score1 = m.score1 ?? ''; m.score2 = m.score2 ?? ''; m.status = m.status || '';
       m.team1 = m.team1 ?? null; m.team2 = m.team2 ?? null; m.group = m.group ?? null; m.deps = arr(m.deps);
       m.scorers1 = arr(m.scorers1); m.scorers2 = arr(m.scorers2);
+      if (m.startedAt) m.startedAt = Number(m.startedAt);
     });
   });
   return s;
@@ -1906,16 +1907,27 @@ window.resetMatchTimer = function(catId, matchId) {
   if (!editMode) return;
   const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
   if (!m || m.status !== 'ongoing') return;
+  
   m.startedAt = Date.now(); // Resets the timer to right now
   save();
   render();
+  
+  // Instantly update the text to 00:00 without waiting for the 1-second tick
+  document.querySelectorAll(`.live-timer[data-start]`).forEach(el => {
+    const start = parseInt(el.dataset.start);
+    if (start === m.startedAt) el.textContent = '00:00';
+  });
+  
   toast("Match timer reset.");
 };
 
 window.resetAllTimes = function() {
   if (!editMode) return;
   confirmDialog('Reset the entire schedule? All manually moved matches will return to their automatic times.', () => {
-    state.categories.forEach(c => c.matches.forEach(m => { delete m.pin; }));
+    state.categories.forEach(c => c.matches.forEach(m => { 
+      delete m.pin; 
+      if (m.status === 'ongoing') m.startedAt = Date.now(); // Reset active timers
+    }));
     scheduleAll(); // Recalculates everything automatically
     render();
     save();
