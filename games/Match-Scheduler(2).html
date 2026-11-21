@@ -1912,6 +1912,17 @@ window.resetMatchTimer = function(catId, matchId) {
   toast("Match timer reset.");
 };
 
+window.resetAllTimes = function() {
+  if (!editMode) return;
+  confirmDialog('Reset the entire schedule? All manually moved matches will return to their automatic times.', () => {
+    state.categories.forEach(c => c.matches.forEach(m => { delete m.pin; }));
+    scheduleAll(); // Recalculates everything automatically
+    render();
+    save();
+    toast("All match times reset successfully.");
+  }, 'Reset');
+};
+
 function moveButtons(cat, m) {
   if (!editMode) return '';
   const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
