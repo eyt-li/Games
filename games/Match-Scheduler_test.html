@@ -5416,6 +5416,345 @@ function switchMainView(view) {
   applyLock();
   if (currentView === 'tournament') render();
 })();
+
+// ============================================================
+// FROZEN TABS/HEADINGS  +  ASSISTS  +  SCORERS UNDER A DROPDOWN (cards + Full schedule)
+// Paste at the very end of the main script block.
+// Goals: m.goals = [{side, p, a(assist), min, sec}]
+// ============================================================
+(function () {
+  const css = `
+    /* ---------- frozen top section ---------- */
+    .tabs-bar { position: sticky; top: var(--hdrH, 0px); z-index: 40; background: #f9fafb; }
+    #scheduleView h2.sticky-h { position: sticky; top: calc(var(--hdrH, 0px) + var(--tabsH, 0px)); z-index: 30;
+      background: #fff; padding: 8px 0 6px; margin: 0 !important; }
+    #scheduleBody > div.flex.flex-wrap:first-child { position: sticky;
+      top: calc(var(--hdrH, 0px) + var(--tabsH, 0px) + var(--h2H, 0px)); z-index: 29;
+      background: #fff; padding: 6px 0 8px; border-bottom: 1px solid #e5e7eb; }
+    @media (max-height: 520px) {
+      .tabs-bar, #scheduleView h2.sticky-h, #scheduleBody > div.flex.flex-wrap:first-child { position: static; }
+    }
+
+    /* ---------- goals under a dropdown ---------- */
+    .gs-tog2 { font-size: 11px; font-weight: 700; letter-spacing: .05em; color: #6b7280; text-transform: uppercase;
+      background: none; border: 0; cursor: pointer; padding: 2px 0; }
+    .gs-tog2:hover { color: #047857; }
+    .gs-tog { font-size: 10px; font-weight: 700; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0;
+      border-radius: 999px; padding: 1px 8px; cursor: pointer; margin-top: 3px; white-space: nowrap; }
+    .gs-tog:hover { background: #d1fae5; }
+    .goal-cell { flex-wrap: wrap; row-gap: 2px; }
+    .gast { font-size: 11px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    #scheduleBody [onclick*="openScorersModal"] { display: none !important; }
+    body.no-scorers .gs-tog-wrap, body.no-scorers .gs-row { display: none !important; }
+  `;
+  const st = document.createElement('style');
+  st.id = 'stickyAssistStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const scorersOn = () => state.trackScorers !== false;
+
+  // ================= FROZEN TOP SECTION =================
+  const tabsBar = document.getElementById('tabCategory').parentElement.parentElement;
+  tabsBar.classList.add('tabs-bar');
+  const h2 = document.querySelector('#scheduleView h2');
+  if (h2) h2.classList.add('sticky-h');
+  function setVars() {
+    const root = document.documentElement.style, hd = document.querySelector('header');
+    root.setProperty('--hdrH', (hd ? hd.getBoundingClientRect().height : 0) + 'px');
+    root.setProperty('--tabsH', tabsBar.getBoundingClientRect().height + 'px');
+    root.setProperty('--h2H', (h2 ? h2.getBoundingClientRect().height : 0) + 'px');
+  }
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(setVars);
+    [document.querySelector('header'), tabsBar, h2].forEach(x => x && ro.observe(x));
+  }
+  window.addEventListener('resize', setVars);
+  setVars();
+
+  // ================= GOAL HELPERS =================
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid), m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+  const rosterOf = (cat, team) => {
+    const seen = new Set();
+    return toA(cat.roster).filter(r => r && r.t === team && !seen.has(r.n) && seen.add(r.n))
+      .sort((a, b) => a.n.localeCompare(b.n, undefined, { sensitivity: 'base' }));
+  };
+  const label = r => r.n + (r.no ? ' (#' + r.no + ')' : '');
+  function gs(m) {
+    const g = toA(m.goals).map(x => ({ side: +x.side === 2 ? 2 : 1, p: x.p || '', a: x.a || '', min: x.min ?? '', sec: x.sec ?? '' }));
+    if (g.length) return g;
+    return [1, 2].flatMap(s => toA(m['scorers' + s]).map(p => ({ side: s, p, a: '', min: '', sec: '' })));
+  }
+  const tkey = g => (g.min === '' && g.sec === '') ? 999999 : (parseInt(g.min) || 0) * 60 + (parseInt(g.sec) || 0);
+  const byTime = (a, b) => (tkey(a) - tkey(b)) || a.i - b.i;
+  function tfmt(g) {
+    if (g.min === '' && g.sec === '') return '';
+    return esc((parseInt(g.min) || 0) + "'" + (g.sec !== '' ? String(parseInt(g.sec) || 0).padStart(2, '0') + '"' : ''));
+  }
+  const syncScorers = m => {
+    const g = toA(m.goals);
+    m.scorers1 = g.filter(x => +x.side === 1).map(x => x.p).filter(Boolean);
+    m.scorers2 = g.filter(x => +x.side === 2).map(x => x.p).filter(Boolean);
+  };
+  const bump = (m, side, delta) => {
+    const k = 'score' + side, o2 = 'score' + (side === 1 ? 2 : 1);
+    const cur = m[k] === '' || m[k] == null ? 0 : parseInt(m[k]) || 0;
+    m[k] = String(Math.max(0, cur + delta));
+    if (m[o2] === '' || m[o2] == null) m[o2] = '0';
+  };
+
+  // ================= THE LIST (shown only when opened) =================
+  const open = new Set();   // "catId|matchId" of the lists that are open
+
+  function bodyHtml(cat, m) {
+    const goals = gs(m).map((g, i) => ({ ...g, i }));
+    if (!goals.length) return '<div class="text-xs text-gray-400" style="margin-top:6px">No goals recorded yet.</div>';
+    const names = [displayName(cat, m, 1), displayName(cat, m, 2)];
+    const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+    const cell = g => !g ? '<div class="goal-cell empty">—</div>'
+      : `<div class="goal-cell s${g.side === 2 ? 2 : 1}">⚽ <span class="gname">${esc(g.p || 'Unknown')}</span>${g.a ? `<span class="gast">🅰 ${esc(g.a)}</span>` : ''}
+          <span class="gteam">${esc(names[g.side === 2 ? 1 : 0])}</span><span class="gmin">${tfmt(g)}</span>
+          ${editMode ? `<button type="button" class="goal-x" data-gdel ${d} data-i="${g.i}" title="Remove this goal">×</button>` : ''}</div>`;
+    const left = goals.filter(g => g.side !== 2).sort(byTime), right = goals.filter(g => g.side === 2).sort(byTime);
+    let wide = `<div class="goal-row"><div class="gh s1">${esc(names[0])}</div><div class="gh s2">${esc(names[1])}</div></div>`;
+    for (let r = 0; r < Math.max(left.length, right.length); r++) wide += `<div class="goal-row">${cell(left[r])}${cell(right[r])}</div>`;
+    const narrow = goals.slice().sort(byTime).map(g => `<div class="goal-row1">${cell(g)}</div>`).join('');
+    return `<div class="goals-wide">${wide}</div><div class="goals-narrow">${narrow}</div>`;
+  }
+
+  function panelHtml(cat, m) {
+    const k = cat.id + '|' + m.id, isOpen = open.has(k), n = gs(m).length;
+    const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+    return `<div class="goals-panel" ${d}>
+      <div class="goals-head">
+        <button type="button" class="gs-tog2" data-gtog data-key="${esc(k)}">⚽ Goalscorers (${n}) ${isOpen ? '▴' : '▾'}</button>
+        ${editMode ? `<button type="button" class="goal-add" data-gadd ${d}>+ Add Goal</button>` : ''}
+      </div>
+      ${isOpen ? bodyHtml(cat, m) : ''}
+    </div>`;
+  }
+
+  function decorateCards() {
+    const cont = document.getElementById('categoriesContainer');
+    if (!cont) return;
+    cont.querySelectorAll('.goals-panel').forEach(x => x.remove());
+    if (!scorersOn()) return;
+    cont.querySelectorAll('.match-card').forEach(card => {
+      const hit = matchFromCard(card);
+      if (!hit) return;
+      if (!editMode && !gs(hit.m).length) return;
+      card.insertAdjacentHTML('afterend', panelHtml(hit.cat, hit.m));
+    });
+  }
+  ['renderCategories', 'render'].forEach(n => wrap(n, o => { o(); decorateCards(); }));
+
+  // ---------- Full schedule: remember which match each table row belongs to ----------
+  let rec = false, recList = null, rowMatches = [];
+  wrap('allMatches', o => { const l = o(); if (rec) recList = l; return l; });
+  wrap('renderSchedule', o => {
+    rec = true; recList = null;
+    try { o(); } finally { rec = false; }
+    rowMatches = [];
+    if (recList) {
+      const cns = [...new Set(recList.map(x => x.m.courtNo))].sort((a, b) => a - b);
+      cns.forEach(cn => recList.filter(x => x.m.courtNo === cn).forEach(x => rowMatches.push(x)));
+    }
+    decorateFull();
+  });
+  function decorateFull() {
+    const box = document.getElementById('scheduleBody');
+    if (!box) return;
+    box.querySelectorAll('.gs-row, .gs-tog-wrap').forEach(x => x.remove());
+    if (!scorersOn()) return;
+    const rows = Array.from(box.querySelectorAll('tr.schedule-row'));
+    if (rows.length !== rowMatches.length) return;
+    rows.forEach((tr, i) => {
+      const { cat, m } = rowMatches[i];
+      const n = gs(m).length;
+      if (!n && !editMode) return;
+      const c = tr.children[6];
+      if (!c) return;
+      const k = cat.id + '|' + m.id, isOpen = open.has(k);
+      c.insertAdjacentHTML('beforeend', `<div class="gs-tog-wrap"><button type="button" class="gs-tog" data-gtog data-key="${esc(k)}">⚽ ${n} ${isOpen ? '▴' : '▾'}</button></div>`);
+      if (isOpen) {
+        const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+        tr.insertAdjacentHTML('afterend',
+          `<tr class="gs-row"><td colspan="${tr.children.length}" style="padding:8px 12px;background:#f9fafb;text-align:left">${bodyHtml(cat, m)}
+            ${editMode ? `<div style="margin-top:6px"><button type="button" class="goal-add" data-gadd ${d}>+ Add Goal</button></div>` : ''}</td></tr>`);
+      }
+    });
+  }
+
+  // ================= ADD / EDIT A GOAL (with assist) =================
+  function openForm(catId, matchId, idx) {
+    const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m || !editMode) return;
+    const adding = idx < 0, g0 = adding ? null : gs(m)[idx];
+    if (!adding && !g0) return;
+    const names = [displayName(cat, m, 1), displayName(cat, m, 2)];
+    const P = adding ? 'gl' : 'ge';      // 'gl' keeps the match-timer autofill working
+    const S = adding ? { side: 1, p: '', a: '', min: '', sec: '', po: false, ao: false }
+                     : { side: g0.side, p: g0.p, a: g0.a, min: String(g0.min), sec: String(g0.sec), po: false, ao: false };
+    const o = showModal(`<div id="${P}Wrap"></div>`);
+    o.firstElementChild.style.width = 'min(440px, 94vw)';
+    const w = o.querySelector('#' + P + 'Wrap');
+    const roster = s => cat.teams.includes(names[s - 1]) ? rosterOf(cat, names[s - 1]) : [];
+
+    function read() {
+      const q = id => w.querySelector('#' + id);
+      if (q(P + 'Player')) { const v = q(P + 'Player').value; if (v !== '__other') S.p = v.trim(); }
+      if (q(P + 'Assist')) { const v = q(P + 'Assist').value; if (v !== '__other') S.a = v.trim(); }
+      if (q(P + 'Min')) S.min = q(P + 'Min').value.trim();
+      if (q(P + 'Sec')) S.sec = q(P + 'Sec').value.trim();
+    }
+    function field(id, lst, val, other, ph, hint) {
+      if (!lst.length || other) {
+        return `<input type="text" id="${id}" class="w-full" placeholder="${ph}" value="${esc(val)}">` +
+          (lst.length ? `<button type="button" class="text-xs text-gray-500 underline mt-1" data-back="${id}">Back to list</button>`
+            : (hint ? '<p class="text-xs text-gray-400 mt-1">No players listed for this team. Use 👥 on the team to add them.</p>' : ''));
+      }
+      const known = !val || lst.some(r => r.n === val);
+      return `<select id="${id}" class="w-full"><option value="">${ph}</option>
+        ${known ? '' : `<option value="${esc(val)}" selected>${esc(val)}</option>`}
+        ${lst.map(r => `<option value="${esc(r.n)}"${r.n === val ? ' selected' : ''}>${esc(label(r))}</option>`).join('')}
+        <option value="__other">✏ Other…</option></select>`;
+    }
+    function draw() {
+      const pl = roster(S.side), as = pl.filter(r => r.n !== S.p);
+      if (S.a && S.a === S.p) S.a = '';
+      w.innerHTML = `
+        <h3 class="font-semibold text-gray-900">${adding ? '⚽ Log New Goal' : '✏ Edit Goal'}</h3>
+        <p class="text-xs text-gray-500">${esc(names[0])} vs ${esc(names[1])}${adding && m.court ? ' (' + esc(m.court) + ')' : ''}</p>
+        <span class="gl-label">1. Scoring team</span>
+        <div class="flex gap-2">
+          <button type="button" class="gl-team${S.side === 1 ? ' on' : ''}" data-side="1">${esc(names[0])}</button>
+          <button type="button" class="gl-team${S.side === 2 ? ' on' : ''}" data-side="2">${esc(names[1])}</button>
+        </div>
+        <span class="gl-label">2. Scorer</span>
+        ${field(P + 'Player', pl, S.p, S.po, 'Select player…', true)}
+        <span class="gl-label">3. Assist (optional)</span>
+        ${field(P + 'Assist', as, S.a, S.ao, 'No assist', false)}
+        <span class="gl-label">4. Time of goal</span>
+        <div class="grid grid-cols-2 gap-3">
+          <div><span class="gl-sub">Minute</span><input type="text" id="${P}Min" inputmode="numeric" maxlength="3" class="w-full" placeholder="min (')" value="${esc(S.min)}"></div>
+          <div><span class="gl-sub">Second</span><input type="text" id="${P}Sec" inputmode="numeric" maxlength="2" class="w-full" placeholder='sec (")' value="${esc(S.sec)}"></div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button type="button" class="btn flex-1" data-cancel>Cancel</button>
+          <button type="button" class="btn flex-1 bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" data-save>${adding ? 'Save Goal ⚽' : 'Save'}</button>
+        </div>`;
+    }
+    function doSave() {
+      read();
+      if (!S.p) { toast('Choose the player who scored.'); return; }
+      let sec = S.sec;
+      if (sec !== '') sec = String(Math.min(59, parseInt(sec) || 0));
+      const g = { side: S.side, p: S.p, a: (S.a && S.a !== S.p) ? S.a : '', min: S.min, sec };
+      const all = gs(m);
+      if (adding) { all.push(g); m.goals = all; bump(m, S.side, 1); }
+      else {
+        const old = all[idx];
+        all[idx] = g; m.goals = all;
+        if (old.side !== S.side) { bump(m, old.side, -1); bump(m, S.side, 1); }
+      }
+      syncScorers(m);
+      save(); o.remove(); render();
+    }
+    draw();
+
+    w.addEventListener('input', e => {
+      if (e.target.id === P + 'Min' || e.target.id === P + 'Sec') e.target.value = e.target.value.replace(/[^0-9]/g, '');
+    });
+    w.addEventListener('change', e => {
+      const id = e.target.id;
+      if (id !== P + 'Player' && id !== P + 'Assist') return;
+      const isP = id === P + 'Player';
+      read();
+      if (e.target.value === '__other') {
+        if (isP) { S.po = true; S.p = ''; } else { S.ao = true; S.a = ''; }
+        draw();
+        const el = w.querySelector('#' + id); if (el) el.focus();
+      } else if (isP) draw();   // redraw so the assist list leaves out the scorer
+    });
+    w.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.side) { read(); S.side = +b.dataset.side; S.p = ''; S.a = ''; S.po = S.ao = false; draw(); }
+      else if (b.dataset.back) {
+        read();
+        if (b.dataset.back === P + 'Player') { S.po = false; S.p = ''; } else { S.ao = false; S.a = ''; }
+        draw();
+      }
+      else if (b.hasAttribute('data-cancel')) o.remove();
+      else if (b.hasAttribute('data-save')) doSave();
+    });
+  }
+
+  // ================= CLICKS (taken over from the older goal blocks) =================
+  document.addEventListener('click', e => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    const tog = t.closest('[data-gtog]');
+    if (tog) {
+      e.stopImmediatePropagation();
+      const k = tog.dataset.key;
+      if (open.has(k)) open.delete(k); else open.add(k);
+      decorateCards(); decorateFull();
+      return;
+    }
+    const add = t.closest('[data-gadd]');
+    if (add) { e.stopImmediatePropagation(); openForm(add.dataset.cat, add.dataset.match, -1); return; }
+    const del = t.closest('[data-gdel]');
+    if (del && editMode) {
+      e.stopImmediatePropagation();
+      const cat = getCat(del.dataset.cat), m = cat && cat.matches.find(x => x.id === del.dataset.match);
+      if (!m) return;
+      confirmDialog('Remove this goal? The score goes down by 1.', () => {
+        const list = gs(m), i = +del.dataset.i, g = list[i];
+        if (!g) return;
+        list.splice(i, 1);
+        m.goals = list;
+        bump(m, g.side, -1);
+        syncScorers(m);
+        save(); render();
+      }, 'Remove');
+      return;
+    }
+    if (editMode) {
+      const cell = t.closest('.goal-cell');
+      if (cell && !cell.classList.contains('empty')) {
+        const x = cell.querySelector('[data-gdel]');
+        if (x) { e.stopImmediatePropagation(); openForm(x.dataset.cat, x.dataset.match, +x.dataset.i); }
+      }
+    }
+  }, true);
+
+  // The old "⚽" buttons call this (they are hidden now, but keep it working)
+  window.openScorersModal = function (catId, matchId) {
+    if (!scorersOn()) return;
+    const cat = getCat(catId), m = cat && cat.matches.find(x => x.id === matchId);
+    if (!m) return;
+    if (editMode) { openForm(catId, matchId, -1); return; }
+    const g = gs(m).map((x, i) => ({ ...x, i })).sort(byTime);
+    const line = x => `<li style="font-size:13px;padding:2px 0">⚽ ${esc(x.p)}${tfmt(x) ? ` <b style="color:#047857">${tfmt(x)}</b>` : ''}
+      <span class="text-xs text-gray-400">· ${esc(displayName(cat, m, x.side))}</span>${x.a ? `<br><span class="text-xs text-gray-500" style="margin-left:20px">🅰 ${esc(x.a)}</span>` : ''}</li>`;
+    const o = showModal(`<h3 class="font-semibold text-gray-900 mb-2">Goal Scorers</h3>
+      ${g.length ? `<ul>${g.map(line).join('')}</ul>` : '<p class="text-sm text-gray-500">No scorers recorded.</p>'}
+      <button class="btn w-full mt-3" data-c>Close</button>`);
+    o.querySelector('[data-c]').onclick = () => o.remove();
+  };
+
+  wrap('render', o => { o(); setVars(); });
+  if (currentView === 'tournament') render();
+})();
   
 </script>
 
