@@ -5821,6 +5821,93 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
+
+// ============================================================
+// BRACKET CARDS: [Team 1] vs [Team 2] with the scores below
+// Paste at the very end of the main script block (after the other bracket blocks).
+// ============================================================
+(function () {
+  const st = document.createElement('style');
+  st.id = 'bracketCardLayout';
+  st.textContent = `
+    html body .br-card { min-width: 250px; padding: 10px 12px !important; }
+    html body .br-col { min-width: 250px; }
+    .bx-grid { display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 8px; row-gap: 6px; align-items: center; }
+    .bx-team { text-align: center; font-size: 15px; font-weight: 700; color: #111827; padding: 6px 8px; border-radius: 6px;
+      background: #f3f4f6; word-break: break-word; line-height: 1.25; }
+    .bx-team.win { background: #059669; color: #fff; }
+    .bx-team.lose { color: #6b7280; }
+    .bx-vs { font-size: 12px; font-weight: 700; color: #6b7280; text-transform: lowercase; }
+    .bx-score { text-align: center; font-size: 26px; font-weight: 800; color: #111827; line-height: 1; }
+    .bx-score.win { color: #059669; }
+    .bx-score.lose { color: #9ca3af; }
+    .bx-dash { text-align: center; color: #9ca3af; font-weight: 700; }
+    .bx-pen { text-align: center; font-size: 12px; font-weight: 700; color: #9a3412; margin-top: 6px; }
+  `;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const num = v => (v === '' || v == null || isNaN(v)) ? null : parseInt(v, 10);
+
+  function winSide(m) {
+    if (!done(m)) return 0;
+    const a = +m.score1, b = +m.score2;
+    if (a > b) return 1;
+    if (b > a) return 2;
+    const p1 = num(m.pen1), p2 = num(m.pen2);
+    return (p1 !== null && p2 !== null && p1 !== p2) ? (p1 > p2 ? 1 : 2) : 0;
+  }
+  function card(cat, m) {
+    const w = winSide(m);
+    const cls = s => w === s ? ' win' : (w ? ' lose' : '');
+    const sc = v => (v === '' || v == null) ? '–' : esc(v);
+    const tied = done(m) && +m.score1 === +m.score2 && (num(m.pen1) !== null || num(m.pen2) !== null);
+    return `<div class="br-card${m.status === 'ongoing' ? ' live' : ''}" style="border-top-color:${esc(cat.color)}">
+      <div class="br-meta">${esc(m.round)} · ${esc(m.time || '')}${m.day > 0 ? ' · Day ' + (m.day + 1) : ''} · ${esc(m.court || '')}</div>
+      <div class="bx-grid">
+        <div class="bx-team${cls(1)}">${esc(displayName(cat, m, 1))}</div>
+        <div class="bx-vs">vs</div>
+        <div class="bx-team${cls(2)}">${esc(displayName(cat, m, 2))}</div>
+        <div class="bx-score${cls(1)}">${sc(m.score1)}</div>
+        <div class="bx-dash">–</div>
+        <div class="bx-score${cls(2)}">${sc(m.score2)}</div>
+      </div>
+      ${tied ? `<div class="bx-pen">Penalties ${num(m.pen1) ?? 0} – ${num(m.pen2) ?? 0}</div>` : ''}
+    </div>`;
+  }
+
+  function renderBracket2() {
+    const box = document.getElementById('bracketBody');
+    if (!box) return;
+    const html = state.categories.map(cat => {
+      const ko = cat.matches.filter(m => m.stage === 'ko');
+      if (!ko.length) return '';
+      const get = id => ko.find(m => m.id === id);
+      const sf = [get('sf1'), get('sf2')].filter(Boolean);
+      const fin = get('final'), third = get('third');
+      const pl = ko.filter(m => /^pl/.test(m.id));
+      return `<div class="br-box">
+        <div class="br-title"><span class="cat-dot" style="background:${esc(cat.color)}"></span>${esc(cat.name)}</div>
+        <div class="br-grid">
+          ${sf.length ? `<div class="br-col"><div class="br-h">Semi-finals</div>${sf.map(m => card(cat, m)).join('')}</div><div class="br-arrow">➜</div>` : ''}
+          <div class="br-col">
+            ${fin ? `<div class="br-h">Final</div>${card(cat, fin)}` : ''}
+            ${third ? `<div class="br-h mt">3rd / 4th place</div>${card(cat, third)}` : ''}
+          </div>
+        </div>
+        ${pl.length ? `<div class="br-h" style="margin-top:16px">Placing matches</div><div class="br-wrap">${pl.map(m => card(cat, m)).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+    box.innerHTML = html || '<div class="bg-white rounded-lg border border-gray-200 p-6 text-center text-sm text-gray-500">No knockout matches yet. Use a format with a final or knockouts (for example "Round robin + knockouts").</div>';
+  }
+
+  // run after the older bracket drawing, so this layout is the one that stays
+  wrap('render', o => { o(); renderBracket2(); });
+  wrap('refreshDerived', (o, id) => { o(id); renderBracket2(); });
+  wrap('showTab', (o, name) => { o(name); if (name === 'Bracket') renderBracket2(); });
+
+  if (currentView === 'tournament') render();
+})();
   
 </script>
 
