@@ -6281,6 +6281,126 @@ function switchMainView(view) {
 
   refreshBtn();
 })();
+
+// ============================================================
+// BRACKET CARDS: TEAM  vs  TEAM, with the score underneath each team
+// Original bracket colours kept (white card, grey border, category colour on top,
+// green winner, grey loser, orange penalties, green heading chips).
+//
+// IMPORTANT: if you pasted my previous "bracket-cards-block", DELETE it first
+// (its comment starts with "NICER BRACKET CARDS"), then paste this one at the
+// very end of your main script block, just above the closing script tag.
+// ============================================================
+(function () {
+  const st = document.createElement('style');
+  st.id = 'bracketCardsV3';
+  st.textContent = `
+    /* ---------- layout ---------- */
+    html body .bk-grid { display: flex; align-items: center; gap: 14px; min-width: min-content; }
+    html body .bk-col { display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+    html body .bk-arrow { font-size: 22px; color: #374151; }
+    html body .bk-wrap { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; }
+
+    /* ---------- headings (same green chips as before) ---------- */
+    html body .bk-h { display: inline-block; width: fit-content; margin: 0 0 4px;
+      font-size: 14px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+      color: #065f46; background: #d1fae5; border-left: 5px solid #34d399; padding: 4px 10px; border-radius: 6px; }
+
+    /* ---------- card (same border / top colour as before) ---------- */
+    html body .bk-card { width: 270px; max-width: 100%; background: #fff; border: 2px solid #9ca3af;
+      border-top: 5px solid var(--bk, #10b981); border-radius: 8px; padding: 10px 12px; }
+    html body .bk-card.live { box-shadow: 0 0 0 3px #f59e0b; }
+    html body .bk-meta { font-size: 11px; font-weight: 700; color: #374151; margin-bottom: 8px; }
+
+    /* ---------- team vs team, score below each team ---------- */
+    html body .bk-body { display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 8px; align-items: start; }
+    html body .bk-side { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; }
+    html body .bk-name { text-align: center; font-size: 13px; font-weight: 700; color: #111827; padding: 5px 6px;
+      border-radius: 6px; background: #f3f4f6; word-break: break-word; line-height: 1.25;
+      min-height: 2.6em; display: flex; align-items: center; justify-content: center; }
+    html body .bk-name.win { background: #a7f3d0; color: #065f46; box-shadow: inset 0 0 0 2px #34d399; }
+    html body .bk-name.lose { color: #111827; }
+    html body .bk-score { text-align: center; font-size: 22px; font-weight: 800; color: #111827; line-height: 1; }
+    html body .bk-score.win { color: #10b981; }
+    html body .bk-score.lose { color: #111827; }
+    html body .bk-vs { align-self: center; margin-top: -10px; font-size: 11px; font-weight: 700; color: #6b7280; text-transform: lowercase; }
+    html body .bk-pen { text-align: center; font-size: 11px; font-weight: 700; color: #9a3412; }
+
+    @media (max-width: 639px) {
+      html body .bk-grid { flex-direction: column; align-items: stretch; }
+      html body .bk-arrow { transform: rotate(90deg); text-align: center; }
+      html body .bk-card { width: 100%; }
+    }
+  `;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const num = v => (v === '' || v == null || isNaN(v)) ? null : parseInt(v, 10);
+
+  function winSide(m) {
+    if (!done(m)) return 0;
+    const a = +m.score1, b = +m.score2;
+    if (a > b) return 1;
+    if (b > a) return 2;
+    const p1 = num(m.pen1), p2 = num(m.pen2);
+    return (p1 !== null && p2 !== null && p1 !== p2) ? (p1 > p2 ? 1 : 2) : 0;
+  }
+
+  function card(cat, m) {
+    const w = winSide(m);
+    const cls = s => w === s ? ' win' : (w ? ' lose' : '');
+    const sc = v => (v === '' || v == null) ? '–' : esc(v);
+    const tied = done(m) && +m.score1 === +m.score2 && (num(m.pen1) !== null || num(m.pen2) !== null);
+    const pen = v => tied ? `<div class="bk-pen">pens ${num(v) ?? 0}</div>` : '';
+    const when = [m.round, m.time || '', m.day > 0 ? 'Day ' + (m.day + 1) : '', m.court || ''].filter(Boolean).join(' · ');
+    return `<div class="bk-card${m.status === 'ongoing' ? ' live' : ''}" style="--bk:${esc(cat.color)}">
+      <div class="bk-meta">${esc(when)}</div>
+      <div class="bk-body">
+        <div class="bk-side">
+          <div class="bk-name${cls(1)}">${esc(displayName(cat, m, 1))}</div>
+          <div class="bk-score${cls(1)}">${sc(m.score1)}</div>${pen(m.pen1)}
+        </div>
+        <div class="bk-vs">vs</div>
+        <div class="bk-side">
+          <div class="bk-name${cls(2)}">${esc(displayName(cat, m, 2))}</div>
+          <div class="bk-score${cls(2)}">${sc(m.score2)}</div>${pen(m.pen2)}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function renderBracket3() {
+    const box = document.getElementById('bracketBody');
+    if (!box) return;
+    const html = state.categories.map(cat => {
+      const ko = cat.matches.filter(m => m.stage === 'ko');
+      if (!ko.length) return '';
+      const get = id => ko.find(m => m.id === id);
+      const sf = [get('sf1'), get('sf2')].filter(Boolean);
+      const fin = get('final'), third = get('third');
+      const pl = ko.filter(m => /^pl/.test(m.id));
+      return `<div class="br-box">
+        <div class="br-title"><span class="cat-dot" style="background:${esc(cat.color)}"></span>${esc(cat.name)}</div>
+        <div class="bk-grid">
+          ${sf.length ? `<div class="bk-col"><div class="bk-h">Semi-finals</div>${sf.map(m => card(cat, m)).join('')}</div><div class="bk-arrow">➜</div>` : ''}
+          <div class="bk-col">
+            ${fin ? `<div class="bk-h">Final</div>${card(cat, fin)}` : ''}
+            ${third ? `<div class="bk-h" style="margin-top:8px">3rd / 4th place</div>${card(cat, third)}` : ''}
+          </div>
+        </div>
+        ${pl.length ? `<div class="bk-h" style="margin-top:16px">Placing matches</div><div class="bk-wrap">${pl.map(m => card(cat, m)).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+    box.innerHTML = html || '<div class="bg-white rounded-lg border border-gray-200 p-6 text-center text-sm text-gray-500">No knockout matches yet. Use a format with a final or knockouts (for example "Round robin + knockouts").</div>';
+  }
+
+  // Wrapped last, so this drawing is the one that stays on screen
+  wrap('render', o => { o(); renderBracket3(); });
+  wrap('refreshDerived', (o, id) => { o(id); renderBracket3(); });
+  wrap('showTab', (o, name) => { o(name); if (name === 'Bracket') renderBracket3(); });
+
+  if (currentView === 'tournament') render();
+})();
   
 </script>
 
