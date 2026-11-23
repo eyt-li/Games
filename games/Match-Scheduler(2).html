@@ -6027,6 +6027,91 @@ function switchMainView(view) {
 
   if (currentView === 'home') renderHome();
 })();
+
+// ============================================================
+// BACK UP ANY TOURNAMENT (yours or shared with you) + "Download backup" gets everything
+// Paste at the very end of the main script block (after the single-backup block).
+// ============================================================
+(function () {
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const hasCats = d => !!d && toArr(d.categories).length > 0;
+
+  // local data first, then the online copy
+  async function getData(id) {
+    if (id === currentScheduleId && hasCats(state)) return state;
+    const local = getStoredScheduleData(id);
+    if (hasCats(local)) return local;
+    if (db) {
+      try {
+        const snap = await db.ref('matchboard/' + id).once('value');
+        const v = snap.val();
+        if (hasCats(v)) return v;
+      } catch (e) { console.error(e); }
+    }
+    return null;
+  }
+  const download = (obj, name) => {
+    const blob = new Blob([JSON.stringify(obj, null, 1)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
+  async function exportOne(id) {
+    const t = tournamentList[id];
+    if (!t) return;
+    toast('Preparing backup…');
+    const data = await getData(id);
+    if (!data) { toast('Nothing to back up in "' + t.name + '". Open it once while online, then try again.'); return; }
+    const safe = String(t.name || 'tournament').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'tournament';
+    download({ app: 'matchboard', version: 1, savedAt: new Date().toISOString(), tournaments: [{ id: t.id, name: t.name, data }] },
+      'MatchBoard_' + safe + '_' + new Date().toISOString().slice(0, 10) + '.json');
+    toast('Backup of "' + t.name + '" saved.');
+  }
+  window.exportOneTournament = exportOne;
+
+  // the "Download backup" button on Home now includes shared tournaments too
+  window.exportBackup = async function () {
+    toast('Preparing backup…');
+    const items = [];
+    for (const t of Object.values(tournamentList)) {
+      const data = await getData(t.id);
+      if (data) items.push({ id: t.id, name: t.name, data });
+    }
+    if (!items.length) { toast('Nothing to back up yet.'); return; }
+    download({ app: 'matchboard', version: 1, savedAt: new Date().toISOString(), tournaments: items },
+      'MatchBoard_backup_' + new Date().toISOString().slice(0, 10) + '.json');
+    toast('Backup of ' + items.length + ' tournament' + (items.length === 1 ? '' : 's') + ' saved.');
+  };
+
+  // ---------- a ⬇ Backup button on EVERY Home card ----------
+  function decorateHome() {
+    document.querySelectorAll('#tournamentsGrid > div').forEach(card => {
+      card.querySelectorAll('[data-bk1]').forEach(x => x.remove());     // replace the owner-only buttons
+      const m = /selectTournament\('([^']+)'\)/.exec(card.getAttribute('onclick') || '');
+      const t = m && tournamentList[m[1]];
+      if (!t) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn';
+      btn.setAttribute('data-bk1', '1');
+      btn.style.cssText = 'font-size:11px;padding:3px 8px';
+      btn.textContent = '⬇ Backup';
+      btn.title = 'Download a backup of only this tournament';
+      btn.onclick = e => { e.stopPropagation(); exportOne(t.id); };
+      card.lastElementChild.appendChild(btn);
+    });
+  }
+  wrap('renderHome', o => { o(); decorateHome(); });
+
+  // the Setup panel button uses the new version too
+  const b = document.getElementById('backupOneBtn');
+  if (b) b.onclick = () => exportOne(currentScheduleId);
+
+  if (currentView === 'home') renderHome();
+})();
   
 </script>
 
