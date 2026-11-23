@@ -5036,6 +5036,289 @@ function switchMainView(view) {
   if (currentView === 'tournament') render();
 })();
 
+// ============================================================
+// COLOURED TABS + BIGGER "COURT" AND "DAY" HEADINGS
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const css = `
+    /* ---- Tabs: selected = solid green, others = light grey ---- */
+    html body #tabCategory, html body #tabSchedule, html body #tabStandings {
+      padding: 8px 16px !important;
+      font-size: 14px !important;
+      font-weight: 600;
+      border-radius: 10px;
+      transition: background .15s, color .15s, box-shadow .15s;
+    }
+    html body .tab-active {
+      background: #10b981 !important;
+      border: 1px solid #059669 !important;
+      color: #fff !important;
+      font-weight: 700 !important;
+      box-shadow: 0 3px 10px rgba(16, 185, 129, .35) !important;
+    }
+    html body .tab-active svg { color: #fff !important; stroke: #fff !important; }
+    html body .tab-inactive {
+      background: #e5e7eb !important;
+      border: 1px solid #d1d5db !important;
+      color: #4b5563 !important;
+    }
+    html body .tab-inactive:hover { background: #d1fae5 !important; color: #065f46 !important; border-color: #a7f3d0 !important; }
+
+    /* ---- Court heading ---- */
+    #scheduleBody h3.font-semibold { font-size: 22px !important; font-weight: 800; line-height: 1.2; }
+    #scheduleBody .court-badge { font-size: 14px !important; padding: 4px 10px !important; border-radius: 6px; }
+    #scheduleBody h3.font-semibold + span { font-size: 15px !important; font-weight: 600; }
+
+    /* ---- Day heading (DAY 1 · SAT, NOV 14) ---- */
+    #scheduleBody tr > td[colspan].uppercase,
+    #scheduleBody tr > td[colspan].tracking-wide {
+      font-size: 17px !important;
+      font-weight: 800 !important;
+      color: #111827 !important;
+      padding-top: 14px !important;
+      padding-bottom: 10px !important;
+      border-left: 5px solid #10b981;
+      padding-left: 12px !important;
+      letter-spacing: .03em;
+    }
+
+    @media (max-width: 639px) {
+      html body #tabCategory, html body #tabSchedule, html body #tabStandings { padding: 6px 10px !important; font-size: 13px !important; }
+      #scheduleBody h3.font-semibold { font-size: 19px !important; }
+      #scheduleBody .court-badge { font-size: 12px !important; }
+      #scheduleBody tr > td[colspan].tracking-wide { font-size: 15px !important; }
+    }
+  `;
+  const st = document.createElement('style');
+  st.id = 'tabsAndHeadingsStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+})();
+
+// ============================================================
+// KNOCKOUT BRACKET TAB  +  PICTURES ON THE HOME PAGE
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const css = `
+    /* ---------- Bracket ---------- */
+    #tabBracket { padding: 8px 16px; font-size: 14px; }
+    #tabCategory, #tabSchedule, #tabStandings, #tabBracket { white-space: nowrap; }
+    #tabCategory { }
+    .br-box { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; overflow-x: auto; }
+    .br-title { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; color: #111827; margin-bottom: 12px; }
+    .br-grid { display: flex; align-items: center; gap: 14px; min-width: min-content; }
+    .br-col { display: flex; flex-direction: column; justify-content: center; gap: 14px; min-width: 210px; }
+    .br-arrow { font-size: 22px; color: #9ca3af; }
+    .br-h { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6b7280; margin-bottom: -6px; }
+    .br-h.mt { margin-top: 8px; }
+    .br-wrap { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; }
+    .br-card { background: #f9fafb; border: 1px solid #e5e7eb; border-top: 4px solid #10b981; border-radius: 8px; padding: 8px 10px; min-width: 210px; }
+    .br-card.live { box-shadow: 0 0 0 3px #f59e0b; }
+    .br-meta { font-size: 10px; font-weight: 600; color: #6b7280; margin-bottom: 6px; }
+    .br-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 6px; border-radius: 5px; font-size: 14px; font-weight: 600; color: #111827; }
+    .br-row + .br-row { margin-top: 3px; }
+    .br-row.win { background: #d1fae5; color: #065f46; font-weight: 800; }
+    .br-row.lose { color: #9ca3af; }
+    .br-sc { min-width: 20px; text-align: right; font-weight: 800; }
+    .br-pen { font-size: 10px; font-weight: 700; color: #9a3412; margin-top: 4px; }
+    @media (max-width: 639px) {
+      #tabBracket { padding: 6px 10px; font-size: 13px; }
+      .br-col, .br-card { min-width: 180px; }
+    }
+
+    /* ---------- Home pictures ---------- */
+    .tcover { width: 100%; height: 130px; object-fit: cover; border-radius: 6px; margin-bottom: 12px; display: block; }
+    .tpic-actions { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+    .tpic-actions .btn { font-size: 11px; padding: 3px 8px; }
+    .home-banner { width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px; margin-bottom: 16px; display: block; }
+    #tournamentsGrid > div > div:last-child { flex-wrap: wrap; gap: 6px; }
+  `;
+  const st = document.createElement('style');
+  st.id = 'bracketAndPicsStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const num = v => (v === '' || v == null || isNaN(v)) ? null : parseInt(v, 10);
+
+  // ================= BRACKET TAB =================
+  document.getElementById('tabStandings').insertAdjacentHTML('afterend',
+    `<button id="tabBracket" class="tab-inactive px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 text-gray-600">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h5v4H4zM4 14h5v4H4zM15 10h5v4h-5zM9 8h3v8H9M12 12h3"/></svg>
+      Bracket</button>`);
+  document.getElementById('tabCategory').parentElement.style.flexWrap = 'wrap';
+  document.getElementById('standingsView').insertAdjacentHTML('afterend',
+    '<div id="bracketView" class="max-w-7xl mx-auto px-4 pb-12 hidden"><div id="bracketBody" class="space-y-4"></div></div>');
+
+  window.showTab = function (name) {
+    const tabs = {
+      Category: ['tabCategory', 'categoryView'], Schedule: ['tabSchedule', 'scheduleView'],
+      Standings: ['tabStandings', 'standingsView'], Bracket: ['tabBracket', 'bracketView']
+    };
+    Object.keys(tabs).forEach(k => {
+      const on = k === name;
+      document.getElementById(tabs[k][0]).className = (on ? 'tab-active' : 'tab-inactive') + ' px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5' + (on ? '' : ' text-gray-600');
+      document.getElementById(tabs[k][1]).classList.toggle('hidden', !on);
+    });
+    if (name === 'Bracket') renderBracket();
+  };
+  document.getElementById('tabBracket').addEventListener('click', () => showTab('Bracket'));
+
+  function winSide(m) {
+    if (!done(m)) return 0;
+    const a = +m.score1, b = +m.score2;
+    if (a > b) return 1;
+    if (b > a) return 2;
+    const p1 = num(m.pen1), p2 = num(m.pen2);
+    return (p1 !== null && p2 !== null && p1 !== p2) ? (p1 > p2 ? 1 : 2) : 0;
+  }
+  function card(cat, m) {
+    const w = winSide(m);
+    const row = (n, s, side) =>
+      `<div class="br-row${w === side ? ' win' : ''}${w && w !== side ? ' lose' : ''}"><span>${esc(n)}</span><span class="br-sc">${s === '' || s == null ? '' : esc(s)}</span></div>`;
+    const pens = (num(m.pen1) !== null || num(m.pen2) !== null) && done(m) && +m.score1 === +m.score2
+      ? `<div class="br-pen">Penalties ${num(m.pen1) ?? 0} – ${num(m.pen2) ?? 0}</div>` : '';
+    return `<div class="br-card${m.status === 'ongoing' ? ' live' : ''}" style="border-top-color:${esc(cat.color)}">
+      <div class="br-meta">${esc(m.round)} · ${esc(m.time || '')}${m.day > 0 ? ' · Day ' + (m.day + 1) : ''} · ${esc(m.court || '')}</div>
+      ${row(displayName(cat, m, 1), m.score1, 1)}${row(displayName(cat, m, 2), m.score2, 2)}${pens}</div>`;
+  }
+  function renderBracket() {
+    const box = document.getElementById('bracketBody');
+    if (!box) return;
+    const html = state.categories.map(cat => {
+      const ko = cat.matches.filter(m => m.stage === 'ko');
+      if (!ko.length) return '';
+      const get = id => ko.find(m => m.id === id);
+      const sf = [get('sf1'), get('sf2')].filter(Boolean);
+      const fin = get('final'), third = get('third');
+      const pl = ko.filter(m => /^pl/.test(m.id));
+      return `<div class="br-box">
+        <div class="br-title"><span class="cat-dot" style="background:${esc(cat.color)}"></span>${esc(cat.name)}</div>
+        <div class="br-grid">
+          ${sf.length ? `<div class="br-col"><div class="br-h">Semi-finals</div>${sf.map(m => card(cat, m)).join('')}</div><div class="br-arrow">➜</div>` : ''}
+          <div class="br-col">
+            ${fin ? `<div class="br-h">Final</div>${card(cat, fin)}` : ''}
+            ${third ? `<div class="br-h mt">3rd / 4th place</div>${card(cat, third)}` : ''}
+          </div>
+        </div>
+        ${pl.length ? `<div class="br-h" style="margin-top:16px">Placing matches</div><div class="br-wrap">${pl.map(m => card(cat, m)).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+    box.innerHTML = html || '<div class="bg-white rounded-lg border border-gray-200 p-6 text-center text-sm text-gray-500">No knockout matches yet. Use a format with a final or knockouts (for example "Round robin + knockouts").</div>';
+  }
+  wrap('render', o => { o(); renderBracket(); });
+  wrap('refreshDerived', (o, id) => { o(id); renderBracket(); });
+
+  // ================= HOME PICTURES =================
+  const okImg = s => typeof s === 'string' && s.length < 400000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(s);
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*'; input.className = 'hidden';
+  document.body.appendChild(input);
+  let target = '';   // a tournament id, or '__banner'
+
+  function shrink(file, maxW, cb) {
+    const rd = new FileReader();
+    rd.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const k = Math.min(1, maxW / im.width);
+        const c = document.createElement('canvas');
+        c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        cb(c.toDataURL('image/jpeg', 0.75));
+      };
+      im.onerror = () => toast('That image could not be read.');
+      im.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+  }
+  function setImg(id, img) {
+    const t = tournamentList[id];
+    if (!t || !isOwner(t)) return;
+    if (img) t.img = img; else delete t.img;
+    saveStoredTournaments(tournamentList);
+    if (db) { try { db.ref('matchboard_list/' + id).update({ img: img || null }); } catch (e) {} }
+    renderHome();
+  }
+  function setBanner(img) {
+    try { if (img) localStorage.setItem('matchboard_banner', img); else localStorage.removeItem('matchboard_banner'); } catch (e) { toast('This browser could not save the banner.'); }
+    renderHome();
+  }
+  input.addEventListener('change', () => {
+    const f = input.files && input.files[0];
+    input.value = '';
+    if (!f || !target) return;
+    if (target === '__banner') shrink(f, 1200, setBanner);
+    else { const id = target; shrink(f, 640, d => setImg(id, d)); }
+  });
+
+  function decorateHome() {
+    // banner + button
+    const home = document.getElementById('homeView');
+    home.querySelectorAll('.home-banner, .banner-actions').forEach(x => x.remove());
+    let b = null;
+    try { b = localStorage.getItem('matchboard_banner'); } catch (e) {}
+    if (okImg(b)) home.insertAdjacentHTML('afterbegin', `<img class="home-banner" src="${b}" alt="">`);
+    const sub = home.querySelector('h1');
+    if (sub) {
+      sub.parentElement.insertAdjacentHTML('beforeend',
+        `<div class="banner-actions tpic-actions" style="margin-top:8px"><button type="button" class="btn" data-banner>${okImg(b) ? 'Change banner' : '📷 Home banner'}</button>${okImg(b) ? '<button type="button" class="btn" data-bannerrm>Remove banner</button>' : ''}</div>`);
+      const add = sub.parentElement.querySelector('[data-banner]'), rm = sub.parentElement.querySelector('[data-bannerrm]');
+      add.onclick = () => { target = '__banner'; input.click(); };
+      if (rm) rm.onclick = () => setBanner(null);
+    }
+    // cards
+    document.querySelectorAll('#tournamentsGrid > div').forEach(card => {
+      const mt = /selectTournament\('([^']+)'\)/.exec(card.getAttribute('onclick') || '');
+      const t = mt && tournamentList[mt[1]];
+      if (!t) return;
+      if (okImg(t.img)) card.insertAdjacentHTML('afterbegin', `<img class="tcover" src="${t.img}" alt="">`);
+      if (!isOwner(t)) return;
+      const foot = card.lastElementChild;
+      foot.insertAdjacentHTML('beforeend',
+        `<span class="tpic-actions"><button type="button" class="btn" data-pic>${okImg(t.img) ? 'Change picture' : '📷 Add picture'}</button>` +
+        `${okImg(t.img) ? '<button type="button" class="btn" data-picrm>Remove</button>' : ''}</span>`);
+      const add = foot.querySelector('[data-pic]'), rm = foot.querySelector('[data-picrm]');
+      add.onclick = e => { e.stopPropagation(); target = t.id; input.click(); };
+      if (rm) rm.onclick = e => { e.stopPropagation(); setImg(t.id, null); };
+    });
+  }
+  wrap('renderHome', o => { o(); decorateHome(); });
+
+  // pictures set on another device (shared through Firebase)
+  if (db) {
+    db.ref('matchboard_list').on('value', snap => {
+      const val = snap.val() || {};
+      let changed = false;
+      Object.values(tournamentList).forEach(t => {
+        const r = val[t.id];
+        if (!r) return;
+        const im = okImg(r.img) ? r.img : undefined;
+        if ((t.img || undefined) !== im) { if (im) t.img = im; else delete t.img; changed = true; }
+      });
+      if (changed) { saveStoredTournaments(tournamentList); renderHome(); }
+    });
+  }
+
+  if (currentView === 'home') renderHome(); else render();
+})();
+
+// ============================================================
+// HIDE THE SCORE - / + BUTTONS WHEN "TRACK WHO SCORED" IS ON
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const st = document.createElement('style');
+  st.id = 'hideScoreButtonsStyles';
+  st.textContent = `
+    /* tracking scorers ON (page has no "no-scorers" class): no - / + buttons */
+    body:not(.no-scorers) .sc-btn { display: none !important; }
+  `;
+  document.head.appendChild(st);
+})();
+  
 </script>
 
 </body>
