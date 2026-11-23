@@ -5318,6 +5318,104 @@ function switchMainView(view) {
   `;
   document.head.appendChild(st);
 })();
+
+// ============================================================
+// 1) "Groups + playoffs" -> "Groups + knockouts"
+// 2) Hide backup / import / recover tools (and the banner button) from viewers
+// 3) "Lock matches" option: hides everything that can move a match
+// ============================================================
+(function () {
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+
+  // ---------- 1. Rename ----------
+  wrap('getFormatLabel', (o, f) => f === 'groups-playoffs' ? 'Groups + knockouts' : o(f));
+  function renameOptions() {
+    document.querySelectorAll('option').forEach(op => {
+      if (op.textContent.includes('Groups + playoffs')) op.textContent = op.textContent.replace('Groups + playoffs', 'Groups + knockouts');
+    });
+  }
+  new MutationObserver(renameOptions).observe(document.body, { childList: true, subtree: true });
+  renameOptions();
+
+  // ---------- 2. Hide admin tools from viewers ----------
+  // Tools show only in a browser that owns a tournament that has data, and never on a share link (?t=...)
+  function ownsData() {
+    if (new URLSearchParams(location.search).get('t')) return false;
+    return Object.values(tournamentList).some(t => {
+      if (!isOwner(t)) return false;
+      const d = getStoredScheduleData(t.id);
+      return !!(d && toArr(d.categories).length);
+    });
+  }
+  function applyHomeTools() {
+    const show = ownsData();
+    const home = document.getElementById('homeView');
+    const row = home.querySelector('.flex.flex-wrap.gap-2.mt-3');   // Recover / Save page / Download / Import
+    if (row) row.style.display = show ? '' : 'none';
+    home.querySelectorAll('.banner-actions').forEach(x => { x.style.display = show ? '' : 'none'; });
+  }
+  wrap('renderHome', o => { o(); applyHomeTools(); });
+  if (currentView === 'home') renderHome();
+
+  // ---------- 3. Lock matches ----------
+  const st = document.createElement('style');
+  st.textContent = `
+    body.moves-locked .move-btn,
+    body.moves-locked .unpin-btn,
+    body.moves-locked .flip-btn,
+    body.moves-locked .sb2-open,
+    body.moves-locked #sbOpen2,
+    body.moves-locked .court-chip,
+    body.moves-locked #resetMovesSection,
+    body.moves-locked #moveHint { display: none !important; }
+  `;
+  document.head.appendChild(st);
+
+  const locked = () => !!state.lockMoves;
+  const deny = () => { toast('Matches are locked. Untick "Lock matches" in Setup to move them.'); };
+
+  // Setup checkbox (after the "Track who scored" option, or after Knockouts)
+  const anchor = (document.getElementById('trackScorers') && document.getElementById('trackScorers').closest('div')) ||
+                 document.getElementById('koEnd').parentElement;
+  anchor.insertAdjacentHTML('afterend', `
+    <div>
+      <label class="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+        <input type="checkbox" id="lockMoves" style="width:16px;height:16px">
+        🔒 Lock matches (no moving or swapping)
+      </label>
+      <p class="text-xs text-gray-500 mt-1">Hides the ◀ ▶, Swap and Schedule builder buttons so nothing moves by accident.</p>
+    </div>`);
+  const box = document.getElementById('lockMoves');
+  box.addEventListener('change', () => {
+    if (!editMode) { box.checked = locked(); return; }
+    state.lockMoves = box.checked;
+    save();
+    render();
+  });
+
+  function applyLock() {
+    document.body.classList.toggle('moves-locked', locked());
+    box.checked = locked();
+    box.disabled = !editMode;
+  }
+  wrap('render', o => { o(); applyLock(); });
+
+  // keep the setting when data is loaded
+  wrap('normalize', (o, d) => { const s = o(d); if (d && d.lockMoves) s.lockMoves = true; return s; });
+
+  // block the actions themselves too
+  wrap('moveMatch', (o, ...a) => locked() ? deny() : o(...a));
+  wrap('unpinMatch', (o, ...a) => locked() ? deny() : o(...a));
+  wrap('resetAllTimes', (o, ...a) => locked() ? deny() : o(...a));
+  document.addEventListener('click', e => {
+    if (locked() && e.target.closest && e.target.closest('.flip-btn, .sb2-open, #sbOpen2')) {
+      e.stopImmediatePropagation(); e.preventDefault(); deny();
+    }
+  }, true);
+
+  applyLock();
+  if (currentView === 'tournament') render();
+})();
   
 </script>
 
