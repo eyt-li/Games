@@ -519,6 +519,21 @@ function getDbPath() {
 // ============================================
 // PDF EXPORT FUNCTION
 // ============================================
+// Logo for the PDF: jsPDF cannot read WebP, so it is redrawn onto a canvas and passed on as PNG
+async function getLogoForPdf() {
+  const img = document.querySelector('header .hd-logo');
+  if (!img || !img.src) return null;
+  try {
+    if (!img.complete || !img.naturalWidth) await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+    x.drawImage(img, 0, 0);
+    return { data: c.toDataURL('image/png'), w: c.width, h: c.height };
+  } catch (e) { console.error('PDF logo', e); return null; }
+}
+
 async function exportToPDF() {
   try {
     if (!window.jspdf || !window.jspdf.jsPDF) {
@@ -659,9 +674,15 @@ async function exportToPDF() {
     });
 
 
+    const pdfLogo = await getLogoForPdf();
+    const pageW = doc.internal.pageSize.getWidth();
     const pages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pages; i++) {
       doc.setPage(i);
+      if (pdfLogo) {
+        const lh = 9, lw = lh * pdfLogo.w / pdfLogo.h;
+        doc.addImage(pdfLogo.data, 'PNG', pageW - 8 - lw, 3, lw, lh);   // top-right of every page
+      }
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(128);
@@ -6434,6 +6455,120 @@ function switchMainView(view) {
   if (fb) fb.innerHTML = `<img class="ft-logo" src="${FOOTER_LOGO}" alt="MatchBoard - Tournament schedules made simple">`;
 })();
   
+
+// ============================================================
+// LOGO AT THE TOP OF THE HOME PAGE
+// ============================================================
+(function () {
+  const home = document.getElementById('homeView');
+  const src = (document.querySelector('.site-footer .ft-logo') || {}).src;
+  if (!home || !src) return;
+  const st = document.createElement('style');
+  st.textContent = `
+    #homeLogo { display: flex; justify-content: center; padding: 20px 16px 8px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+    #homeLogo img { width: 230px; max-width: 70%; height: auto; display: block; mix-blend-mode: multiply; }
+    @media (max-width: 639px) { #homeLogo img { width: 190px; } }
+  `;
+  document.head.appendChild(st);
+  const box = document.createElement('div');
+  box.id = 'homeLogo';
+  box.innerHTML = `<img src="${src}" alt="MatchBoard">`;
+  home.parentNode.insertBefore(box, home);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const sync = () => box.classList.toggle('hidden', currentView !== 'home');
+  wrap('switchMainView', (o, ...a) => { const r = o(...a); sync(); return r; });
+  sync();
+})();
+
+// ============================================================
+// 2) BRACKET: slot label stays; the team gets its own box underneath
+// ============================================================
+(function () {
+  const st = document.createElement('style');
+  st.id = 'bracketSlotBoxStyles';
+  st.textContent = `
+    html body .bk-slot { text-align: center; font-size: 11px; font-weight: 700; color: #4b5563; padding: 4px 6px;
+      border-radius: 6px; background: #fff; border: 1px dashed #9ca3af; line-height: 1.2; word-break: break-word;
+      min-height: 2.2em; display: flex; align-items: center; justify-content: center; }
+    html body .bk-name.tbd { color: #9ca3af; font-weight: 600; background: #f9fafb; }
+  `;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const num = v => (v === '' || v == null || isNaN(v)) ? null : parseInt(v, 10);
+  const nth = n => { const v = n % 100; return n + ((v >= 11 && v <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th')); };
+
+  function winSide(m) {
+    if (!done(m)) return 0;
+    const a = +m.score1, b = +m.score2;
+    if (a > b) return 1;
+    if (b > a) return 2;
+    const p1 = num(m.pen1), p2 = num(m.pen2);
+    return (p1 !== null && p2 !== null && p1 !== p2) ? (p1 > p2 ? 1 : 2) : 0;
+  }
+
+  function slotLabel(cat, m, side) {
+    const ref = side === 1 ? m.ref1 : m.ref2;
+    if (!ref) return '';
+    if (ref.t === 'seed') return nth(ref.p) + (ref.g ? ' Group ' + ref.g : ' place');
+    const src = cat.matches.find(x => x.id === ref.m);
+    return (ref.t === 'lose' ? 'Loser ' : 'Winner ') + (src ? src.round.replace('Semi-final ', 'SF') : '?');
+  }
+  const teamIn = (cat, m, side) => resolveRef(cat, side === 1 ? m.ref1 : m.ref2) || '';
+
+  function card(cat, m) {
+    const w = winSide(m);
+    const cls = s => w === s ? ' win' : (w ? ' lose' : '');
+    const sc = v => (v === '' || v == null) ? '–' : esc(v);
+    const tied = done(m) && +m.score1 === +m.score2 && (num(m.pen1) !== null || num(m.pen2) !== null);
+    const pen = v => tied ? `<div class="bk-pen">pens ${num(v) ?? 0}</div>` : '';
+    const when = [m.round, m.time || '', m.day > 0 ? 'Day ' + (m.day + 1) : '', m.court || ''].filter(Boolean).join(' · ');
+    const side = s => {
+      const t = teamIn(cat, m, s);
+      return `<div class="bk-side">
+        <div class="bk-slot">${esc(slotLabel(cat, m, s))}</div>
+        <div class="bk-name${t ? cls(s) : ' tbd'}">${t ? esc(t) : 'TBD'}</div>
+        <div class="bk-score${cls(s)}">${sc(s === 1 ? m.score1 : m.score2)}</div>${pen(s === 1 ? m.pen1 : m.pen2)}
+      </div>`;
+    };
+    return `<div class="bk-card${m.status === 'ongoing' ? ' live' : ''}" style="--bk:${esc(cat.color)}">
+      <div class="bk-meta">${esc(when)}</div>
+      <div class="bk-body">${side(1)}<div class="bk-vs">vs</div>${side(2)}</div>
+    </div>`;
+  }
+
+  function renderBracket4() {
+    const box = document.getElementById('bracketBody');
+    if (!box) return;
+    const html = state.categories.map(cat => {
+      const ko = cat.matches.filter(m => m.stage === 'ko');
+      if (!ko.length) return '';
+      const get = id => ko.find(m => m.id === id);
+      const sf = [get('sf1'), get('sf2')].filter(Boolean);
+      const fin = get('final'), third = get('third');
+      const pl = ko.filter(m => /^pl/.test(m.id));
+      return `<div class="br-box">
+        <div class="br-title"><span class="cat-dot" style="background:${esc(cat.color)}"></span>${esc(cat.name)}</div>
+        <div class="bk-grid">
+          ${sf.length ? `<div class="bk-col"><div class="bk-h">Semi-finals</div>${sf.map(m => card(cat, m)).join('')}</div><div class="bk-arrow">➜</div>` : ''}
+          <div class="bk-col">
+            ${fin ? `<div class="bk-h">Final</div>${card(cat, fin)}` : ''}
+            ${third ? `<div class="bk-h" style="margin-top:8px">3rd / 4th place</div>${card(cat, third)}` : ''}
+          </div>
+        </div>
+        ${pl.length ? `<div class="bk-h" style="margin-top:16px">Placing matches</div><div class="bk-wrap">${pl.map(m => card(cat, m)).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+    box.innerHTML = html || '<div class="bg-white rounded-lg border border-gray-200 p-6 text-center text-sm text-gray-500">No knockout matches yet. Use a format with a final or knockouts (for example "Round robin + knockouts").</div>';
+  }
+
+  wrap('render', o => { o(); renderBracket4(); });
+  wrap('refreshDerived', (o, id) => { o(id); renderBracket4(); });
+  wrap('showTab', (o, name) => { o(name); if (name === 'Bracket') renderBracket4(); });
+
+  if (currentView === 'tournament') render();
+})();
+
 </script>
 
 </body>
