@@ -6112,6 +6112,83 @@ function switchMainView(view) {
 
   if (currentView === 'home') renderHome();
 })();
+
+// ============================================================
+// SMALLER TOURNAMENT BANNER
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const st = document.createElement('style');
+  st.id = 'smallBannerStyles';
+  st.textContent = `
+    html body #tBannerWrap { padding-top: 8px !important; }
+    html body #tBannerWrap img {
+      max-height: 90px !important;      /* banner height: change this number */
+      height: 90px;
+      object-fit: cover;
+      object-position: center;
+      border-radius: 10px;
+    }
+    @media (max-width: 639px) {
+      html body #tBannerWrap img { max-height: 60px !important; height: 60px; }
+    }
+  `;
+  document.head.appendChild(st);
+})();
+
+// ============================================================
+// FULL TEAM NAMES IN THE TEAM CHIPS (wrap onto more rows)
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const st = document.createElement('style');
+  st.id = 'fullTeamNameStyles';
+  st.textContent = `
+    /* chips grow with the name */
+    html body .team-chip { height: auto; min-width: 0; max-width: 100%; flex-wrap: wrap; row-gap: 4px; align-items: center; }
+    html body .team-chip span.text-xs { white-space: normal; word-break: break-word; overflow-wrap: anywhere; line-height: 1.25; }
+    /* edit mode: the name box becomes a growing text area */
+    html body .team-chip textarea.team-name-ta {
+      width: 150px; max-width: 100%; min-height: 22px; resize: none; overflow: hidden;
+      background: transparent; border: 0; padding: 0; font-size: 12px; font-weight: 500; color: #111827;
+      line-height: 1.25; white-space: normal; word-break: break-word; outline: none; box-shadow: none;
+    }
+    html body .team-chip textarea.team-name-ta:focus { background: rgba(255,255,255,.6); box-shadow: 0 0 0 2px rgba(59,130,246,.3); border-radius: 4px; }
+    @media (max-width: 639px) { html body .team-chip textarea.team-name-ta { width: 130px; font-size: 16px; } }
+  `;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const grow = ta => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+
+  function convert() {
+    document.querySelectorAll('.team-chip input[type="text"]').forEach(inp => {
+      const ta = document.createElement('textarea');
+      ta.className = 'team-name-ta';
+      ta.rows = 1;
+      ta.value = inp.value;
+      const oc = inp.getAttribute('onchange');           // updateTeamName('cat', index, this.value)
+      ta.setAttribute('data-orig', inp.value);
+      ta.addEventListener('input', () => grow(ta));
+      ta.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ta.blur(); } });
+      ta.addEventListener('blur', () => {
+        if (ta.value === ta.getAttribute('data-orig')) return;
+        ta.setAttribute('data-orig', ta.value);
+        const run = new Function('value', 'return (function(){ const el = { value: value }; return (function(){ ' + (oc || '').replace(/this\.value/g, 'el.value') + ' }).call(null); })();');
+        try { new Function('el', (oc || '').replace(/this\.value/g, 'el.value'))({ value: ta.value }); } catch (e) { console.error(e); }
+      });
+      inp.replaceWith(ta);
+      grow(ta);
+    });
+  }
+  const mo = new MutationObserver(() => { convert(); });
+  mo.observe(document.getElementById('categoriesContainer'), { childList: true });
+  wrap('render', o => { o(); convert(); document.querySelectorAll('textarea.team-name-ta').forEach(grow); });
+  window.addEventListener('resize', () => document.querySelectorAll('textarea.team-name-ta').forEach(grow));
+
+  convert();
+  if (currentView === 'tournament') render();
+})();
   
 </script>
 
