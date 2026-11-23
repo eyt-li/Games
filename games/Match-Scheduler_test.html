@@ -5963,6 +5963,70 @@ function switchMainView(view) {
 
   updateBanner();
 })();
+
+// ============================================================
+// BACK UP ONE TOURNAMENT ONLY
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+
+  function exportOne(id) {
+    const t = tournamentList[id];
+    if (!t) return;
+    const live = id === currentScheduleId && state && toArr(state.categories).length;
+    const data = live ? state : getStoredScheduleData(id);
+    if (!data || !toArr(data.categories).length) {
+      toast('Nothing to back up in "' + t.name + '" yet. Add a category first.');
+      return;
+    }
+    const file = { app: 'matchboard', version: 1, savedAt: new Date().toISOString(), tournaments: [{ id: t.id, name: t.name, data }] };
+    const blob = new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const safe = String(t.name || 'tournament').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'tournament';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'MatchBoard_' + safe + '_' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast('Backup of "' + t.name + '" saved.');
+  }
+  window.exportOneTournament = exportOne;
+
+  // ---------- a button on every Home card you own ----------
+  function decorateHome() {
+    document.querySelectorAll('#tournamentsGrid > div').forEach(card => {
+      if (card.querySelector('[data-bk1]')) return;
+      const m = /selectTournament\('([^']+)'\)/.exec(card.getAttribute('onclick') || '');
+      const t = m && tournamentList[m[1]];
+      if (!t || !isOwner(t)) return;
+      const foot = card.lastElementChild;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn';
+      btn.setAttribute('data-bk1', '1');
+      btn.style.cssText = 'font-size:11px;padding:3px 8px';
+      btn.textContent = '⬇ Backup';
+      btn.title = 'Download a backup of only this tournament';
+      btn.onclick = e => { e.stopPropagation(); exportOne(t.id); };
+      foot.appendChild(btn);
+    });
+  }
+  wrap('renderHome', o => { o(); decorateHome(); });
+
+  // ---------- a button in the Setup panel (Edit mode) ----------
+  const del = document.getElementById('deleteTournamentBtn');
+  if (del && !document.getElementById('backupOneBtn')) {
+    del.parentElement.insertAdjacentHTML('beforebegin',
+      `<div class="border-t border-gray-100 pt-3">
+         <button id="backupOneBtn" type="button" class="btn w-full">⬇ Download backup of this tournament</button>
+         <p class="text-xs text-gray-500 mt-1">Saves only this tournament to a file.</p>
+       </div>`);
+    document.getElementById('backupOneBtn').onclick = () => exportOne(currentScheduleId);
+  }
+
+  if (currentView === 'home') renderHome();
+})();
   
 </script>
 
