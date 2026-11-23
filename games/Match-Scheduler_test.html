@@ -5908,6 +5908,61 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
+
+// ============================================================
+// SMALLER BRACKET FONTS + HOME PICTURE AS A BANNER INSIDE THE TOURNAMENT
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const st = document.createElement('style');
+  st.id = 'bracketSmallAndBannerStyles';
+  st.textContent = `
+    /* ---------- smaller bracket text (change these numbers to taste) ---------- */
+    html body .br-title { font-size: 17px !important; }
+    html body .br-h { font-size: 14px !important; padding: 4px 10px !important; }
+    html body .br-meta { font-size: 11px !important; }
+    html body .br-row { font-size: 13px !important; }
+    html body .bx-team { font-size: 13px !important; padding: 5px 6px !important; }
+    html body .bx-score { font-size: 20px !important; }
+    html body .bx-vs { font-size: 11px !important; }
+    html body .bx-pen { font-size: 11px !important; }
+    html body .br-card { min-width: 220px !important; }
+    html body .br-col { min-width: 220px !important; }
+
+    /* ---------- tournament banner ---------- */
+    #tBannerWrap { max-width: 80rem; margin: 0 auto; padding: 12px 16px 0; }
+    #tBannerWrap img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px; display: block; }
+    @media (max-width: 639px) {
+      #tBannerWrap { padding: 8px 8px 0; }
+      #tBannerWrap img { max-height: 140px; }
+    }
+  `;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const okImg = s => typeof s === 'string' && s.length < 400000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(s);
+
+  const cont = document.getElementById('tournamentContainer');
+  const wrapEl = document.createElement('div');
+  wrapEl.id = 'tBannerWrap';
+  wrapEl.className = 'hidden';
+  wrapEl.innerHTML = '<img alt="">';
+  const tabsBar = document.getElementById('tabCategory').parentElement.parentElement;
+  cont.insertBefore(wrapEl, tabsBar);
+  const img = wrapEl.firstElementChild;
+
+  function updateBanner() {
+    const t = tournamentList[currentScheduleId];
+    const src = t && okImg(t.img) ? t.img : '';
+    if (src) { if (img.getAttribute('src') !== src) img.src = src; }
+    wrapEl.classList.toggle('hidden', !src);
+  }
+  wrap('render', o => { o(); updateBanner(); });
+  wrap('renderHome', o => { o(); updateBanner(); });
+  wrap('selectTournament', (o, ...a) => { const r = o(...a); updateBanner(); return r; });
+
+  updateBanner();
+})();
   
 </script>
 
