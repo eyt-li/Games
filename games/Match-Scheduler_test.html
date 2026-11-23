@@ -5755,6 +5755,72 @@ function switchMainView(view) {
   wrap('render', o => { o(); setVars(); });
   if (currentView === 'tournament') render();
 })();
+
+// ============================================================
+// SCORER DROPDOWN BUTTON ON CATEGORY CARDS + BIGGER, HIGH-CONTRAST BRACKET
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const st = document.createElement('style');
+  st.id = 'bracketContrastStyles';
+  st.textContent = `
+    /* ---------- Bracket headings and cards ---------- */
+    html body .br-h {
+      font-size: 17px !important; font-weight: 800 !important; letter-spacing: .04em;
+      color: #064e3b !important; background: #d1fae5; border-left: 5px solid #059669;
+      padding: 5px 12px; border-radius: 6px; margin-bottom: 4px !important; display: inline-block; width: fit-content;
+    }
+    html body .br-h.mt { margin-top: 12px; }
+    html body .br-title { font-size: 20px !important; color: #000 !important; }
+    html body .br-meta { font-size: 12px !important; font-weight: 700 !important; color: #374151 !important; }
+    html body .br-card { border: 2px solid #9ca3af !important; border-top-width: 5px !important; background: #fff !important; }
+    html body .br-row { font-size: 15px !important; color: #111827 !important; }
+    html body .br-row.win { background: #059669 !important; color: #fff !important; }
+    html body .br-row.lose { color: #6b7280 !important; text-decoration: line-through; }
+    html body .br-arrow { color: #374151 !important; }
+
+    /* ---------- Scorer dropdown button on category cards ---------- */
+    .match-card .gs-tog { margin-top: 0; font-size: 12px; padding: 3px 10px; }
+    body.no-scorers .match-card .gs-tog { display: none !important; }
+  `;
+  document.head.appendChild(st);
+
+  const toA = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const scorersOn = () => state.trackScorers !== false;
+  const count = m => {
+    const g = toA(m.goals);
+    return g.length || toA(m.scorers1).length + toA(m.scorers2).length;
+  };
+
+  function addCardButtons() {
+    const cont = document.getElementById('categoriesContainer');
+    if (!cont) return;
+    cont.querySelectorAll('.match-card .gs-tog').forEach(x => x.remove());
+    if (!scorersOn()) return;
+    cont.querySelectorAll('.match-card').forEach(card => {
+      const ko = card.querySelector('[data-ko]');
+      if (!ko) return;
+      const [cid, mid] = ko.dataset.ko.split('|');
+      const cat = getCat(cid), m = cat && cat.matches.find(x => x.id === mid);
+      if (!m) return;
+      const n = count(m);
+      if (!n && !editMode) return;
+      const panel = card.nextElementSibling;
+      const isOpen = !!(panel && panel.classList.contains('goals-panel') && /▴/.test(panel.textContent));
+      card.lastElementChild.insertAdjacentHTML('beforeend',
+        `<button type="button" class="gs-tog" data-gtog data-key="${esc(cat.id + '|' + m.id)}">⚽ ${n} ${isOpen ? '▴' : '▾'}</button>`);
+    });
+  }
+  ['renderCategories', 'render'].forEach(n => wrap(n, o => { o(); addCardButtons(); }));
+
+  // after a button is clicked, refresh the arrows (the toggle itself is handled by the earlier block)
+  document.addEventListener('click', e => {
+    if (e.target.closest && e.target.closest('[data-gtog]')) setTimeout(addCardButtons, 0);
+  });
+
+  if (currentView === 'tournament') render();
+})();
   
 </script>
 
