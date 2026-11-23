@@ -6189,6 +6189,98 @@ function switchMainView(view) {
   convert();
   if (currentView === 'tournament') render();
 })();
+
+// ============================================================
+// UNDO FOR MOVES / RESETS / SWAPS / SCHEDULE BUILDER
+// Paste at the very end of the main script block.
+// ============================================================
+(function () {
+  const MAX = 30;
+  let stack = [];
+
+  const st = document.createElement('style');
+  st.textContent = `
+    #undoBtn { position: fixed; left: 16px; bottom: 16px; z-index: 250; display: none; align-items: center; gap: 6px;
+      padding: 10px 16px; border-radius: 999px; border: 0; background: #111827; color: #fff; font-size: 14px; font-weight: 700;
+      box-shadow: 0 6px 18px rgba(0,0,0,.3); cursor: pointer; }
+    #undoBtn:hover { background: #1f2937; }
+    #undoBtn.show { display: inline-flex; }
+    @media (max-width: 639px) { #undoBtn { left: 10px; bottom: 10px; padding: 9px 14px; } }
+  `;
+  document.head.appendChild(st);
+
+  const btn = document.createElement('button');
+  btn.id = 'undoBtn';
+  btn.type = 'button';
+  document.body.appendChild(btn);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  const snap = () => { try { return JSON.stringify(state); } catch (e) { return null; } };
+
+  function refreshBtn() {
+    const show = editMode && currentView === 'tournament' && stack.length > 0;
+    btn.classList.toggle('show', show);
+    btn.textContent = '↩ Undo' + (stack.length > 1 ? ' (' + stack.length + ')' : '');
+  }
+
+  function remember() {
+    if (!editMode || currentView !== 'tournament') return;
+    const s = snap();
+    if (!s || stack[stack.length - 1] === s) return;
+    stack.push(s);
+    if (stack.length > MAX) stack.shift();
+    setTimeout(refreshBtn, 0);
+  }
+
+  function undo() {
+    if (!editMode) return;
+    const now = snap();
+    while (stack.length && stack[stack.length - 1] === now) stack.pop();   // skip steps that changed nothing
+    if (!stack.length) { toast('Nothing to undo.'); refreshBtn(); return; }
+    const prev = stack.pop();
+    try {
+      applyRemote(JSON.parse(prev));
+      save();
+      toast('Undone.');
+    } catch (e) { console.error(e); toast('Could not undo that.'); }
+    refreshBtn();
+  }
+  btn.addEventListener('click', undo);
+
+  // ---- take a snapshot just BEFORE the action happens (capture phase) ----
+  document.addEventListener('click', e => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest('.move-btn, .unpin-btn, .flip-btn, #resetMovesBtn')) remember();
+    else if (t.closest('#sbWrap [data-act]')) remember();
+  }, true);
+  document.addEventListener('change', e => {
+    if (e.target && e.target.closest && e.target.closest('#sbWrap')) remember();
+  }, true);
+
+  // ---- also covers the reset button and direct calls ----
+  wrap('resetAllTimes', (o, ...a) => { remember(); return o(...a); });
+  wrap('moveMatch', (o, ...a) => { remember(); return o(...a); });
+  wrap('unpinMatch', (o, ...a) => { remember(); return o(...a); });
+
+  // ---- Ctrl/Cmd + Z ----
+  document.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return;
+    const a = document.activeElement;
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')) return;
+    if (!editMode || !stack.length) return;
+    e.preventDefault();
+    undo();
+  });
+
+  // ---- housekeeping ----
+  wrap('render', o => { o(); refreshBtn(); });
+  wrap('selectTournament', (o, ...a) => { stack = []; const r = o(...a); refreshBtn(); return r; });
+  wrap('switchMainView', (o, ...a) => { const r = o(...a); refreshBtn(); return r; });
+  document.getElementById('editModeBtn').addEventListener('click', () => setTimeout(refreshBtn, 50));
+
+  refreshBtn();
+})();
   
 </script>
 
