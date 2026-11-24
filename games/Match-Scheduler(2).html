@@ -1610,7 +1610,11 @@ function displayName(cat, m, side) {
   const ref = side === 1 ? m.ref1 : m.ref2;
   const name = resolveRef(cat, ref);
   if (name) return name;
-  if (ref.t === 'seed') return ord(ref.p) + (ref.g ? ` Group ${ref.g}` : ' place');
+  if (ref.t === 'seed') {
+    // one group (or a plain round robin): the standings are a single table, so say ROR instead of place / Group A
+    const single = !ref.g || !isGrouped(cat) || (cat.groups || 1) <= 1;
+    return ord(ref.p) + (single ? ' ROR' : ` Group ${ref.g}`);
+  }
   const src = cat.matches.find(x => x.id === ref.m);
   return (ref.t === 'lose' ? 'Loser ' : 'Winner ') + (src ? src.round.replace('Semi-final ', 'SF') : '?');
 }
@@ -6516,7 +6520,7 @@ function switchMainView(view) {
   function slotLabel(cat, m, side) {
     const ref = side === 1 ? m.ref1 : m.ref2;
     if (!ref) return '';
-    if (ref.t === 'seed') return nth(ref.p) + (ref.g ? ' Group ' + ref.g : ' place');
+    if (ref.t === 'seed') return nth(ref.p) + ((!ref.g || !isGrouped(cat) || (cat.groups || 1) <= 1) ? ' ROR' : ' Group ' + ref.g);
     const src = cat.matches.find(x => x.id === ref.m);
     return (ref.t === 'lose' ? 'Loser ' : 'Winner ') + (src ? src.round.replace('Semi-final ', 'SF') : '?');
   }
