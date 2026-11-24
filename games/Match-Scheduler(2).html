@@ -585,9 +585,13 @@ async function exportToPDF() {
 
     const pageH = doc.internal.pageSize.getHeight();
     let y = 24;
+    let firstGroup = true;   // every court and every day after the first starts on a new page
 
     courtNos.forEach(cn => {
-      const rows = list.filter(x => x.m.courtNo === cn);
+      const allRows = list.filter(x => x.m.courtNo === cn);
+      const dayList = [...new Set(allRows.map(x => x.m.day))].sort((a, b) => a - b);
+      dayList.forEach(dayNo => {
+      const rows = allRows.filter(x => x.m.day === dayNo);
       const body = [], meta = [];
       let lastDay = -1;
       let nBreaks = 0;
@@ -627,11 +631,12 @@ async function exportToPDF() {
       const estimate = rh => 10 + (body.length - nBreaks) * rh + nBreaks * 5 + 4;       // header row + every row
       let rowH = 11;
       while (rowH > 8 && estimate(rowH) > usable) rowH -= 0.5; // squeeze rows a little if needed
-      if (y + 14 + estimate(rowH) > pageH - 16 && estimate(rowH) <= usable) { doc.addPage(); y = 18; }
+      if (!firstGroup) { doc.addPage(); y = 18; }
+      firstGroup = false;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
       doc.setTextColor(30, 58, 138);
-      doc.text(`COURT ${cn}  -  ${rows.length} match${rows.length === 1 ? '' : 'es'}`, 8, y);
+      doc.text(`COURT ${cn}  -  ${dayList.length > 1 ? `DAY ${dayNo + 1}  -  ` : ''}${rows.length} match${rows.length === 1 ? '' : 'es'}`, 8, y);
 
       doc.autoTable({
         startY: y + 3,
@@ -671,6 +676,7 @@ async function exportToPDF() {
         }
       });
       y = ((doc.lastAutoTable && doc.lastAutoTable.finalY) || (y + 20)) + 12;
+      });   // end of day
     });
 
 
