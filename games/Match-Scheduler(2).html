@@ -76,6 +76,24 @@
   @media (max-width: 639px) { .status-in-time { display: inline-flex; margin-top: 2px; } }
   .logo-badge { display: inline-flex; align-items: center; justify-content: center; background: #f3f1ec; border: 1px solid #e3dfd5; border-radius: 8px; padding: 4px; line-height: 0; }
   .logo-badge.sm { border-radius: 6px; padding: 3px; }
+  /* slot label (1st ROR, Winner SF1 ...) kept beside the team name once the team is known */
+  [data-tag]::before, [data-tag]::after { font-size: 10px; font-weight: 600; color: #6b7280; background: rgba(255,255,255,.75);
+    border: 1px solid #d1d5db; border-radius: 999px; padding: 0 7px; white-space: nowrap; line-height: 16px; }
+  #scheduleBody td[data-tag].text-right::before { content: attr(data-tag); float: left; margin-right: 10px; }
+  #scheduleBody td[data-tag]:not(.text-right)::after { content: attr(data-tag); float: right; margin-left: 10px; }
+  .match-card span[data-ko$="|1"][data-tag]::before { content: attr(data-tag); margin-right: 8px; }
+  .match-card span[data-ko$="|2"][data-tag]::after { content: attr(data-tag); margin-left: 8px; }
+  /* team not known yet: the middle shows TBD (the label text itself is hidden, only the side tag and TBD are drawn) */
+  #scheduleBody td[data-tbd], .match-card span[data-tbd] { font-size: 0 !important; }
+  #scheduleBody td[data-tbd].text-right::after, #scheduleBody td[data-tbd]:not(.text-right)::before,
+  .match-card span[data-tbd][data-ko$="|1"]::after, .match-card span[data-tbd][data-ko$="|2"]::before {
+    content: 'TBD'; font-size: 12px; font-weight: 600; color: #9ca3af; background: none; border: 0; padding: 0; line-height: normal; }
+  .match-card span[data-tbd][data-ko$="|1"]::after { margin-left: 0; }
+  @media (max-width: 639px) {
+    /* phones: no room for a tag in the table, so an unknown slot just shows its label as before */
+    #scheduleBody td[data-tag]::before, #scheduleBody td[data-tag]::after { display: none !important; }
+    #scheduleBody td[data-tbd] { font-size: 10.5px !important; }
+  }
   /* more breathing room inside match cards */
 .match-card { column-gap: 24px; row-gap: 10px; }
 .match-card > div:first-child { column-gap: 12px; row-gap: 6px; }
@@ -534,9 +552,10 @@ async function getLogoForPdf() {
   } catch (e) { console.error('PDF logo', e); return null; }
 }
 
-// mode: 'blank' (no scores), 'scores' (default), 'scorers' (scores + who scored)
+// mode: 'blank' (no scores), 'scores' (default), 'scorers' (scores + who scored),
+//       'all' (schedule + standings page + brackets page)
 async function exportToPDF(mode) {
-  mode = (mode === 'blank' || mode === 'scorers') ? mode : 'scores';
+  mode = (mode === 'blank' || mode === 'scorers' || mode === 'all') ? mode : 'scores';
   try {
     if (!window.jspdf || !window.jspdf.jsPDF) {
       toast("PDF library failed to load. Check your internet connection or disable ad-blockers.");
@@ -586,6 +605,9 @@ async function exportToPDF(mode) {
       [1, 2].forEach(sd => { const t = part(sd); if (t) bits.push(`${nameOf(cat, m, sd)}: ${t}`); });
       return bits.join('   |   ');
     };
+
+    // 'all' also lists who scored, when the tournament tracks scorers
+    const withScorers = mode === 'scorers' || (mode === 'all' && state.trackScorers !== false);
 
     let seq = 0;
     const labelOf = new Map(list.map(x => {
@@ -655,7 +677,7 @@ async function exportToPDF(mode) {
           `${cat.name}${m.group ? ` (${m.group})` : ''}${isKO ? ` - ${pdfRound(m.round)}` : ''}`
         ]);
         meta.push({ color: cat.color, gcolor: m.group ? groupColor(m.group, cat) : null, isKO, s1: m.score1, s2: m.score2 });
-        if (mode === 'scorers') {
+        if (withScorers) {
           const line = scorersLine(cat, m);
           if (line) {
             body.push([{ content: 'Scorers:  ' + line, colSpan: 7, styles: { fontSize: 7.5, cellPadding: 1.2, minCellHeight: 5, textColor: [55, 65, 81], fillColor: [250, 250, 250], fontStyle: 'italic' } }]);
@@ -719,6 +741,155 @@ async function exportToPDF(mode) {
     });
 
 
+    // ---------- Everything: one page of standings, one page of brackets ----------
+    if (mode === 'all') {
+      const hexRgb = h => [1, 3, 5].map(i => parseInt(String(h).slice(i, i + 2), 16) || 0);
+      const pageTitle = text => {
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(30, 58, 138);
+        doc.text(text, 8, 18);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(90);
+        doc.text((state.tName || '').toUpperCase(), 8, 23);
+      };
+      const top0 = 28, bottom0 = pageH - 14;
+
+      // ----- standings -----
+      const stCats = state.categories.filter(c => c.teams.length);
+      if (stCats.length) {
+        doc.addPage();
+        pageTitle('STANDINGS');
+        const tables = [];
+        stCats.forEach(cat => {
+          const st = computeStandings(cat);
+          (isGrouped(cat) ? groupLetters(cat.groups) : ['_']).forEach(g => {
+            const rows = st[g] || [];
+            if (rows.length) tables.push({ cat, g, rows });
+          });
+        });
+        // pick the biggest text size that still lets every table fit on this one page
+        const sizes = [[9, 1.6], [8, 1.2], [7.5, 0.9], [7, 0.7], [6.5, 0.5]];
+        let pick = sizes[sizes.length - 1];
+        for (const sz of sizes) {
+          const rh = sz[0] * 0.3528 * 1.15 + 2 * sz[1];
+          const total = tables.reduce((t, x) => t + 7 + rh * (x.rows.length + 1) + 5, 0);
+          if (top0 + total <= bottom0) { pick = sz; break; }
+        }
+        const rh = pick[0] * 0.3528 * 1.15 + 2 * pick[1];
+        let y = top0;
+        tables.forEach(({ cat, g, rows }) => {
+          if (y + 7 + rh * (rows.length + 1) > bottom0) { doc.addPage(); y = 18; }   // only if it really cannot fit
+          const rgb = hexRgb(cat.color);
+          doc.setFillColor(rgb[0], rgb[1], rgb[2]); doc.rect(8, y - 3.4, 2.6, 4.2, 'F');
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(0);
+          doc.text(cat.name + (g === '_' ? '' : ' - Group ' + g), 12.5, y);
+          const colStyles = { 0: { cellWidth: 9, halign: 'center' }, 1: { halign: 'left' }, 9: { cellWidth: 12, halign: 'center', fontStyle: 'bold' } };
+          for (let i = 2; i <= 8; i++) colStyles[i] = { cellWidth: 11, halign: 'center' };
+          doc.autoTable({
+            startY: y + 2,
+            theme: 'grid',
+            margin: { left: 8, right: 8, top: 15, bottom: 16 },
+            styles: { fontSize: pick[0], cellPadding: pick[1], lineColor: [170, 178, 190], lineWidth: 0.2, valign: 'middle' },
+            head: [['#', 'Team', 'P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts']],
+            body: rows.map((t, i) => { const gd = t.gf - t.ga; return [i + 1, t.name, t.p, t.w, t.d, t.l, t.gf, t.ga, (gd > 0 ? '+' : '') + gd, t.pts]; }),
+            headStyles: { fillColor: rgb, textColor: 255, fontStyle: 'bold', halign: 'center' },
+            columnStyles: colStyles
+          });
+          y = ((doc.lastAutoTable && doc.lastAutoTable.finalY) || (y + 20)) + 5;
+        });
+      }
+
+      // ----- brackets -----
+      const brCats = state.categories.filter(c => c.matches.some(m => m.stage === 'ko'));
+      if (brCats.length) {
+        doc.addPage();
+        pageTitle('BRACKETS');
+        const W = 58, GX = 10;
+        const colX = [8, 8 + W + GX, 8 + 2 * (W + GX)];
+        const numv = v => (v === '' || v == null || isNaN(v)) ? null : parseInt(v, 10);
+        const winOf = m => {
+          if (!done(m)) return 0;
+          const a = +m.score1, b = +m.score2;
+          if (a > b) return 1;
+          if (b > a) return 2;
+          const p1 = numv(m.pen1), p2 = numv(m.pen2);
+          return (p1 !== null && p2 !== null && p1 !== p2) ? (p1 > p2 ? 1 : 2) : 0;
+        };
+        const blocks = brCats.map(cat => {
+          const ko = cat.matches.filter(m => m.stage === 'ko');
+          const get = id => ko.find(m => m.id === id);
+          return { cat, sf: [get('sf1'), get('sf2')].filter(Boolean), fin: get('final'), third: get('third'), pl: ko.filter(m => /^pl/.test(m.id)) };
+        });
+        const unit = b => 6 + 4 + (b.sf.length ? 2 * 18 + 5 : 18) + (b.pl.length ? 8 + Math.ceil(b.pl.length / 3) * 23 - 5 : 0) + 8;
+        const k = Math.max(0.6, Math.min(1, (bottom0 - top0) / blocks.reduce((t, b) => t + unit(b), 0)));
+        const fk = Math.max(k, 0.8);
+
+        const card = (x, y, m, cat) => {
+          const H = 18 * k, w = W, win = winOf(m);
+          doc.setDrawColor(150, 156, 166); doc.setLineWidth(0.3); doc.setFillColor(255, 255, 255);
+          doc.roundedRect(x, y, w, H, 1, 1, 'FD');
+          const c = hexRgb(cat.color);
+          doc.setFillColor(c[0], c[1], c[2]); doc.rect(x + 0.2, y + 0.2, w - 0.4, 1.2 * k, 'F');
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(6 * fk); doc.setTextColor(75, 85, 99);
+          doc.text([pdfRound(m.round), m.time, m.day > 0 ? 'Day ' + (m.day + 1) : '', m.court].filter(Boolean).join(' · '), x + 2, y + 4.4 * k);
+          const lineH = 6.2 * k;
+          [1, 2].forEach(side => {
+            const ly = y + 5.6 * k + (side - 1) * (lineH + 0.4 * k), ty = ly + lineH * 0.72;
+            const nm = resolveRef(cat, side === 1 ? m.ref1 : m.ref2) || '';
+            if (win === side) { doc.setFillColor(209, 250, 229); doc.rect(x + 1, ly, w - 2, lineH, 'F'); }
+            doc.setFont('helvetica', win === side ? 'bold' : 'normal'); doc.setFontSize(8 * Math.max(k, 0.75));
+            if (nm) doc.setTextColor(17, 24, 39); else doc.setTextColor(156, 163, 175);
+            const full = nm || 'TBD'; let txt = full;
+            while (txt.length > 1 && doc.getTextWidth(txt) > w - 26) txt = txt.slice(0, -1);
+            if (txt !== full) txt = txt.slice(0, -1) + '.';
+            doc.text(txt, x + 2, ty);
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(5.5 * fk); doc.setTextColor(107, 114, 128);
+            doc.text(koSlotLabel(cat, m, side), x + w - 10, ty, { align: 'right' });
+            const sc = side === 1 ? m.score1 : m.score2;
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(8 * Math.max(k, 0.75)); doc.setTextColor(17, 24, 39);
+            doc.text(sc === '' || sc == null ? '-' : String(sc), x + w - 2.5, ty, { align: 'right' });
+          });
+          if (done(m) && +m.score1 === +m.score2 && (numv(m.pen1) !== null || numv(m.pen2) !== null)) {
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(6 * fk); doc.setTextColor(154, 52, 18);
+            doc.text(`pens ${numv(m.pen1) ?? 0} - ${numv(m.pen2) ?? 0}`, x + w - 2, y + 4.4 * k, { align: 'right' });
+          }
+        };
+        const small = (t, x, yy) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5 * fk); doc.setTextColor(6, 95, 70); doc.text(t, x, yy); };
+
+        let y = top0;
+        blocks.forEach(b => {
+          if (y > top0 && y + unit(b) * k > bottom0 + 2) { doc.addPage(); y = 18; }   // only if it really cannot fit
+          const H = 18 * k, G = 5 * k, rgb = hexRgb(b.cat.color);
+          doc.setFillColor(rgb[0], rgb[1], rgb[2]); doc.rect(8, y - 3.2, 2.6, 4.2, 'F');
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(Math.max(9, 10.5 * k)); doc.setTextColor(0);
+          doc.text(b.cat.name, 12.5, y);
+          const hasSf = b.sf.length > 0, fx = hasSf ? colX[1] : colX[0], tx = hasSf ? colX[2] : colX[1];
+          let cy = y + 6 * k;
+          if (hasSf) small('SEMI-FINALS', colX[0], cy + 1);
+          if (b.fin) small('FINAL', fx, cy + 1);
+          if (b.third) small('3RD / 4TH PLACE', tx, cy + 1);
+          cy += 4 * k;
+          const sfY = [cy, cy + H + G], rowY = hasSf ? cy + (H + G) / 2 : cy;
+          b.sf.forEach((m, i) => card(colX[0], sfY[i], m, b.cat));
+          if (b.fin) card(fx, rowY, b.fin, b.cat);
+          if (b.third) card(tx, rowY, b.third, b.cat);
+          if (hasSf && b.fin) {          // lines from the semi-finals to the final
+            doc.setDrawColor(120); doc.setLineWidth(0.3);
+            const xr = colX[0] + W, xm = xr + GX / 2;
+            b.sf.forEach((m, i) => doc.line(xr, sfY[i] + H / 2, xm, sfY[i] + H / 2));
+            if (b.sf.length === 2) doc.line(xm, sfY[0] + H / 2, xm, sfY[1] + H / 2);
+            doc.line(xm, rowY + H / 2, fx, rowY + H / 2);
+          }
+          let by = cy + (hasSf ? 2 * H + G : H) + 4 * k;
+          if (b.pl.length) {
+            small('PLACING MATCHES', colX[0], by + 1);
+            by += 4 * k;
+            b.pl.forEach((m, i) => card(colX[i % 3], by + Math.floor(i / 3) * (H + G), m, b.cat));
+            by += Math.ceil(b.pl.length / 3) * (H + G) - G;
+          }
+          y = by + 8 * k;
+        });
+      }
+    }
+
     const pdfLogo = await getLogoForPdf();
     const pageW = doc.internal.pageSize.getWidth();
     const pages = doc.internal.getNumberOfPages();
@@ -735,7 +906,7 @@ async function exportToPDF(mode) {
     }
 
 
-    const fileName = `Tournament_Schedule_${eventDate.replace(/-/g, '_')}${mode === 'blank' ? '_blank' : mode === 'scorers' ? '_scorers' : ''}.pdf`;
+    const fileName = `Tournament_Schedule_${eventDate.replace(/-/g, '_')}${mode === 'blank' ? '_blank' : mode === 'scorers' ? '_scorers' : mode === 'all' ? '_full' : ''}.pdf`;
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
     if (/iP(hone|ad|od)/.test(navigator.userAgent)) {
@@ -766,6 +937,7 @@ function pdfOptionsDialog() {
       <button class="btn" style="text-align:left" data-m="blank"><b>Blank</b><br><span class="text-xs text-gray-500">Schedule only, score boxes left empty to fill in by hand</span></button>
       <button class="btn" style="text-align:left" data-m="scores"><b>With scores</b><br><span class="text-xs text-gray-500">Schedule with the results entered so far</span></button>
       ${scorersOn ? `<button class="btn" style="text-align:left" data-m="scorers"><b>With scores and scorers</b><br><span class="text-xs text-gray-500">Results plus the names of the players who scored</span></button>` : ''}
+      <button class="btn" style="text-align:left" data-m="all"><b>Everything</b><br><span class="text-xs text-gray-500">Schedule with scores${scorersOn ? ' and scorers' : ''}, then one page of standings and one page of brackets</span></button>
       <button class="btn" data-c>Cancel</button>
     </div>`);
   o.querySelector('[data-c]').onclick = () => o.remove();
@@ -1658,6 +1830,27 @@ function resolveRef(cat, ref) {
   if (ref.t === 'lose') return resolveRef(cat, firstWon ? m.ref2 : m.ref1);
   return resolveRef(cat, firstWon ? m.ref1 : m.ref2);
 }
+// The slot a knockout team comes from (1st ROR, Winner SF1 ...), shown beside the team name once the team is known.
+// It is drawn with CSS from a data-tag attribute, so it never becomes part of the team name text.
+function koSlotLabel(cat, m, side) {
+  const ref = side === 1 ? m.ref1 : m.ref2;
+  if (!ref) return '';
+  if (ref.t === 'seed') {
+    const single = !ref.g || !isGrouped(cat) || (cat.groups || 1) <= 1;
+    return ord(ref.p) + (single ? ' ROR' : ` Group ${ref.g}`);
+  }
+  const src = cat.matches.find(x => x.id === ref.m);
+  return (ref.t === 'lose' ? 'Loser ' : 'Winner ') + (src ? src.round.replace('Semi-final ', 'SF') : '?');
+}
+// Every knockout slot always gets its label as a side tag; while the team is not known yet the middle shows TBD
+// (the real text stays the label, so everything that reads team names from the page keeps working).
+function slotTagText(cat, m, side) {
+  if (!m || m.stage !== 'ko') return '';
+  return koSlotLabel(cat, m, side);
+}
+const slotUnknown = (cat, m, side) => !!m && m.stage === 'ko' && !resolveRef(cat, side === 1 ? m.ref1 : m.ref2);
+const slotAttr = (cat, m, side) => { const t = slotTagText(cat, m, side); return t ? ` data-tag="${esc(t)}"${slotUnknown(cat, m, side) ? ' data-tbd="1"' : ''}` : ''; };
+
 function displayName(cat, m, side) {
   if (m.stage !== 'ko') return side === 1 ? m.team1 : m.team2;
   const ref = side === 1 ? m.ref1 : m.ref2;
@@ -1804,9 +1997,9 @@ function renderMatchesByTimeSlot(cat) {
           ${statusBadge(m)}
           ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''}
           ${warnBadge(cat, m)}
-          <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|1">${esc(displayName(cat, m, 1))}</span>
+          <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|1"${slotAttr(cat, m, 1)}>${esc(displayName(cat, m, 1))}</span>
           <span class="text-gray-500 text-xs">vs</span>
-          <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|2">${esc(displayName(cat, m, 2))}</span>
+          <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|2"${slotAttr(cat, m, 2)}>${esc(displayName(cat, m, 2))}</span>
           ${m.group ? groupBadge(m.group, cat) : ''}
           ${m.stage === 'ko' ? `<span class="group-badge">${m.round}</span>` : ''}
         </div>
@@ -2079,9 +2272,9 @@ function renderSchedule() {
         <td class="py-2 px-2">${m.group ? groupBadge(m.group, cat) : '—'}</td>
         <td class="py-2 px-2 text-gray-600 text-xs">${m.round}</td>
         <td class="py-2 px-2">${statusBadge(m)}</td>
-        <td class="py-2 px-2 text-right font-semibold text-xs">${esc(displayName(cat, m, 1))}</td>
+        <td class="py-2 px-2 text-right font-semibold text-xs"${slotAttr(cat, m, 1)}>${esc(displayName(cat, m, 1))}</td>
         ${scoreCell(cat, m)}
-        <td class="py-2 px-2 font-semibold text-xs">${esc(displayName(cat, m, 2))}</td>
+        <td class="py-2 px-2 font-semibold text-xs"${slotAttr(cat, m, 2)}>${esc(displayName(cat, m, 2))}</td>
         ${editMode ? `<td class="py-2 px-2"><div class="flex flex-wrap items-center gap-1">${statusButtons(cat, m)}${moveButtons(cat, m)}</div></td>` : ''}
       </tr>`;
     }).join('');
@@ -2184,7 +2377,12 @@ function refreshDerived(catId) {
     const [cid, mid, side] = s.dataset.ko.split('|');
     if (cid !== cat.id) return;
     const m = cat.matches.find(x => x.id === mid);
-    if (m) s.textContent = displayName(cat, m, +side);
+    if (m) {
+      s.textContent = displayName(cat, m, +side);
+      const tg = slotTagText(cat, m, +side);
+      if (tg) s.setAttribute('data-tag', tg); else s.removeAttribute('data-tag');
+      if (tg && slotUnknown(cat, m, +side)) s.setAttribute('data-tbd', '1'); else s.removeAttribute('data-tbd');
+    }
   });
   syncScoreInputs();
   scheduleTableRefresh();
