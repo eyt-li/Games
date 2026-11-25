@@ -6830,6 +6830,33 @@ function switchMainView(view) {
   if (currentView === 'tournament') render();
 })();
 
+// ============================================================
+// THE ADDRESS BAR NOW FOLLOWS THE OPEN TOURNAMENT
+// Paste at the very end of the main script block.
+// Opening a tournament puts  ?t=<its id>  in the address bar, so copying the
+// address gives a link to THAT tournament. On the Home screen it is the plain page address.
+// (Only when live sharing / Firebase is connected; snapshot links are left alone.)
+// ============================================================
+(function () {
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  function syncUrl() {
+    if (!db) return;                                   // without Firebase the link cannot carry the data, leave it alone
+    try {
+      const u = new URL(location.href);
+      if (currentView === 'tournament' && currentScheduleId) {
+        u.searchParams.set('t', currentScheduleId);
+        if (!fileHasFbConfig && activeFbConfig) u.searchParams.set('fb', b64u.enc(activeFbConfig));
+      } else {
+        u.searchParams.delete('t');
+        u.searchParams.delete('fb');
+      }
+      history.replaceState(null, '', u.toString());
+    } catch (e) { /* some previews do not allow changing the address */ }
+  }
+  wrap('switchMainView', (o, ...a) => { const r = o(...a); syncUrl(); return r; });
+  syncUrl();
+})();
+  
 </script>
 
 </body>
