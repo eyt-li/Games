@@ -76,6 +76,24 @@
   @media (max-width: 639px) { .status-in-time { display: inline-flex; margin-top: 2px; } }
   .logo-badge { display: inline-flex; align-items: center; justify-content: center; background: #f3f1ec; border: 1px solid #e3dfd5; border-radius: 8px; padding: 4px; line-height: 0; }
   .logo-badge.sm { border-radius: 6px; padding: 3px; }
+  /* slot label (1st ROR, Winner SF1 ...) kept beside the team name once the team is known */
+  [data-tag]::before, [data-tag]::after { font-size: 10px; font-weight: 600; color: #6b7280; background: rgba(255,255,255,.75);
+    border: 1px solid #d1d5db; border-radius: 999px; padding: 0 7px; white-space: nowrap; line-height: 16px; }
+  #scheduleBody td[data-tag].text-right::before { content: attr(data-tag); float: left; margin-right: 10px; }
+  #scheduleBody td[data-tag]:not(.text-right)::after { content: attr(data-tag); float: right; margin-left: 10px; }
+  .match-card span[data-ko$="|1"][data-tag]::before { content: attr(data-tag); margin-right: 8px; }
+  .match-card span[data-ko$="|2"][data-tag]::after { content: attr(data-tag); margin-left: 8px; }
+  /* team not known yet: the middle shows TBD (the label text itself is hidden, only the side tag and TBD are drawn) */
+  #scheduleBody td[data-tbd], .match-card span[data-tbd] { font-size: 0 !important; }
+  #scheduleBody td[data-tbd].text-right::after, #scheduleBody td[data-tbd]:not(.text-right)::before,
+  .match-card span[data-tbd][data-ko$="|1"]::after, .match-card span[data-tbd][data-ko$="|2"]::before {
+    content: 'TBD'; font-size: 12px; font-weight: 600; color: #9ca3af; background: none; border: 0; padding: 0; line-height: normal; }
+  .match-card span[data-tbd][data-ko$="|1"]::after { margin-left: 0; }
+  @media (max-width: 639px) {
+    /* phones: no room for a tag in the table, so an unknown slot just shows its label as before */
+    #scheduleBody td[data-tag]::before, #scheduleBody td[data-tag]::after { display: none !important; }
+    #scheduleBody td[data-tbd] { font-size: 10.5px !important; }
+  }
   /* more breathing room inside match cards */
 .match-card { column-gap: 24px; row-gap: 10px; }
 .match-card > div:first-child { column-gap: 12px; row-gap: 6px; }
@@ -1658,6 +1676,27 @@ function resolveRef(cat, ref) {
   if (ref.t === 'lose') return resolveRef(cat, firstWon ? m.ref2 : m.ref1);
   return resolveRef(cat, firstWon ? m.ref1 : m.ref2);
 }
+// The slot a knockout team comes from (1st ROR, Winner SF1 ...), shown beside the team name once the team is known.
+// It is drawn with CSS from a data-tag attribute, so it never becomes part of the team name text.
+function koSlotLabel(cat, m, side) {
+  const ref = side === 1 ? m.ref1 : m.ref2;
+  if (!ref) return '';
+  if (ref.t === 'seed') {
+    const single = !ref.g || !isGrouped(cat) || (cat.groups || 1) <= 1;
+    return ord(ref.p) + (single ? ' ROR' : ` Group ${ref.g}`);
+  }
+  const src = cat.matches.find(x => x.id === ref.m);
+  return (ref.t === 'lose' ? 'Loser ' : 'Winner ') + (src ? src.round.replace('Semi-final ', 'SF') : '?');
+}
+// Every knockout slot always gets its label as a side tag; while the team is not known yet the middle shows TBD
+// (the real text stays the label, so everything that reads team names from the page keeps working).
+function slotTagText(cat, m, side) {
+  if (!m || m.stage !== 'ko') return '';
+  return koSlotLabel(cat, m, side);
+}
+const slotUnknown = (cat, m, side) => !!m && m.stage === 'ko' && !resolveRef(cat, side === 1 ? m.ref1 : m.ref2);
+const slotAttr = (cat, m, side) => { const t = slotTagText(cat, m, side); return t ? ` data-tag="${esc(t)}"${slotUnknown(cat, m, side) ? ' data-tbd="1"' : ''}` : ''; };
+
 function displayName(cat, m, side) {
   if (m.stage !== 'ko') return side === 1 ? m.team1 : m.team2;
   const ref = side === 1 ? m.ref1 : m.ref2;
@@ -1804,9 +1843,9 @@ function renderMatchesByTimeSlot(cat) {
           ${statusBadge(m)}
           ${editMode && m.pin ? '<span class="manual-badge">Moved</span>' : ''}
           ${warnBadge(cat, m)}
-          <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|1">${esc(displayName(cat, m, 1))}</span>
+          <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|1"${slotAttr(cat, m, 1)}>${esc(displayName(cat, m, 1))}</span>
           <span class="text-gray-500 text-xs">vs</span>
-          <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|2">${esc(displayName(cat, m, 2))}</span>
+          <span class="font-semibold text-gray-900 text-sm" data-ko="${cat.id}|${m.id}|2"${slotAttr(cat, m, 2)}>${esc(displayName(cat, m, 2))}</span>
           ${m.group ? groupBadge(m.group, cat) : ''}
           ${m.stage === 'ko' ? `<span class="group-badge">${m.round}</span>` : ''}
         </div>
@@ -2079,9 +2118,9 @@ function renderSchedule() {
         <td class="py-2 px-2">${m.group ? groupBadge(m.group, cat) : '—'}</td>
         <td class="py-2 px-2 text-gray-600 text-xs">${m.round}</td>
         <td class="py-2 px-2">${statusBadge(m)}</td>
-        <td class="py-2 px-2 text-right font-semibold text-xs">${esc(displayName(cat, m, 1))}</td>
+        <td class="py-2 px-2 text-right font-semibold text-xs"${slotAttr(cat, m, 1)}>${esc(displayName(cat, m, 1))}</td>
         ${scoreCell(cat, m)}
-        <td class="py-2 px-2 font-semibold text-xs">${esc(displayName(cat, m, 2))}</td>
+        <td class="py-2 px-2 font-semibold text-xs"${slotAttr(cat, m, 2)}>${esc(displayName(cat, m, 2))}</td>
         ${editMode ? `<td class="py-2 px-2"><div class="flex flex-wrap items-center gap-1">${statusButtons(cat, m)}${moveButtons(cat, m)}</div></td>` : ''}
       </tr>`;
     }).join('');
@@ -2184,7 +2223,12 @@ function refreshDerived(catId) {
     const [cid, mid, side] = s.dataset.ko.split('|');
     if (cid !== cat.id) return;
     const m = cat.matches.find(x => x.id === mid);
-    if (m) s.textContent = displayName(cat, m, +side);
+    if (m) {
+      s.textContent = displayName(cat, m, +side);
+      const tg = slotTagText(cat, m, +side);
+      if (tg) s.setAttribute('data-tag', tg); else s.removeAttribute('data-tag');
+      if (tg && slotUnknown(cat, m, +side)) s.setAttribute('data-tbd', '1'); else s.removeAttribute('data-tbd');
+    }
   });
   syncScoreInputs();
   scheduleTableRefresh();
