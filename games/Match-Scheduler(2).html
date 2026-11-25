@@ -534,7 +534,9 @@ async function getLogoForPdf() {
   } catch (e) { console.error('PDF logo', e); return null; }
 }
 
-async function exportToPDF() {
+// mode: 'blank' (no scores), 'scores' (default), 'scorers' (scores + who scored)
+async function exportToPDF(mode) {
+  mode = (mode === 'blank' || mode === 'scorers') ? mode : 'scores';
   try {
     if (!window.jspdf || !window.jspdf.jsPDF) {
       toast("PDF library failed to load. Check your internet connection or disable ad-blockers.");
@@ -558,6 +560,33 @@ async function exportToPDF() {
 
     // "5th/6th place" -> "5/6" in the PDF
     const pdfRound = r => String(r).replace(/^(\d+)(?:st|nd|rd|th)\/(\d+)(?:st|nd|rd|th)(?:\s*place)?$/i, '$1/$2');
+    // Blank version: knockout slots show their label (1st ROR, Winner SF1 ...) instead of the teams the results decided
+    const slotName = (cat, m, side) => {
+      if (m.stage !== 'ko') return side === 1 ? m.team1 : m.team2;
+      const ref = side === 1 ? m.ref1 : m.ref2;
+      if (!ref) return '';
+      if (ref.t === 'seed') {
+        const single = !ref.g || !isGrouped(cat) || (cat.groups || 1) <= 1;
+        return ord(ref.p) + (single ? ' ROR' : ` Group ${ref.g}`);
+      }
+      const src = cat.matches.find(x => x.id === ref.m);
+      return (ref.t === 'lose' ? 'Loser ' : 'Winner ') + (src ? src.round.replace('Semi-final ', 'SF') : '?');
+    };
+    const nameOf = (cat, m, side) => mode === 'blank' ? slotName(cat, m, side) : displayName(cat, m, side);
+    // "Ali 4', Omar 9'" for one side of a match
+    const scorersLine = (cat, m) => {
+      const A = x => Array.isArray(x) ? x.filter(v => v != null) : (x && typeof x === 'object' ? Object.values(x) : []);
+      let goals = A(m.goals).map(g => ({ side: +g.side === 2 ? 2 : 1, p: g.p || '', min: g.min ?? '', sec: g.sec ?? '' }));
+      if (!goals.length) goals = [1, 2].flatMap(sd => A(m['scorers' + sd]).map(p => ({ side: sd, p, min: '', sec: '' })));
+      if (!goals.length) return '';
+      const key = g => (g.min === '' && g.sec === '') ? 999999 : (parseInt(g.min) || 0) * 60 + (parseInt(g.sec) || 0);
+      const part = sd => goals.filter(g => g.side === sd).sort((a, b) => key(a) - key(b))
+        .map(g => g.p + (g.min !== '' ? ` ${parseInt(g.min) || 0}'` : '')).join(', ');
+      const bits = [];
+      [1, 2].forEach(sd => { const t = part(sd); if (t) bits.push(`${nameOf(cat, m, sd)}: ${t}`); });
+      return bits.join('   |   ');
+    };
+
     let seq = 0;
     const labelOf = new Map(list.map(x => {
       const m = x.m;
@@ -619,13 +648,21 @@ async function exportToPDF() {
         body.push([
           labelOf.get(m),
           `${m.time} - ${formatTime(m.timeMin + mm)}`,
-          displayName(cat, m, 1),
-          m.score1 !== '' ? String(m.score1) : '',
-          m.score2 !== '' ? String(m.score2) : '',
-          displayName(cat, m, 2),
+          nameOf(cat, m, 1),
+          mode !== 'blank' && m.score1 !== '' ? String(m.score1) : '',
+          mode !== 'blank' && m.score2 !== '' ? String(m.score2) : '',
+          nameOf(cat, m, 2),
           `${cat.name}${m.group ? ` (${m.group})` : ''}${isKO ? ` - ${pdfRound(m.round)}` : ''}`
         ]);
         meta.push({ color: cat.color, gcolor: m.group ? groupColor(m.group, cat) : null, isKO, s1: m.score1, s2: m.score2 });
+        if (mode === 'scorers') {
+          const line = scorersLine(cat, m);
+          if (line) {
+            body.push([{ content: 'Scorers:  ' + line, colSpan: 7, styles: { fontSize: 7.5, cellPadding: 1.2, minCellHeight: 5, textColor: [55, 65, 81], fillColor: [250, 250, 250], fontStyle: 'italic' } }]);
+            meta.push(null);
+            nBreaks++;     // a short row, for the height estimate
+          }
+        }
       });
 
       // keep this court's schedule on a single page whenever it can fit
@@ -698,7 +735,7 @@ async function exportToPDF() {
     }
 
 
-    const fileName = `Tournament_Schedule_${eventDate.replace(/-/g, '_')}.pdf`;
+    const fileName = `Tournament_Schedule_${eventDate.replace(/-/g, '_')}${mode === 'blank' ? '_blank' : mode === 'scorers' ? '_scorers' : ''}.pdf`;
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
     if (/iP(hone|ad|od)/.test(navigator.userAgent)) {
@@ -720,7 +757,21 @@ async function exportToPDF() {
   }
 }
 
-document.getElementById('exportPdfBtn').addEventListener('click', exportToPDF);
+// The Export PDF button first asks which version to make
+function pdfOptionsDialog() {
+  const scorersOn = state.trackScorers !== false;
+  const o = showModal(`<h3 class="font-semibold text-gray-900 mb-1">Export PDF</h3>
+    <p class="text-xs text-gray-500 mb-3">Which version do you want?</p>
+    <div class="flex flex-col gap-2">
+      <button class="btn" style="text-align:left" data-m="blank"><b>Blank</b><br><span class="text-xs text-gray-500">Schedule only, score boxes left empty to fill in by hand</span></button>
+      <button class="btn" style="text-align:left" data-m="scores"><b>With scores</b><br><span class="text-xs text-gray-500">Schedule with the results entered so far</span></button>
+      ${scorersOn ? `<button class="btn" style="text-align:left" data-m="scorers"><b>With scores and scorers</b><br><span class="text-xs text-gray-500">Results plus the names of the players who scored</span></button>` : ''}
+      <button class="btn" data-c>Cancel</button>
+    </div>`);
+  o.querySelector('[data-c]').onclick = () => o.remove();
+  o.querySelectorAll('[data-m]').forEach(b => { b.onclick = () => { const m = b.dataset.m; o.remove(); exportToPDF(m); }; });
+}
+document.getElementById('exportPdfBtn').addEventListener('click', pdfOptionsDialog);
 
 // ============================================
 // HELPER FUNCTIONS
