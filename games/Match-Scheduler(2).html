@@ -113,6 +113,17 @@
   @media (max-width: 639px) {
     .site-footer-inner { flex-direction: column; text-align: center; padding: 14px 12px; }
   }
+  @media (max-width: 639px) {
+    /* phones: once the team is known, the slot label sits as a small tag on its own line under the team name */
+    #scheduleBody td[data-tag]:not([data-tbd]).text-right::after,
+    #scheduleBody td[data-tag]:not([data-tbd]):not(.text-right)::after {
+      content: attr(data-tag); display: block !important; float: none !important;
+      width: fit-content; max-width: 100%; margin: 3px 0 0 0 !important;
+      font-size: 9px; line-height: 14px; padding: 0 6px; white-space: normal;
+    }
+    #scheduleBody td[data-tag]:not([data-tbd]).text-right::after { margin-left: auto !important; }
+  }
+  
 </style>
 </head>
 <body>
