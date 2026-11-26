@@ -6867,6 +6867,30 @@ function switchMainView(view) {
   wrap('switchMainView', (o, ...a) => { const r = o(...a); syncUrl(); return r; });
   syncUrl();
 })();
+
+// ============================================================
+// MASTER PASSWORD: one password that unlocks Edit on EVERY tournament
+// Paste at the very end of the main script block (replaces the earlier master-password block).
+// Each tournament's own password keeps working too.
+// Change the text between the quotes to your password.
+// ============================================================
+(function () {
+  const MASTER_PASSWORD = 'SFKOG4I6AY94DR2H';
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+  wrap('checkPassword', async o => {
+    const input = document.getElementById('passwordInput').value;
+    if (MASTER_PASSWORD && input === MASTER_PASSWORD) {
+      editMode = true;
+      document.getElementById('editModeBtn').classList.add('active');
+      document.getElementById('editModeText').textContent = 'Editing';
+      document.getElementById('passwordModal').classList.add('hidden');
+      render();
+      return;
+    }
+    return o();          // not the master password: the tournament's own password is checked as before
+  });
+})();
   
 </script>
 
