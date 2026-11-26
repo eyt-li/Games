@@ -6892,38 +6892,6 @@ function switchMainView(view) {
     return o();          // not the master password: the tournament's own password is checked as before
   });
 })();
-// ============================================================
-// CLICKING "ONGOING" ON A MATCH THAT IS ALREADY ONGOING NO LONGER STOPS THE TIMER
-// Paste at the very end of the main script block, just above the closing <script> tag
-// (after the "Reset timer" block).
-//
-// Before: pressing Ongoing again switched the match back to "not started", which also stopped the timer.
-// Now:    - timer running      -> nothing changes, it keeps running
-//         - timer was paused   -> it carries on running
-// To stop it use  ⏸  (pause)  or  Completed.
-// ============================================================
-(function () {
-  let off = 0;
-  if (db) { try { db.ref('.info/serverTimeOffset').on('value', s => { off = s.val() || 0; }); } catch (e) {} }
-  const now = () => Date.now() + off;
-
-  document.addEventListener('click', e => {
-    const b = e.target.closest && e.target.closest('.status-btn[data-status="ongoing"]');
-    if (!b || !editMode) return;
-    const cat = getCat(b.dataset.cat), m = cat && cat.matches.find(x => x.id === b.dataset.match);
-    if (!m || m.status !== 'ongoing') return;          // not ongoing yet: the normal button action runs
-    e.stopImmediatePropagation();
-    e.preventDefault();
-    if (m.clk && m.clk.s) {                            // already running: leave it alone
-      toast('Already ongoing. Use ⏸ to pause the timer or Completed to finish the match.');
-      return;
-    }
-    if (!m.clk) m.clk = { a: 0, s: now() };            // paused (or no clock yet): carry on
-    else m.clk.s = now();
-    save();
-    render();
-  }, true);
-})();
 
   
 </script>
