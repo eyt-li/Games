@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6890,6 +6891,83 @@ function switchMainView(view) {
     }
     return o();          // not the master password: the tournament's own password is checked as before
   });
+})();
+// ============================================================
+// ABOUT THE CREATOR (Home screen, with room for a picture)
+// Paste at the very end of the main script block, just above the closing script tag.
+//
+// TO ADD YOUR PICTURE: put a link or data address between the quotes of ABOUT_IMAGE.
+// While it is empty, a dashed "your photo here" circle is shown instead.
+// All the wording is in the ABOUT object below, so it is easy to change.
+// ============================================================
+(function () {
+  const ABOUT_IMAGE = '';   // e.g. 'https://yoursite.com/me.jpg' or a data:image/... address
+
+  const ABOUT = {
+    emoji: '🏒',
+    title: 'About the Creator',
+    // text inside **double stars** is shown in bold green
+    lines: [
+      "I'm a 16year-old **floorball player** and **self-taught coder** building **sports tech** that anyone can use, whether you're a player, a parent, or running the whole tournament.",
+      "MatchBoard turns a slow, tricky job into a **simple, clean process**: **no more spreadsheets and double-checking**.",
+      
+    ],
+    chips: ['🏒 Floorballer', '💻 Developer', '🚀 Youth tech', '📊 Sports tech', '🏆 Tournament tools'],  };
+
+  const home = document.getElementById('homeView');
+  if (!home || document.getElementById('aboutCreator')) return;
+
+  const st = document.createElement('style');
+  st.id = 'aboutCreatorStyles';
+  st.textContent = `
+    #aboutCreator { margin-top: 36px; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 32px 24px; }
+    #aboutCreator .ab-head { text-align: center; margin-bottom: 22px; }
+    #aboutCreator .ab-title { font-size: 28px; font-weight: 800; color: #111827; display: inline-flex; align-items: center; gap: 10px; }
+    #aboutCreator .ab-bar { width: 64px; height: 5px; border-radius: 999px; background: #10b981; margin: 12px auto 0;
+      box-shadow: 0 0 14px rgba(16, 185, 129, .45); }
+    #aboutCreator .ab-body { display: flex; align-items: center; justify-content: center; gap: 32px; max-width: 880px; margin: 0 auto; }
+    #aboutCreator .ab-photo { flex: 0 0 auto; width: 170px; height: 170px; border-radius: 50%; overflow: hidden;
+      border: 4px solid #10b981; box-shadow: 0 6px 20px rgba(16, 185, 129, .25); background: #f3f4f6;
+      display: flex; align-items: center; justify-content: center; text-align: center; }
+    #aboutCreator .ab-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #aboutCreator .ab-photo.empty { border: 3px dashed #9ca3af; box-shadow: none; color: #6b7280; font-size: 12px; font-weight: 600; padding: 12px; }
+    #aboutCreator .ab-text p { font-size: 15px; line-height: 1.75; color: #4b5563; margin: 0 0 10px; }
+    #aboutCreator .ab-text b { color: #059669; font-weight: 700; }
+    #aboutCreator .ab-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    #aboutCreator .ab-chip { font-size: 12px; font-weight: 700; color: #065f46; background: #d1fae5; border: 1px solid #a7f3d0;
+      border-radius: 999px; padding: 4px 12px; }
+    #aboutCreator .ab-link { display: inline-block; margin-top: 14px; font-size: 13px; font-weight: 700; color: #059669; text-decoration: underline; }
+    @media (max-width: 639px) {
+      #aboutCreator { padding: 24px 16px; margin-top: 24px; }
+      #aboutCreator .ab-title { font-size: 22px; }
+      #aboutCreator .ab-body { flex-direction: column; gap: 18px; text-align: center; }
+      #aboutCreator .ab-chips { justify-content: center; }
+      #aboutCreator .ab-photo { width: 140px; height: 140px; }
+    }
+  `;
+  document.head.appendChild(st);
+
+  const bold = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  const photo = ABOUT_IMAGE
+    ? `<div class="ab-photo"><img src="${esc(ABOUT_IMAGE)}" alt="The creator of MatchBoard"></div>`
+    : `<div class="ab-photo empty">📷<br>Your photo here</div>`;
+
+  const sec = document.createElement('section');
+  sec.id = 'aboutCreator';
+  sec.innerHTML = `
+    <div class="ab-head">
+      <div class="ab-title"><span>${ABOUT.emoji}</span> ${esc(ABOUT.title)}</div>
+      <div class="ab-bar"></div>
+    </div>
+    <div class="ab-body">
+      ${photo}
+      <div class="ab-text">
+        ${ABOUT.lines.map(l => `<p>${bold(l)}</p>`).join('')}
+        <div class="ab-chips">${ABOUT.chips.map(c => `<span class="ab-chip">${esc(c)}</span>`).join('')}</div>
+        ${ABOUT.link ? `<a class="ab-link" href="${esc(ABOUT.link)}" target="_blank" rel="noopener noreferrer">${esc(ABOUT.linkText)} &rarr;</a>` : ''}
+      </div>
+    </div>`;
+  home.appendChild(sec);   // inside the Home screen, so it hides when a tournament is open
 })();
   
 </script>
