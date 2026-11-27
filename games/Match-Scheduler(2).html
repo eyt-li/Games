@@ -7079,6 +7079,72 @@ function switchMainView(view) {
 
   if (currentView === 'tournament') render();
 })();
+  // ============================================================
+// MATCH TIMER IN THE FULL SCHEDULE TAB
+// Paste after the "MATCH TIMER FIXES v2" block, just above < /script>.
+// ============================================================
+(function () {
+  const st = document.createElement('style');
+  st.id = 'scheduleTimerStyles';
+  st.textContent = `
+    #scheduleBody .sch-timer { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 4px; white-space: normal; }
+    #scheduleBody .sch-timer .mtimer { font-size: 11px; padding: 1px 8px; }
+    #scheduleBody .sch-timer .mtimer-reset { font-size: 11px; padding: 2px 8px; }
+    @media (max-width: 639px) {
+      #scheduleBody .sch-timer .mtimer { font-size: 12px; }
+      #scheduleBody .sch-timer .mtimer-reset { font-size: 12px; padding: 3px 9px; }
+    }
+  `;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+
+  let off = 0;
+  if (db) { try { db.ref('.info/serverTimeOffset').on('value', s => { off = s.val() || 0; }); } catch (e) {} }
+  const now = () => Date.now() + off;
+  const elapsed = m => m.clk ? m.clk.a + (m.clk.s ? Math.max(0, now() - m.clk.s) : 0) : 0;
+  const running = m => !!(m.clk && m.clk.s);
+  const fmt = ms => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+  // same rule as the match cards: hidden only when not Ongoing, not Completed, and the timer is 00:00 and paused
+  const shows = m => m.status === 'ongoing' || m.status === 'completed' || running(m) || elapsed(m) >= 1000;
+
+  // remember which match each table row belongs to (same order the table is drawn in)
+  let rec = false, recList = null, rowMatches = [];
+  wrap('allMatches', o => { const l = o(); if (rec) recList = l; return l; });
+
+  function decorateScheduleTimers() {
+    const box = document.getElementById('scheduleBody');
+    if (!box) return;
+    box.querySelectorAll('.sch-timer').forEach(x => x.remove());
+    const rows = Array.from(box.querySelectorAll('tr.schedule-row'));
+    if (rows.length !== rowMatches.length) return;
+    rows.forEach((tr, i) => {
+      const { cat, m } = rowMatches[i];
+      if (!shows(m)) return;
+      const cell = tr.children[0];
+      if (!cell) return;
+      const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+      cell.insertAdjacentHTML('beforeend', `<div class="sch-timer">
+        <span class="mtimer${running(m) ? ' run' : ''}" ${d}>⏱ <b class="mtv">${fmt(elapsed(m))}</b>${editMode
+          ? `<button type="button" class="mtimer-pp" data-tpp ${d} title="${running(m) ? 'Pause the timer' : 'Start the timer'}">${running(m) ? '⏸ Pause' : '▶ Start'}</button>` : ''}</span>
+        ${editMode ? `<button type="button" class="mtimer-reset" data-treset ${d} title="Set this match's timer back to 00:00">↺ Reset Timer</button>` : ''}
+      </div>`);
+    });
+  }
+
+  wrap('renderSchedule', o => {
+    rec = true; recList = null;
+    try { o(); } finally { rec = false; }
+    rowMatches = [];
+    if (recList) {
+      const cns = [...new Set(recList.map(x => x.m.courtNo))].sort((a, b) => a - b);
+      cns.forEach(cn => recList.filter(x => x.m.courtNo === cn).forEach(x => rowMatches.push(x)));
+    }
+    decorateScheduleTimers();
+  });
+
+  if (currentView === 'tournament') render();
+})();
 </script>
 
 </body>
