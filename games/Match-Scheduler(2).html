@@ -6969,7 +6969,115 @@ function switchMainView(view) {
     </div>`;
   home.appendChild(sec);   // inside the Home screen, so it hides when a tournament is open
 })();
-  
+  // ============================================================
+// MATCH TIMER FIXES v2 (phone + computer)
+// ============================================================
+(function () {
+  const css = `
+    /* old timer pill and old unlabelled reset buttons are replaced by this block */
+    .mclock, .status-btn[data-reset-timer] { display: none !important; }
+
+    .mtimer-wrap { order: 3; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .mtimer { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px;
+      background: #f3f4f6; border: 1px solid #d1d5db; font-size: 12px; font-weight: 700; color: #374151; white-space: nowrap;
+      font-variant-numeric: tabular-nums; }
+    .mtimer.run { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+    .mtimer-pp { border: 0; background: none; cursor: pointer; font-size: 11px; font-weight: 700; color: inherit;
+      padding: 0 0 0 4px; border-left: 1px solid rgba(0,0,0,.15); margin-left: 2px; white-space: nowrap; }
+    .mtimer-reset { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px;
+      border: 1px solid #fca5a5; background: #fff; color: #b91c1c; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .mtimer-reset:hover { background: #fee2e2; border-color: #f87171; }
+    .mtimer-reset:active { background: #fecaca; }
+
+    /* phones: the timer gets its own full-width row, always visible */
+    @media (max-width: 639px) {
+      html body .match-card .mtimer-wrap {
+        display: flex !important; order: 30 !important; flex: 0 0 100% !important;
+        width: 100% !important; min-width: 0 !important; margin-top: 2px;
+      }
+      html body .match-card .mtimer { font-size: 13px !important; }
+      html body .match-card .mtimer-reset { font-size: 12px !important; padding: 4px 11px; }
+    }
+  `;
+  const old = document.getElementById('timerFixesStyles');
+  if (old) old.remove();
+  const st = document.createElement('style');
+  st.id = 'timerFixesStyles';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  const wrap = (name, fn) => { const orig = window[name]; window[name] = function (...a) { return fn(orig, ...a); }; };
+
+  // same clock as the rest of the page (Firebase server clock when live sharing is on)
+  let off = 0;
+  if (db) { try { db.ref('.info/serverTimeOffset').on('value', s => { off = s.val() || 0; }); } catch (e) {} }
+  const now = () => Date.now() + off;
+  const elapsed = m => m.clk ? m.clk.a + (m.clk.s ? Math.max(0, now() - m.clk.s) : 0) : 0;
+  const running = m => !!(m.clk && m.clk.s);
+  const fmt = ms => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+  const startClk = m => { if (!m.clk) m.clk = { a: 0, s: now() }; else if (!m.clk.s) m.clk.s = now(); };
+  const pauseClk = m => { if (m.clk && m.clk.s) { m.clk.a += Math.max(0, now() - m.clk.s); m.clk.s = 0; } };
+
+  // Hidden ONLY when: not Ongoing, not Completed, timer at 00:00 and paused
+  const shows = m => m.status === 'ongoing' || m.status === 'completed' || running(m) || elapsed(m) >= 1000;
+
+  const matchFromCard = card => {
+    const ko = card.querySelector('[data-ko]');
+    if (!ko) return null;
+    const [cid, mid] = ko.dataset.ko.split('|');
+    const cat = getCat(cid), m = cat && cat.matches.find(x => x.id === mid);
+    return m ? { cat, m } : null;
+  };
+
+  function decorateTimers() {
+    document.querySelectorAll('.match-card').forEach(card => {
+      card.querySelectorAll('.mtimer-wrap, .mclock').forEach(x => x.remove());   // also drops the old timer pill
+      const hit = matchFromCard(card);
+      if (!hit || !shows(hit.m)) return;
+      const { cat, m } = hit;
+      const left = card.firstElementChild;
+      if (!left) return;
+      const d = `data-cat="${esc(cat.id)}" data-match="${esc(m.id)}"`;
+      left.insertAdjacentHTML('beforeend', `<span class="mtimer-wrap">
+          <span class="mtimer${running(m) ? ' run' : ''}" ${d}>⏱ <b class="mtv">${fmt(elapsed(m))}</b>${editMode
+            ? `<button type="button" class="mtimer-pp" data-tpp ${d} title="${running(m) ? 'Pause the timer' : 'Start the timer'}">${running(m) ? '⏸ Pause' : '▶ Start'}</button>` : ''}</span>
+          ${editMode ? `<button type="button" class="mtimer-reset" data-treset ${d} title="Set this match's timer back to 00:00">↺ Reset Timer</button>` : ''}
+        </span>`);
+    });
+  }
+  ['renderCategories', 'render'].forEach(n => wrap(n, o => { o(); decorateTimers(); }));
+
+  // Start / Pause and Reset Timer
+  document.addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('[data-tpp], [data-treset]');
+    if (!t) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    if (!editMode) return;
+    const cat = getCat(t.dataset.cat), m = cat && cat.matches.find(x => x.id === t.dataset.match);
+    if (!m) return;
+    if (t.hasAttribute('data-tpp')) {
+      if (running(m)) pauseClk(m); else startClk(m);
+    } else {
+      const keepGoing = m.status === 'ongoing' && running(m);   // only a running timer on a live match keeps running
+      m.clk = { a: 0, s: keepGoing ? now() : 0 };
+      toast(keepGoing ? 'Timer reset to 00:00 and still running.' : 'Timer reset to 00:00 (stopped).');
+    }
+    save();
+    render();
+  }, true);
+
+  // keep the numbers ticking
+  setInterval(() => {
+    document.querySelectorAll('.mtimer').forEach(el => {
+      const c = getCat(el.dataset.cat), m = c && c.matches.find(x => x.id === el.dataset.match);
+      const v = el.querySelector('.mtv');
+      if (m && v) v.textContent = fmt(elapsed(m));
+    });
+  }, 500);
+
+  if (currentView === 'tournament') render();
+})();
 </script>
 
 </body>
